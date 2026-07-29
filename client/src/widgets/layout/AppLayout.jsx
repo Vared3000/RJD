@@ -4,32 +4,55 @@ import { useLogout } from '../../features/auth/model/use-logout.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import styles from './AppLayout.module.css';
 
-const NAV_ITEMS = [{ to: '/', label: 'Главная', end: true }];
+const NAV_SECTIONS = [
+  { items: [{ to: '/', label: 'Главная', end: true }] },
+  {
+    title: 'Справочники',
+    permission: 'catalogs.view',
+    items: [
+      { to: '/catalogs/organizations', label: 'Организации' },
+      { to: '/catalogs/subdivisions', label: 'Подразделения' },
+      { to: '/catalogs/positions', label: 'Должности' },
+      { to: '/catalogs/warehouses', label: 'Склады' },
+      { to: '/catalogs/suppliers', label: 'Поставщики' },
+      { to: '/catalogs/sizes', label: 'Размеры' },
+    ],
+  },
+];
 
 export function AppLayout() {
   const user = useSessionStore((state) => state.user);
   const logout = useLogout();
+  const permissions = user?.permissions ?? [];
+  const visibleSections = NAV_SECTIONS.filter(
+    (section) => !section.permission || permissions.includes(section.permission),
+  );
 
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>Учёт спецодежды</div>
-        <nav>
-          <ul className={styles.nav}>
-            {NAV_ITEMS.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+        <nav className={styles.nav}>
+          {visibleSections.map((section) => (
+            <div key={section.title ?? 'main'} className={styles.navSection}>
+              {section.title && <div className={styles.navSectionTitle}>{section.title}</div>}
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
       </aside>
       <div className={styles.content}>

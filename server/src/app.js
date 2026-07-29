@@ -9,6 +9,12 @@ import { swaggerSpec } from './config/swagger.js';
 import { logger } from './utils/logger.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
 import { createAuthRouter } from './modules/auth/auth.routes.js';
+import { createOrganizationsRouter } from './modules/catalogs/organizations/organizations.routes.js';
+import { createSubdivisionsRouter } from './modules/catalogs/subdivisions/subdivisions.routes.js';
+import { createPositionsRouter } from './modules/catalogs/positions/positions.routes.js';
+import { createWarehousesRouter } from './modules/catalogs/warehouses/warehouses.routes.js';
+import { createSuppliersRouter } from './modules/catalogs/suppliers/suppliers.routes.js';
+import { createSizesRouter } from './modules/catalogs/sizes/sizes.routes.js';
 
 export function createApp() {
   const app = express();
@@ -30,6 +36,12 @@ export function createApp() {
   app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 
   app.use('/api/v1/auth', createAuthRouter());
+  app.use('/api/v1/organizations', createOrganizationsRouter());
+  app.use('/api/v1/subdivisions', createSubdivisionsRouter());
+  app.use('/api/v1/positions', createPositionsRouter());
+  app.use('/api/v1/warehouses', createWarehousesRouter());
+  app.use('/api/v1/suppliers', createSuppliersRouter());
+  app.use('/api/v1/sizes', createSizesRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

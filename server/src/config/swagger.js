@@ -18,3 +18,9 @@ export const swaggerSpec = swaggerJsdoc({
   },
   apis: ['./src/modules/**/*.routes.js'],
 });
+
+// Справочники (см. reference-openapi.js) не описываются статичным JSDoc —
+// их пути генерируются и добавляются сюда при регистрации роутера в app.js.
+export function extendSwaggerPaths(paths) {
+  Object.assign(swaggerSpec.paths, paths);
+}
