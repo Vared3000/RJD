@@ -16,6 +16,7 @@ import { defineInstance } from './instance.model.js';
 import { defineReceivingDocument } from './receiving-document.model.js';
 import { defineReceivingLine } from './receiving-line.model.js';
 import { defineStockMovement } from './stock-movement.model.js';
+import { defineEmployee } from './employee.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -34,6 +35,7 @@ const Instance = defineInstance(sequelize);
 const ReceivingDocument = defineReceivingDocument(sequelize);
 const ReceivingLine = defineReceivingLine(sequelize);
 const StockMovement = defineStockMovement(sequelize);
+const Employee = defineEmployee(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -98,6 +100,20 @@ StockMovement.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 StockMovement.belongsTo(Warehouse, { foreignKey: 'fromWarehouseId', as: 'fromWarehouse' });
 StockMovement.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
 
+// Работник: организация/подразделение/должность + три размера (одежда/рост/обувь)
+Organization.hasMany(Employee, { foreignKey: 'organizationId', as: 'employees' });
+Employee.belongsTo(Organization, { foreignKey: 'organizationId', as: 'organization' });
+
+Subdivision.hasMany(Employee, { foreignKey: 'subdivisionId', as: 'employees' });
+Employee.belongsTo(Subdivision, { foreignKey: 'subdivisionId', as: 'subdivision' });
+
+Position.hasMany(Employee, { foreignKey: 'positionId', as: 'employees' });
+Employee.belongsTo(Position, { foreignKey: 'positionId', as: 'position' });
+
+Employee.belongsTo(Size, { foreignKey: 'clothingSizeId', as: 'clothingSize' });
+Employee.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
+Employee.belongsTo(Size, { foreignKey: 'shoeSizeId', as: 'shoeSize' });
+
 export const models = {
   Role,
   Permission,
@@ -116,6 +132,7 @@ export const models = {
   ReceivingDocument,
   ReceivingLine,
   StockMovement,
+  Employee,
 };
 
 export { sequelize };

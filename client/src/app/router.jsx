@@ -14,6 +14,7 @@ import { ReceivingListPage } from '../pages/purchases/ReceivingListPage.jsx';
 import { ReceivingEditorPage } from '../pages/purchases/ReceivingEditorPage.jsx';
 import { StockBalancesPage } from '../pages/warehouses/StockBalancesPage.jsx';
 import { StockMovementsPage } from '../pages/warehouses/StockMovementsPage.jsx';
+import { EmployeesPage } from '../pages/employees/EmployeesPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -50,6 +51,7 @@ export function AppRouter() {
         <Route path="purchases/receiving/:id" element={<ReceivingEditorPage />} />
         <Route path="warehouses/balances" element={<StockBalancesPage />} />
         <Route path="warehouses/movements" element={<StockMovementsPage />} />
+        <Route path="employees" element={<EmployeesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

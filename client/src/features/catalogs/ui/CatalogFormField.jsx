@@ -8,7 +8,9 @@ const INPUT_TYPES = { number: 'number', email: 'email', date: 'date' };
 // field: { name, label, type: 'text'|'email'|'number'|'date'|'select', required,
 //          options?: [{value,label}] — для статичного select,
 //          optionsResource?, optionValue?, optionLabel? — для select со
-//          списком из другого справочника (например, организация). }
+//          списком из другого справочника (например, организация);
+//          optionsFilter?(item) — сузить список загруженных записей
+//          (например, размеры только одного типа). }
 export function CatalogFormField({ field, form }) {
   const {
     register,
@@ -46,10 +48,12 @@ function SelectField({ field, control, error }) {
   const { data: fetchedItems } = resourceHooks ? resourceHooks.useList(false) : { data: null };
 
   const options = field.optionsResource
-    ? (fetchedItems ?? []).map((item) => ({
-        value: resolveAccessor(field.optionValue, item),
-        label: resolveAccessor(field.optionLabel, item),
-      }))
+    ? (fetchedItems ?? [])
+        .filter((item) => (field.optionsFilter ? field.optionsFilter(item) : true))
+        .map((item) => ({
+          value: resolveAccessor(field.optionValue, item),
+          label: resolveAccessor(field.optionLabel, item),
+        }))
     : (field.options ?? []);
 
   return (

@@ -19,6 +19,7 @@ import { createNomenclatureModelsRouter } from './modules/nomenclature/models/no
 import { createInstancesRouter } from './modules/nomenclature/instances/instances.routes.js';
 import { createReceivingRouter } from './modules/purchases/receiving/receiving.routes.js';
 import { createStockRouter } from './modules/warehouses/stock/stock.routes.js';
+import { createEmployeesRouter } from './modules/employees/employees.routes.js';
 
 export function createApp() {
   const app = express();
@@ -50,6 +51,7 @@ export function createApp() {
   app.use('/api/v1/instances', createInstancesRouter());
   app.use('/api/v1/purchases/receiving', createReceivingRouter());
   app.use('/api/v1/stock', createStockRouter());
+  app.use('/api/v1/employees', createEmployeesRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

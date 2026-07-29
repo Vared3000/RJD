@@ -39,6 +39,11 @@ const NAV_SECTIONS = [
       { to: '/warehouses/movements', label: 'Движения' },
     ],
   },
+  {
+    title: 'Работники',
+    permission: 'employees.view',
+    items: [{ to: '/employees', label: 'Работники' }],
+  },
 ];
 
 export function AppLayout() {
