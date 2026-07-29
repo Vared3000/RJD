@@ -10,6 +10,9 @@ import { definePosition } from './position.model.js';
 import { defineWarehouse } from './warehouse.model.js';
 import { defineSupplier } from './supplier.model.js';
 import { defineSize } from './size.model.js';
+import { defineNomenclatureModel } from './nomenclature-model.model.js';
+import { defineBatch } from './batch.model.js';
+import { defineInstance } from './instance.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -22,6 +25,9 @@ const Position = definePosition(sequelize);
 const Warehouse = defineWarehouse(sequelize);
 const Supplier = defineSupplier(sequelize);
 const Size = defineSize(sequelize);
+const NomenclatureModel = defineNomenclatureModel(sequelize);
+const Batch = defineBatch(sequelize);
+const Instance = defineInstance(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -52,6 +58,23 @@ Subdivision.belongsTo(Organization, { foreignKey: 'organizationId', as: 'organiz
 Organization.hasMany(Warehouse, { foreignKey: 'organizationId', as: 'warehouses' });
 Warehouse.belongsTo(Organization, { foreignKey: 'organizationId', as: 'organization' });
 
+// Supplier -> Batch (один ко многим)
+Supplier.hasMany(Batch, { foreignKey: 'supplierId', as: 'batches' });
+Batch.belongsTo(Supplier, { foreignKey: 'supplierId', as: 'supplier' });
+
+// Номенклатура: Model / Size / Batch / Warehouse -> Instance (один ко многим)
+NomenclatureModel.hasMany(Instance, { foreignKey: 'modelId', as: 'instances' });
+Instance.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+
+Size.hasMany(Instance, { foreignKey: 'sizeId', as: 'instances' });
+Instance.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+
+Batch.hasMany(Instance, { foreignKey: 'batchId', as: 'instances' });
+Instance.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
+
+Warehouse.hasMany(Instance, { foreignKey: 'warehouseId', as: 'instances' });
+Instance.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+
 export const models = {
   Role,
   Permission,
@@ -64,6 +87,9 @@ export const models = {
   Warehouse,
   Supplier,
   Size,
+  NomenclatureModel,
+  Batch,
+  Instance,
 };
 
 export { sequelize };

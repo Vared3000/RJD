@@ -18,6 +18,14 @@ const NAV_SECTIONS = [
       { to: '/catalogs/sizes', label: 'Размеры' },
     ],
   },
+  {
+    title: 'Номенклатура',
+    permission: 'nomenclature.view',
+    items: [
+      { to: '/nomenclature/models', label: 'Модели' },
+      { to: '/nomenclature/instances', label: 'Экземпляры' },
+    ],
+  },
 ];
 
 export function AppLayout() {

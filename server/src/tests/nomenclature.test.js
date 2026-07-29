@@ -1,0 +1,69 @@
+// Требует применённых миграций и сида (pnpm db:migrate && pnpm db:seed).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import request from 'supertest';
+import { createApp } from '../app.js';
+import { env } from '../config/env.js';
+
+async function loginAsAdmin(agent) {
+  const res = await agent
+    .post('/api/v1/auth/login')
+    .send({ login: env.BOOTSTRAP_ADMIN_LOGIN, password: env.BOOTSTRAP_ADMIN_PASSWORD });
+  return res.body.data.accessToken;
+}
+
+test('номенклатура: модель -> размер -> экземпляр с автогенерацией инв. номера', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = Date.now();
+
+  const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: `Test Model ${unique}`,
+  });
+  assert.equal(model.status, 201);
+
+  const size = await auth(agent.post('/api/v1/sizes')).send({
+    type: 'clothing',
+    value: `TEST-${unique}`,
+  });
+  assert.equal(size.status, 201);
+
+  const instance1 = await auth(agent.post('/api/v1/instances')).send({
+    modelId: model.body.data.id,
+    sizeId: size.body.data.id,
+  });
+  assert.equal(instance1.status, 201);
+  assert.match(instance1.body.data.inventoryNumber, /^СО-\d{6}$/);
+  assert.equal(instance1.body.data.barcode, instance1.body.data.inventoryNumber);
+  assert.equal(instance1.body.data.status, 'in_stock');
+  assert.equal(instance1.body.data.condition, 'new');
+
+  const instance2 = await auth(agent.post('/api/v1/instances')).send({
+    modelId: model.body.data.id,
+    sizeId: size.body.data.id,
+  });
+  assert.notEqual(instance2.body.data.inventoryNumber, instance1.body.data.inventoryNumber);
+
+  const withBadModel = await auth(agent.post('/api/v1/instances')).send({
+    modelId: '00000000-0000-0000-0000-000000000000',
+    sizeId: size.body.data.id,
+  });
+  assert.equal(withBadModel.status, 400);
+
+  const fetched = await auth(agent.get(`/api/v1/instances/${instance1.body.data.id}`));
+  assert.equal(fetched.body.data.model.id, model.body.data.id);
+  assert.equal(fetched.body.data.size.id, size.body.data.id);
+
+  const updated = await auth(agent.patch(`/api/v1/instances/${instance1.body.data.id}`)).send({
+    status: 'repair',
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.data.status, 'repair');
+});

@@ -8,11 +8,18 @@ import { Modal } from '../../../shared/ui/Modal.jsx';
 import { useSessionStore } from '../../../shared/session/session-store.js';
 import styles from './CatalogPage.module.css';
 
+// При создании (item не передан) поле, для которого в схеме есть значение по
+// умолчанию, должно показывать его в форме явно — zod .default() срабатывает
+// только на undefined, а RHF инициализирует пустые поля пустой строкой, а не
+// undefined. Поэтому дефолт нужно продублировать в field.defaultValue.
 function defaultValuesFor(fields, item) {
+  const emptyFallback = (field) => (field.type === 'number' ? undefined : '');
   return Object.fromEntries(
     fields.map((field) => [
       field.name,
-      item?.[field.name] ?? (field.type === 'number' ? undefined : ''),
+      item
+        ? (item[field.name] ?? emptyFallback(field))
+        : (field.defaultValue ?? emptyFallback(field)),
     ]),
   );
 }
@@ -29,6 +36,7 @@ export function CatalogPage({
   schema,
   viewPermission = 'catalogs.view',
   managePermission = 'catalogs.manage',
+  archiveColumnLabel = 'Статус',
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
   const [showArchived, setShowArchived] = useState(false);
@@ -97,7 +105,7 @@ export function CatalogPage({
               {columns.map((column) => (
                 <th key={column.key}>{column.label}</th>
               ))}
-              <th>Статус</th>
+              <th>{archiveColumnLabel}</th>
               {canManage && <th aria-label="Действия" />}
             </tr>
           </thead>

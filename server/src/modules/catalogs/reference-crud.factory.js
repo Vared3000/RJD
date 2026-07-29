@@ -52,7 +52,10 @@ export function createReferenceRepository(Model, { include } = {}) {
   };
 }
 
-export function createReferenceService(repository, { entityName, validateRelations } = {}) {
+export function createReferenceService(
+  repository,
+  { entityName, validateRelations, beforeCreate } = {},
+) {
   return {
     list(options) {
       return repository.list(options);
@@ -66,7 +69,8 @@ export function createReferenceService(repository, { entityName, validateRelatio
 
     async create(data) {
       if (validateRelations) await validateRelations(data);
-      return repository.create(data);
+      const finalData = beforeCreate ? await beforeCreate(data) : data;
+      return repository.create(finalData);
     },
 
     async update(id, data) {
@@ -164,6 +168,8 @@ function createReferenceRouter({
 // entityName — для сообщений об ошибках (русский, с учётом рода: "не найден(а)").
 // validateRelations(data) — необязательная async-проверка внешних ссылок (например,
 // что organizationId существует и не архивирован) перед create/update.
+// beforeCreate(data) — необязательное async-преобразование данных перед созданием
+// (например, автогенерация инвентарного номера, если он не передан).
 export function createReferenceModule(
   Model,
   {
@@ -173,11 +179,16 @@ export function createReferenceModule(
     createSchema,
     updateSchema,
     validateRelations,
+    beforeCreate,
     include,
   },
 ) {
   const repository = createReferenceRepository(Model, { include });
-  const service = createReferenceService(repository, { entityName, validateRelations });
+  const service = createReferenceService(repository, {
+    entityName,
+    validateRelations,
+    beforeCreate,
+  });
   const controller = createReferenceController(service);
   const router = createReferenceRouter({
     controller,

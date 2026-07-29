@@ -27,7 +27,7 @@ const fields = [
     options: Object.entries(SIZE_TYPE_LABELS).map(([value, label]) => ({ value, label })),
   },
   { name: 'value', label: 'Значение', type: 'text' },
-  { name: 'sortOrder', label: 'Порядок сортировки', type: 'number' },
+  { name: 'sortOrder', label: 'Порядок сортировки', type: 'number', defaultValue: 0 },
 ];
 
 export function SizesPage() {

@@ -23,10 +23,19 @@ export function CatalogFormField({ field, form }) {
     <TextField
       label={field.label}
       type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
+      placeholder={field.placeholder}
       error={error}
-      {...register(field.name, field.type === 'number' ? { valueAsNumber: true } : {})}
+      // Специально без valueAsNumber: RHF конвертировал бы пустое значение в
+      // NaN ещё до zod-схемы, из-за чего preprocess для опциональных числовых
+      // полей (см. instance.validation.js) не успевал бы увидеть пустую строку.
+      // Строка -> число приводит сама zod-схема (z.coerce.number()).
+      {...register(field.name)}
     />
   );
+}
+
+function resolveAccessor(accessor, item) {
+  return typeof accessor === 'function' ? accessor(item) : item[accessor];
 }
 
 function SelectField({ field, control, error }) {
@@ -36,8 +45,8 @@ function SelectField({ field, control, error }) {
 
   const options = field.optionsResource
     ? (fetchedItems ?? []).map((item) => ({
-        value: item[field.optionValue],
-        label: item[field.optionLabel],
+        value: resolveAccessor(field.optionValue, item),
+        label: resolveAccessor(field.optionLabel, item),
       }))
     : (field.options ?? []);
 

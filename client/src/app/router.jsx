@@ -8,6 +8,8 @@ import { PositionsPage } from '../pages/catalogs/PositionsPage.jsx';
 import { WarehousesPage } from '../pages/catalogs/WarehousesPage.jsx';
 import { SuppliersPage } from '../pages/catalogs/SuppliersPage.jsx';
 import { SizesPage } from '../pages/catalogs/SizesPage.jsx';
+import { NomenclatureModelsPage } from '../pages/nomenclature/NomenclatureModelsPage.jsx';
+import { InstancesPage } from '../pages/nomenclature/InstancesPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -38,6 +40,8 @@ export function AppRouter() {
         <Route path="catalogs/warehouses" element={<WarehousesPage />} />
         <Route path="catalogs/suppliers" element={<SuppliersPage />} />
         <Route path="catalogs/sizes" element={<SizesPage />} />
+        <Route path="nomenclature/models" element={<NomenclatureModelsPage />} />
+        <Route path="nomenclature/instances" element={<InstancesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
