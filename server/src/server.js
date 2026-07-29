@@ -1,0 +1,20 @@
+import { createApp } from './app.js';
+import { env } from './config/env.js';
+import { sequelize } from './database/models/index.js';
+import { logger } from './utils/logger.js';
+
+async function main() {
+  await sequelize.authenticate();
+  logger.info('Подключение к базе данных установлено');
+
+  const app = createApp();
+  app.listen(env.PORT, () => {
+    logger.info(`Сервер запущен: http://localhost:${env.PORT} (${env.NODE_ENV})`);
+    logger.info(`Swagger UI: http://localhost:${env.PORT}/api-docs`);
+  });
+}
+
+main().catch((error) => {
+  logger.error(error, 'Не удалось запустить сервер');
+  process.exit(1);
+});

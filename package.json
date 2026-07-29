@@ -1,0 +1,32 @@
+{
+  "name": "workwear-erp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ERP-система учёта аренды спецодежды",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @workwear/client --filter @workwear/server dev",
+    "dev:client": "pnpm --filter @workwear/client dev",
+    "dev:server": "pnpm --filter @workwear/server dev",
+    "db:migrate": "pnpm --filter @workwear/server db:migrate",
+    "db:seed": "pnpm --filter @workwear/server db:seed",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm --recursive --if-present test",
+    "build": "pnpm --recursive --if-present build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.3",
+    "globals": "17.7.0",
+    "prettier": "3.9.6"
+  }
+}
