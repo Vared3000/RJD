@@ -1,0 +1,9 @@
+.filters {
+  display: flex;
+  gap: var(--space-4);
+  max-width: 640px;
+}
+
+.filters > * {
+  flex: 1;
+}

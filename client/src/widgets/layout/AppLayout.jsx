@@ -31,6 +31,14 @@ const NAV_SECTIONS = [
     permission: 'purchases.manage',
     items: [{ to: '/purchases/receiving', label: 'Поступление' }],
   },
+  {
+    title: 'Склады',
+    permission: 'warehouse.view',
+    items: [
+      { to: '/warehouses/balances', label: 'Остатки' },
+      { to: '/warehouses/movements', label: 'Движения' },
+    ],
+  },
 ];
 
 export function AppLayout() {
