@@ -13,6 +13,9 @@ import { defineSize } from './size.model.js';
 import { defineNomenclatureModel } from './nomenclature-model.model.js';
 import { defineBatch } from './batch.model.js';
 import { defineInstance } from './instance.model.js';
+import { defineReceivingDocument } from './receiving-document.model.js';
+import { defineReceivingLine } from './receiving-line.model.js';
+import { defineStockMovement } from './stock-movement.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -28,6 +31,9 @@ const Size = defineSize(sequelize);
 const NomenclatureModel = defineNomenclatureModel(sequelize);
 const Batch = defineBatch(sequelize);
 const Instance = defineInstance(sequelize);
+const ReceivingDocument = defineReceivingDocument(sequelize);
+const ReceivingLine = defineReceivingLine(sequelize);
+const StockMovement = defineStockMovement(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -75,6 +81,23 @@ Instance.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
 Warehouse.hasMany(Instance, { foreignKey: 'warehouseId', as: 'instances' });
 Instance.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
 
+// Документ "Поступление": шапка -> строки, ссылки на справочники и партию
+ReceivingDocument.belongsTo(Supplier, { foreignKey: 'supplierId', as: 'supplier' });
+ReceivingDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+ReceivingDocument.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
+ReceivingDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+ReceivingDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+ReceivingDocument.hasMany(ReceivingLine, { foreignKey: 'documentId', as: 'lines' });
+ReceivingLine.belongsTo(ReceivingDocument, { foreignKey: 'documentId', as: 'document' });
+ReceivingLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+ReceivingLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+
+// Движения склада: экземпляр + откуда/куда
+StockMovement.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+StockMovement.belongsTo(Warehouse, { foreignKey: 'fromWarehouseId', as: 'fromWarehouse' });
+StockMovement.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
+
 export const models = {
   Role,
   Permission,
@@ -90,6 +113,9 @@ export const models = {
   NomenclatureModel,
   Batch,
   Instance,
+  ReceivingDocument,
+  ReceivingLine,
+  StockMovement,
 };
 
 export { sequelize };

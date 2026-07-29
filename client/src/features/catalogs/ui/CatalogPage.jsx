@@ -1,28 +1,9 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
-import { CatalogFormField } from './CatalogFormField.jsx';
+import { EntityFormModal } from './EntityFormModal.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
-import { Modal } from '../../../shared/ui/Modal.jsx';
 import { useSessionStore } from '../../../shared/session/session-store.js';
 import styles from './CatalogPage.module.css';
-
-// При создании (item не передан) поле, для которого в схеме есть значение по
-// умолчанию, должно показывать его в форме явно — zod .default() срабатывает
-// только на undefined, а RHF инициализирует пустые поля пустой строкой, а не
-// undefined. Поэтому дефолт нужно продублировать в field.defaultValue.
-function defaultValuesFor(fields, item) {
-  const emptyFallback = (field) => (field.type === 'number' ? undefined : '');
-  return Object.fromEntries(
-    fields.map((field) => [
-      field.name,
-      item
-        ? (item[field.name] ?? emptyFallback(field))
-        : (field.defaultValue ?? emptyFallback(field)),
-    ]),
-  );
-}
 
 // resource — сегмент REST-пути ('organizations', 'subdivisions', ...).
 // columns — [{ key, label, render?(item) }] для таблицы.
@@ -47,29 +28,16 @@ export function CatalogPage({
   const canView = permissions.includes(viewPermission);
   const canManage = permissions.includes(managePermission);
 
-  const form = useForm({ resolver: zodResolver(schema) });
   const saveError = create.error ?? update.error;
   const isSaving = create.isPending || update.isPending;
 
-  function openCreate() {
-    form.reset(defaultValuesFor(fields));
-    create.reset();
-    update.reset();
-    setEditingItem({});
-  }
-
-  function openEdit(item) {
-    form.reset(defaultValuesFor(fields, item));
-    create.reset();
-    update.reset();
-    setEditingItem(item);
-  }
-
   function closeModal() {
     setEditingItem(null);
+    create.reset();
+    update.reset();
   }
 
-  async function onSubmit(values) {
+  async function handleSubmit(values) {
     if (editingItem?.id) {
       await update.mutateAsync({ id: editingItem.id, payload: values });
     } else {
@@ -86,7 +54,7 @@ export function CatalogPage({
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>{title}</h1>
-        {canManage && <Button onClick={openCreate}>+ Добавить</Button>}
+        {canManage && <Button onClick={() => setEditingItem({})}>+ Добавить</Button>}
       </div>
 
       <label className={styles.archiveToggle}>
@@ -144,7 +112,7 @@ export function CatalogPage({
                       <button
                         type="button"
                         className={styles.linkButton}
-                        onClick={() => openEdit(item)}
+                        onClick={() => setEditingItem(item)}
                       >
                         Изменить
                       </button>
@@ -176,29 +144,18 @@ export function CatalogPage({
       </div>
 
       {editingItem !== null && (
-        <Modal
+        <EntityFormModal
           title={editingItem.id ? `Изменить: ${title}` : `Создать: ${title}`}
+          fields={fields}
+          schema={schema}
+          defaultValues={editingItem}
+          onSubmit={handleSubmit}
           onClose={closeModal}
-        >
-          <form className={styles.form} onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {fields.map((field) => (
-              <CatalogFormField key={field.name} field={field} form={form} />
-            ))}
-            {saveError && (
-              <p className={styles.formError}>
-                {saveError?.response?.data?.error?.message || 'Не удалось сохранить'}
-              </p>
-            )}
-            <div className={styles.formActions}>
-              <Button type="button" variant="secondary" onClick={closeModal}>
-                Отмена
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Сохранение…' : 'Сохранить'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
+          isSaving={isSaving}
+          error={
+            saveError ? saveError?.response?.data?.error?.message || 'Не удалось сохранить' : null
+          }
+        />
       )}
     </div>
   );

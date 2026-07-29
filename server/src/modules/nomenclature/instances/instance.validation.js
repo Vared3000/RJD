@@ -19,6 +19,7 @@ export const createInstanceSchema = z.object({
   status: z.enum(INSTANCE_STATUSES).default('in_stock'),
   condition: z.enum(INSTANCE_CONDITIONS).default('new'),
   cost: optionalCost.optional(),
+  employeeCost: optionalCost.optional(),
 });
 
 export const updateInstanceSchema = createInstanceSchema.partial();

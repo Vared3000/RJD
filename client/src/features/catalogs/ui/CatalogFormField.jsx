@@ -3,7 +3,9 @@ import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Select } from '../../../shared/ui/Select.jsx';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
 
-// field: { name, label, type: 'text'|'email'|'number'|'select', required,
+const INPUT_TYPES = { number: 'number', email: 'email', date: 'date' };
+
+// field: { name, label, type: 'text'|'email'|'number'|'date'|'select', required,
 //          options?: [{value,label}] — для статичного select,
 //          optionsResource?, optionValue?, optionLabel? — для select со
 //          списком из другого справочника (например, организация). }
@@ -22,7 +24,7 @@ export function CatalogFormField({ field, form }) {
   return (
     <TextField
       label={field.label}
-      type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
+      type={INPUT_TYPES[field.type] ?? 'text'}
       placeholder={field.placeholder}
       error={error}
       // Специально без valueAsNumber: RHF конвертировал бы пустое значение в

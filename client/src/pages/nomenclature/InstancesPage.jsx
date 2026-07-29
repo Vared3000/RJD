@@ -28,6 +28,7 @@ const schema = z.object({
   status: z.enum(['in_stock', 'issued', 'laundry', 'repair', 'write_off']).default('in_stock'),
   condition: z.enum(['new', 'good', 'worn', 'damaged']).default('new'),
   cost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
+  employeeCost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
 });
 
 const columns = [
@@ -100,6 +101,7 @@ const fields = [
     defaultValue: 'new',
   },
   { name: 'cost', label: 'Стоимость', type: 'number' },
+  { name: 'employeeCost', label: 'Стоимость для работника', type: 'number' },
 ];
 
 export function InstancesPage() {

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
+import { models } from '../database/models/index.js';
 
 async function loginAsAdmin(agent) {
   const res = await agent
@@ -25,6 +26,7 @@ test('справочники: организации — create/list/archive/res
   const token = await loginAsAdmin(agent);
   const auth = (req) => req.set('Authorization', `Bearer ${token}`);
   const uniqueName = `Test Org ${Date.now()}`;
+  t.after(() => models.Organization.destroy({ where: { name: uniqueName } }));
 
   const created = await auth(agent.post('/api/v1/organizations')).send({ name: uniqueName });
   assert.equal(created.status, 201);
@@ -50,8 +52,6 @@ test('справочники: организации — create/list/archive/res
 
   const listAfterRestore = await auth(agent.get('/api/v1/organizations'));
   assert.ok(listAfterRestore.body.data.some((item) => item.id === orgId));
-
-  await auth(agent.delete(`/api/v1/organizations/${orgId}`));
 });
 
 test('справочники: подразделение отклоняется с несуществующей организацией', async (t) => {

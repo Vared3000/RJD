@@ -25,6 +25,7 @@ export function defineInstance(sequelize) {
       status: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'in_stock' },
       condition: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'new' },
       cost: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+      employeeCost: { type: DataTypes.DECIMAL(12, 2), allowNull: true, field: 'employee_cost' },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
     { tableName: 'instances' },

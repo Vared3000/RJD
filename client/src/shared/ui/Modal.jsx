@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import styles from './Modal.module.css';
 
 export function Modal({ title, onClose, children }) {
+  const titleId = useId();
+
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key === 'Escape') onClose();
@@ -12,9 +14,17 @@ export function Modal({ title, onClose, children }) {
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.card} onClick={(event) => event.stopPropagation()}>
+      <div
+        className={styles.card}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className={styles.header}>
-          <h2 className={styles.title}>{title}</h2>
+          <h2 id={titleId} className={styles.title}>
+            {title}
+          </h2>
           <button
             type="button"
             className={styles.closeButton}

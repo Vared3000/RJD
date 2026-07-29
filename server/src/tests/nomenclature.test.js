@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
+import { models } from '../database/models/index.js';
 
 async function loginAsAdmin(agent) {
   const res = await agent
@@ -24,6 +25,17 @@ test('номенклатура: модель -> размер -> экземпля
   const auth = (req) => req.set('Authorization', `Bearer ${token}`);
   const unique = Date.now();
 
+  // Тест создаёт реальные записи в dev-БД (не в транзакции) — подчищаем за
+  // собой, иначе инвентарные номера/данные копятся между запусками.
+  const createdInstanceIds = [];
+  t.after(async () => {
+    if (createdInstanceIds.length > 0) {
+      await models.Instance.destroy({ where: { id: createdInstanceIds } });
+    }
+    await models.NomenclatureModel.destroy({ where: { name: `Test Model ${unique}` } });
+    await models.Size.destroy({ where: { value: `TEST-${unique}` } });
+  });
+
   const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `Test Model ${unique}`,
   });
@@ -40,6 +52,7 @@ test('номенклатура: модель -> размер -> экземпля
     sizeId: size.body.data.id,
   });
   assert.equal(instance1.status, 201);
+  createdInstanceIds.push(instance1.body.data.id);
   assert.match(instance1.body.data.inventoryNumber, /^СО-\d{6}$/);
   assert.equal(instance1.body.data.barcode, instance1.body.data.inventoryNumber);
   assert.equal(instance1.body.data.status, 'in_stock');
@@ -49,6 +62,7 @@ test('номенклатура: модель -> размер -> экземпля
     modelId: model.body.data.id,
     sizeId: size.body.data.id,
   });
+  createdInstanceIds.push(instance2.body.data.id);
   assert.notEqual(instance2.body.data.inventoryNumber, instance1.body.data.inventoryNumber);
 
   const withBadModel = await auth(agent.post('/api/v1/instances')).send({

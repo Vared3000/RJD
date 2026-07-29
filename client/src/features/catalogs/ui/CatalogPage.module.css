@@ -39,6 +39,14 @@
   font-size: 14px;
 }
 
+.linkRow {
+  cursor: pointer;
+}
+
+.linkRow:hover {
+  background: var(--color-bg);
+}
+
 .table th,
 .table td {
   text-align: left;

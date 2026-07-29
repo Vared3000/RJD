@@ -10,6 +10,8 @@ import { SuppliersPage } from '../pages/catalogs/SuppliersPage.jsx';
 import { SizesPage } from '../pages/catalogs/SizesPage.jsx';
 import { NomenclatureModelsPage } from '../pages/nomenclature/NomenclatureModelsPage.jsx';
 import { InstancesPage } from '../pages/nomenclature/InstancesPage.jsx';
+import { ReceivingListPage } from '../pages/purchases/ReceivingListPage.jsx';
+import { ReceivingEditorPage } from '../pages/purchases/ReceivingEditorPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -42,6 +44,8 @@ export function AppRouter() {
         <Route path="catalogs/sizes" element={<SizesPage />} />
         <Route path="nomenclature/models" element={<NomenclatureModelsPage />} />
         <Route path="nomenclature/instances" element={<InstancesPage />} />
+        <Route path="purchases/receiving" element={<ReceivingListPage />} />
+        <Route path="purchases/receiving/:id" element={<ReceivingEditorPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

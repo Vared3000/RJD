@@ -26,6 +26,11 @@ const NAV_SECTIONS = [
       { to: '/nomenclature/instances', label: 'Экземпляры' },
     ],
   },
+  {
+    title: 'Закупки',
+    permission: 'purchases.manage',
+    items: [{ to: '/purchases/receiving', label: 'Поступление' }],
+  },
 ];
 
 export function AppLayout() {
