@@ -15,6 +15,12 @@ import { ReceivingEditorPage } from '../pages/purchases/ReceivingEditorPage.jsx'
 import { StockBalancesPage } from '../pages/warehouses/StockBalancesPage.jsx';
 import { StockMovementsPage } from '../pages/warehouses/StockMovementsPage.jsx';
 import { EmployeesPage } from '../pages/employees/EmployeesPage.jsx';
+import { EmployeeCardPage } from '../pages/employees/EmployeeCardPage.jsx';
+import { KitsPage } from '../pages/employees/KitsPage.jsx';
+import { IssuanceListPage } from '../pages/issuance/IssuanceListPage.jsx';
+import { IssuanceEditorPage } from '../pages/issuance/IssuanceEditorPage.jsx';
+import { ReturnListPage } from '../pages/issuance/ReturnListPage.jsx';
+import { ReturnEditorPage } from '../pages/issuance/ReturnEditorPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -52,6 +58,12 @@ export function AppRouter() {
         <Route path="warehouses/balances" element={<StockBalancesPage />} />
         <Route path="warehouses/movements" element={<StockMovementsPage />} />
         <Route path="employees" element={<EmployeesPage />} />
+        <Route path="employees/kits" element={<KitsPage />} />
+        <Route path="employees/:id" element={<EmployeeCardPage />} />
+        <Route path="issuance/documents" element={<IssuanceListPage />} />
+        <Route path="issuance/documents/:id" element={<IssuanceEditorPage />} />
+        <Route path="issuance/returns" element={<ReturnListPage />} />
+        <Route path="issuance/returns/:id" element={<ReturnEditorPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

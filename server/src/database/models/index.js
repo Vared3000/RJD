@@ -17,6 +17,11 @@ import { defineReceivingDocument } from './receiving-document.model.js';
 import { defineReceivingLine } from './receiving-line.model.js';
 import { defineStockMovement } from './stock-movement.model.js';
 import { defineEmployee } from './employee.model.js';
+import { definePositionKitItem } from './position-kit-item.model.js';
+import { defineIssuanceDocument } from './issuance-document.model.js';
+import { defineIssuanceLine } from './issuance-line.model.js';
+import { defineReturnDocument } from './return-document.model.js';
+import { defineReturnLine } from './return-line.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -36,6 +41,11 @@ const ReceivingDocument = defineReceivingDocument(sequelize);
 const ReceivingLine = defineReceivingLine(sequelize);
 const StockMovement = defineStockMovement(sequelize);
 const Employee = defineEmployee(sequelize);
+const PositionKitItem = definePositionKitItem(sequelize);
+const IssuanceDocument = defineIssuanceDocument(sequelize);
+const IssuanceLine = defineIssuanceLine(sequelize);
+const ReturnDocument = defineReturnDocument(sequelize);
+const ReturnLine = defineReturnLine(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -114,6 +124,40 @@ Employee.belongsTo(Size, { foreignKey: 'clothingSizeId', as: 'clothingSize' });
 Employee.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 Employee.belongsTo(Size, { foreignKey: 'shoeSizeId', as: 'shoeSize' });
 
+// Экземпляр может быть выдан работнику (Этап 8)
+Employee.hasMany(Instance, { foreignKey: 'employeeId', as: 'instances' });
+Instance.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+
+// Комплект по должности (раздел 9 ТЗ): позиция -> список моделей с количеством
+Position.hasMany(PositionKitItem, { foreignKey: 'positionId', as: 'kitItems' });
+PositionKitItem.belongsTo(Position, { foreignKey: 'positionId', as: 'position' });
+PositionKitItem.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+
+// Документ "Выдача": шапка -> строки (модель+размер+количество, экземпляры
+// подбираются при проведении), ссылки на работника/склад/партию нет — есть
+// у экземпляра через employeeId после проведения.
+IssuanceDocument.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+IssuanceDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+IssuanceDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+IssuanceDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+IssuanceDocument.hasMany(IssuanceLine, { foreignKey: 'documentId', as: 'lines' });
+IssuanceLine.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'document' });
+IssuanceLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+IssuanceLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+
+// Документ "Возврат": шапка -> строки (конкретный экземпляр + состояние при
+// возврате), в отличие от "Выдачи" — по экземплярам, не по модели/размеру,
+// т.к. на возврате уже известно, какой именно экземпляр возвращается.
+ReturnDocument.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+ReturnDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+ReturnDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+ReturnDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+ReturnDocument.hasMany(ReturnLine, { foreignKey: 'documentId', as: 'lines' });
+ReturnLine.belongsTo(ReturnDocument, { foreignKey: 'documentId', as: 'document' });
+ReturnLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
 export const models = {
   Role,
   Permission,
@@ -133,6 +177,11 @@ export const models = {
   ReceivingLine,
   StockMovement,
   Employee,
+  PositionKitItem,
+  IssuanceDocument,
+  IssuanceLine,
+  ReturnDocument,
+  ReturnLine,
 };
 
 export { sequelize };

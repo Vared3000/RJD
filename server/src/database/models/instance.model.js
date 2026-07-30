@@ -15,6 +15,11 @@ export function defineInstance(sequelize) {
       sizeId: { type: DataTypes.UUID, allowNull: false, field: 'size_id' },
       batchId: { type: DataTypes.UUID, allowNull: true, field: 'batch_id' },
       warehouseId: { type: DataTypes.UUID, allowNull: true, field: 'warehouse_id' },
+      // Работник, которому выдан экземпляр (документ "Выдача", Этап 8);
+      // null, пока экземпляр на складе. Взаимоисключимо с warehouseId по
+      // смыслу (либо на складе, либо у работника), но не проверяется
+      // constraint-ом на уровне БД — гарантируется сервисами документов.
+      employeeId: { type: DataTypes.UUID, allowNull: true, field: 'employee_id' },
       inventoryNumber: {
         type: DataTypes.STRING(64),
         allowNull: false,

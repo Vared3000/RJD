@@ -5,7 +5,11 @@ import { Select } from '../../shared/ui/Select.jsx';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 import pageStyles from './StockPage.module.css';
 
-const DOCUMENT_TYPE_LABELS = { receiving: 'Поступление' };
+const DOCUMENT_TYPE_LABELS = {
+  receiving: 'Поступление',
+  issuance: 'Выдача',
+  return: 'Возврат',
+};
 
 function formatDateTime(value) {
   return new Date(value).toLocaleString('ru-RU');

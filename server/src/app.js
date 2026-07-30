@@ -20,6 +20,9 @@ import { createInstancesRouter } from './modules/nomenclature/instances/instance
 import { createReceivingRouter } from './modules/purchases/receiving/receiving.routes.js';
 import { createStockRouter } from './modules/warehouses/stock/stock.routes.js';
 import { createEmployeesRouter } from './modules/employees/employees.routes.js';
+import { createKitsRouter } from './modules/kits/kits.routes.js';
+import { createIssuanceRouter } from './modules/issuance/documents/issuance.routes.js';
+import { createReturnRouter } from './modules/issuance/returns/return.routes.js';
 
 export function createApp() {
   const app = express();
@@ -52,6 +55,9 @@ export function createApp() {
   app.use('/api/v1/purchases/receiving', createReceivingRouter());
   app.use('/api/v1/stock', createStockRouter());
   app.use('/api/v1/employees', createEmployeesRouter());
+  app.use('/api/v1/kits', createKitsRouter());
+  app.use('/api/v1/issuance/documents', createIssuanceRouter());
+  app.use('/api/v1/issuance/returns', createReturnRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,0 +1,139 @@
+import { models } from '../../../database/models/index.js';
+
+const { IssuanceDocument, IssuanceLine, Instance, StockMovement, PositionKitItem, Employee } =
+  models;
+
+const listInclude = [
+  { model: models.Employee, as: 'employee', attributes: ['id', 'fullName'] },
+  { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
+];
+
+const detailInclude = [
+  ...listInclude,
+  { model: models.User, as: 'responsibleUser', attributes: ['id', 'fullName'] },
+  { model: models.User, as: 'postedByUser', attributes: ['id', 'fullName'] },
+  {
+    model: IssuanceLine,
+    as: 'lines',
+    include: [
+      { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name', 'sizeType'] },
+      { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+    ],
+  },
+];
+
+export const issuanceRepository = {
+  list({ employeeId } = {}) {
+    return IssuanceDocument.findAll({
+      where: employeeId ? { employeeId } : {},
+      include: listInclude,
+      order: [['createdAt', 'DESC']],
+    });
+  },
+
+  findById(id) {
+    return IssuanceDocument.findByPk(id, {
+      include: detailInclude,
+      order: [[{ model: IssuanceLine, as: 'lines' }, 'sortOrder', 'ASC']],
+    });
+  },
+
+  // См. приём в receiving.repository.js: FOR UPDATE только на шапку, строки
+  // отдельным запросом (Postgres не разрешает FOR UPDATE через LEFT JOIN).
+  async findForPosting(id, { transaction }) {
+    const document = await IssuanceDocument.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!document) return null;
+    // Строки — не под блокировкой (лочим только шапку, см. комментарий выше),
+    // но с include: нужны названия модели/размера для сообщения о нехватке.
+    const lines = await IssuanceLine.findAll({
+      where: { documentId: id },
+      include: [
+        { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
+        { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+      ],
+      transaction,
+    });
+    return { ...document.get({ plain: true }), lines: lines.map((line) => line.get({ plain: true })) };
+  },
+
+  createDocument(data) {
+    return IssuanceDocument.create(data);
+  },
+
+  async updateDocument(id, data) {
+    const [count] = await IssuanceDocument.update(data, { where: { id, status: 'draft' } });
+    return count > 0;
+  },
+
+  async deleteDraft(id) {
+    const count = await IssuanceDocument.destroy({ where: { id, status: 'draft' } });
+    return count > 0;
+  },
+
+  createLine(documentId, data) {
+    return IssuanceLine.create({ ...data, documentId });
+  },
+
+  findLine(documentId, lineId) {
+    return IssuanceLine.findOne({ where: { id: lineId, documentId } });
+  },
+
+  async updateLine(lineId, data) {
+    const [count] = await IssuanceLine.update(data, { where: { id: lineId } });
+    return count > 0;
+  },
+
+  deleteLine(lineId) {
+    return IssuanceLine.destroy({ where: { id: lineId } });
+  },
+
+  // Подбор экземпляров под строку при проведении — FOR UPDATE SKIP LOCKED,
+  // чтобы два одновременно проводимых документа Выдачи не забрали один и
+  // тот же экземпляр (без SKIP LOCKED второй запрос просто ждал бы
+  // разблокировки и потом всё равно получил бы уже занятые записи в выборке).
+  findAvailableInstances({ modelId, sizeId, warehouseId, limit }, { transaction }) {
+    return Instance.findAll({
+      where: { modelId, sizeId, warehouseId, status: 'in_stock', archivedAt: null },
+      order: [['createdAt', 'ASC']],
+      limit,
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      skipLocked: true,
+    });
+  },
+
+  async markInstancesIssued(instanceIds, employeeId, { transaction }) {
+    await Instance.update(
+      { status: 'issued', employeeId, warehouseId: null },
+      { where: { id: instanceIds }, transaction },
+    );
+  },
+
+  bulkCreateMovements(rows, { transaction }) {
+    return StockMovement.bulkCreate(rows, { transaction });
+  },
+
+  markPosted(id, { postedByUserId }, { transaction }) {
+    return IssuanceDocument.update(
+      { status: 'posted', postedAt: new Date(), postedByUserId },
+      { where: { id }, transaction },
+    );
+  },
+
+  // Для автоподбора комплекта: работник (с должностью и размерами) +
+  // активные позиции комплекта его должности.
+  async findEmployeeWithKit(employeeId) {
+    const employee = await Employee.findByPk(employeeId);
+    if (!employee || !employee.positionId) return { employee, kitItems: [] };
+    const kitItems = await PositionKitItem.findAll({
+      where: { positionId: employee.positionId, archivedAt: null },
+      include: [
+        { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name', 'sizeType'] },
+      ],
+    });
+    return { employee, kitItems };
+  },
+};

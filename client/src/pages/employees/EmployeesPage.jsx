@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
+import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
 const optionalUuid = z.preprocess(emptyToUndefined, z.string().uuid().optional());
@@ -23,7 +25,15 @@ const schema = z.object({
 });
 
 const columns = [
-  { key: 'fullName', label: 'ФИО' },
+  {
+    key: 'fullName',
+    label: 'ФИО',
+    render: (item) => (
+      <Link to={`/employees/${item.id}`} className={catalogStyles.linkButton}>
+        {item.fullName}
+      </Link>
+    ),
+  },
   { key: 'organization', label: 'Организация', render: (item) => item.organization?.name ?? '—' },
   { key: 'subdivision', label: 'Подразделение', render: (item) => item.subdivision?.name ?? '—' },
   { key: 'position', label: 'Должность', render: (item) => item.position?.name ?? '—' },

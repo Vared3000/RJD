@@ -3,6 +3,9 @@ import { createReferenceModule } from '../catalogs/reference-crud.factory.js';
 import { referenceOpenApiPaths } from '../catalogs/reference-openapi.js';
 import { extendSwaggerPaths } from '../../config/swagger.js';
 import { ApiError } from '../../utils/api-error.js';
+import { requirePermission } from '../../middlewares/permission.middleware.js';
+import { asyncHandler } from '../../utils/async-handler.js';
+import { success } from '../../utils/respond.js';
 import { createEmployeeSchema, updateEmployeeSchema } from './employee.validation.js';
 
 async function assertActiveExists(Model, id, label) {
@@ -49,6 +52,27 @@ async function validateRelations(data) {
   }
 }
 
+// Стоимость имущества (раздел 8 ТЗ) — сумма cost/employeeCost экземпляров,
+// сейчас выданных работнику (status='issued'); история выдач/возвратов
+// живёт в самих документах (GET /issuance/documents|returns?employeeId=...),
+// здесь не дублируется.
+async function getEmployeeProperty(employeeId) {
+  const instances = await models.Instance.findAll({
+    where: { employeeId, status: 'issued', archivedAt: null },
+    include: [
+      { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
+      { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+    ],
+    order: [['createdAt', 'ASC']],
+  });
+  const totalCost = instances.reduce((sum, instance) => sum + Number(instance.cost ?? 0), 0);
+  const totalEmployeeCost = instances.reduce(
+    (sum, instance) => sum + Number(instance.employeeCost ?? 0),
+    0,
+  );
+  return { instances, totalCost, totalEmployeeCost };
+}
+
 export function createEmployeesRouter() {
   const { router } = createReferenceModule(models.Employee, {
     entityName: 'Работник',
@@ -76,6 +100,28 @@ export function createEmployeesRouter() {
         'organizationId, fullName, hireDate (обязательно), subdivisionId, positionId, ' +
         'personnelNumber, birthDate, terminationDate, clothingSizeId, heightSizeId, ' +
         'shoeSizeId, phone',
+    }),
+  );
+
+  /**
+   * @openapi
+   * /employees/{id}/property:
+   *   get:
+   *     tags: [Работники]
+   *     summary: >
+   *       Стоимость выданного имущества (раздел 8 ТЗ) — экземпляры, сейчас выданные
+   *       работнику, и суммы по cost/employeeCost
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *     responses:
+   *       200: { description: Список экземпляров и итоговые суммы }
+   */
+  router.get(
+    '/:id/property',
+    requirePermission('employees.view'),
+    asyncHandler(async (req, res) => {
+      const property = await getEmployeeProperty(req.params.id);
+      return success(res, property);
     }),
   );
 

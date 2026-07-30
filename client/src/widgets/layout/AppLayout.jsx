@@ -42,7 +42,18 @@ const NAV_SECTIONS = [
   {
     title: 'Работники',
     permission: 'employees.view',
-    items: [{ to: '/employees', label: 'Работники' }],
+    items: [
+      { to: '/employees', label: 'Работники' },
+      { to: '/employees/kits', label: 'Комплекты' },
+    ],
+  },
+  {
+    title: 'Выдача/Возврат',
+    permission: 'issuance.manage',
+    items: [
+      { to: '/issuance/documents', label: 'Выдача' },
+      { to: '/issuance/returns', label: 'Возврат' },
+    ],
   },
 ];
 
