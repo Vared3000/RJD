@@ -26,6 +26,12 @@ import { defineLaundryDocument } from './laundry-document.model.js';
 import { defineLaundryLine } from './laundry-line.model.js';
 import { defineRepairDocument } from './repair-document.model.js';
 import { defineRepairLine } from './repair-line.model.js';
+import { defineTransferDocument } from './transfer-document.model.js';
+import { defineTransferLine } from './transfer-line.model.js';
+import { defineWriteoffDocument } from './writeoff-document.model.js';
+import { defineWriteoffLine } from './writeoff-line.model.js';
+import { defineInventoryDocument } from './inventory-document.model.js';
+import { defineInventoryLine } from './inventory-line.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -54,6 +60,12 @@ const LaundryDocument = defineLaundryDocument(sequelize);
 const LaundryLine = defineLaundryLine(sequelize);
 const RepairDocument = defineRepairDocument(sequelize);
 const RepairLine = defineRepairLine(sequelize);
+const TransferDocument = defineTransferDocument(sequelize);
+const TransferLine = defineTransferLine(sequelize);
+const WriteoffDocument = defineWriteoffDocument(sequelize);
+const WriteoffLine = defineWriteoffLine(sequelize);
+const InventoryDocument = defineInventoryDocument(sequelize);
+const InventoryLine = defineInventoryLine(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -187,6 +199,38 @@ RepairDocument.hasMany(RepairLine, { foreignKey: 'documentId', as: 'lines' });
 RepairLine.belongsTo(RepairDocument, { foreignKey: 'documentId', as: 'document' });
 RepairLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 
+// Документ "Перемещение" (Этап 10) — шапка -> строки (конкретный
+// экземпляр), draft/posted в одну транзакцию, как Поступление/Выдача.
+// Единственный документ, где у StockMovement заполнены оба склада.
+TransferDocument.belongsTo(Warehouse, { foreignKey: 'fromWarehouseId', as: 'fromWarehouse' });
+TransferDocument.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
+TransferDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+TransferDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+TransferDocument.hasMany(TransferLine, { foreignKey: 'documentId', as: 'lines' });
+TransferLine.belongsTo(TransferDocument, { foreignKey: 'documentId', as: 'document' });
+TransferLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
+// Документ "Списание" (Этап 10) — шапка -> строки (экземпляр + причина),
+// draft/posted, переводит экземпляр в status='write_off' окончательно.
+WriteoffDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+WriteoffDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+WriteoffDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+WriteoffDocument.hasMany(WriteoffLine, { foreignKey: 'documentId', as: 'lines' });
+WriteoffLine.belongsTo(WriteoffDocument, { foreignKey: 'documentId', as: 'document' });
+WriteoffLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
+// Документ "Инвентаризация" (Этап 10) — сверка, не складская операция: см.
+// комментарий в миграции 0037. draft/completed, без движений склада.
+InventoryDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+InventoryDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+InventoryDocument.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
+
+InventoryDocument.hasMany(InventoryLine, { foreignKey: 'documentId', as: 'lines' });
+InventoryLine.belongsTo(InventoryDocument, { foreignKey: 'documentId', as: 'document' });
+InventoryLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
 export const models = {
   Role,
   Permission,
@@ -215,6 +259,12 @@ export const models = {
   LaundryLine,
   RepairDocument,
   RepairLine,
+  TransferDocument,
+  TransferLine,
+  WriteoffDocument,
+  WriteoffLine,
+  InventoryDocument,
+  InventoryLine,
 };
 
 export { sequelize };

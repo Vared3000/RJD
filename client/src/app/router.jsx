@@ -25,6 +25,12 @@ import { LaundryListPage } from '../pages/laundry/LaundryListPage.jsx';
 import { LaundryEditorPage } from '../pages/laundry/LaundryEditorPage.jsx';
 import { RepairListPage } from '../pages/repair/RepairListPage.jsx';
 import { RepairEditorPage } from '../pages/repair/RepairEditorPage.jsx';
+import { TransferListPage } from '../pages/transfers/TransferListPage.jsx';
+import { TransferEditorPage } from '../pages/transfers/TransferEditorPage.jsx';
+import { WriteoffListPage } from '../pages/writeoff/WriteoffListPage.jsx';
+import { WriteoffEditorPage } from '../pages/writeoff/WriteoffEditorPage.jsx';
+import { InventoryListPage } from '../pages/inventory/InventoryListPage.jsx';
+import { InventoryEditorPage } from '../pages/inventory/InventoryEditorPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -72,6 +78,12 @@ export function AppRouter() {
         <Route path="laundry/documents/:id" element={<LaundryEditorPage />} />
         <Route path="repair/documents" element={<RepairListPage />} />
         <Route path="repair/documents/:id" element={<RepairEditorPage />} />
+        <Route path="transfers/documents" element={<TransferListPage />} />
+        <Route path="transfers/documents/:id" element={<TransferEditorPage />} />
+        <Route path="writeoff/documents" element={<WriteoffListPage />} />
+        <Route path="writeoff/documents/:id" element={<WriteoffEditorPage />} />
+        <Route path="inventory/documents" element={<InventoryListPage />} />
+        <Route path="inventory/documents/:id" element={<InventoryEditorPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

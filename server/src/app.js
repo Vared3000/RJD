@@ -25,6 +25,9 @@ import { createIssuanceRouter } from './modules/issuance/documents/issuance.rout
 import { createReturnRouter } from './modules/issuance/returns/return.routes.js';
 import { createLaundryRouter } from './modules/laundry/laundry.routes.js';
 import { createRepairRouter } from './modules/repair/repair.routes.js';
+import { createTransferRouter } from './modules/transfers/transfer.routes.js';
+import { createWriteoffRouter } from './modules/writeoff/writeoff.routes.js';
+import { createInventoryRouter } from './modules/inventory/inventory.routes.js';
 
 export function createApp() {
   const app = express();
@@ -62,6 +65,9 @@ export function createApp() {
   app.use('/api/v1/issuance/returns', createReturnRouter());
   app.use('/api/v1/laundry/documents', createLaundryRouter());
   app.use('/api/v1/repair/documents', createRepairRouter());
+  app.use('/api/v1/transfers/documents', createTransferRouter());
+  app.use('/api/v1/writeoff/documents', createWriteoffRouter());
+  app.use('/api/v1/inventory/documents', createInventoryRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

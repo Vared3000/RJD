@@ -63,14 +63,31 @@ const NAV_SECTIONS = [
       { to: '/repair/documents', label: 'Ремонт' },
     ],
   },
+  {
+    title: 'Складские документы',
+    // У раздела нет единого права — три независимых (в отличие от
+    // "Стирка/Ремонт"), поэтому фильтруются сами пункты (item.permission),
+    // а не только секция целиком.
+    items: [
+      { to: '/transfers/documents', label: 'Перемещение', permission: 'transfers.manage' },
+      { to: '/inventory/documents', label: 'Инвентаризация', permission: 'inventory.manage' },
+      { to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' },
+    ],
+  },
 ];
 
 export function AppLayout() {
   const user = useSessionStore((state) => state.user);
   const logout = useLogout();
   const permissions = user?.permissions ?? [];
-  const visibleSections = NAV_SECTIONS.filter(
-    (section) => !section.permission || permissions.includes(section.permission),
+  const visibleSections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => !item.permission || permissions.includes(item.permission),
+    ),
+  })).filter(
+    (section) =>
+      (!section.permission || permissions.includes(section.permission)) && section.items.length > 0,
   );
 
   return (
