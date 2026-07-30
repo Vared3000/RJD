@@ -69,11 +69,7 @@ export function createIssuanceRouter() {
    *       200: { description: Удалён }
    */
   router.get('/:id', asyncHandler(issuanceController.getOne));
-  router.patch(
-    '/:id',
-    validateBody(updateDocumentSchema),
-    asyncHandler(issuanceController.update),
-  );
+  router.patch('/:id', validateBody(updateDocumentSchema), asyncHandler(issuanceController.update));
   router.delete('/:id', asyncHandler(issuanceController.remove));
 
   /**

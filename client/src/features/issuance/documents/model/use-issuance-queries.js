@@ -44,7 +44,10 @@ export function useIssuanceMutations(id) {
     mutationFn: (lineId) => issuanceApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const applyKit = useMutation({ mutationFn: () => issuanceApi.applyKit(id), onSuccess: invalidate });
+  const applyKit = useMutation({
+    mutationFn: () => issuanceApi.applyKit(id),
+    onSuccess: invalidate,
+  });
   const post = useMutation({ mutationFn: () => issuanceApi.post(id), onSuccess: invalidate });
 
   return { create, update, remove, addLine, updateLine, removeLine, applyKit, post };

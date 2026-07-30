@@ -19,7 +19,14 @@ const detailInclude = [
   {
     model: ReturnLine,
     as: 'lines',
-    include: [{ model: Instance, as: 'instance', attributes: ['id', 'inventoryNumber', 'cost'], include: instanceInclude }],
+    include: [
+      {
+        model: Instance,
+        as: 'instance',
+        attributes: ['id', 'inventoryNumber', 'cost'],
+        include: instanceInclude,
+      },
+    ],
   },
 ];
 

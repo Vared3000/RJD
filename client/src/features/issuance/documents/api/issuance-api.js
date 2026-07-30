@@ -4,7 +4,9 @@ const BASE = '/issuance/documents';
 
 export const issuanceApi = {
   async list({ employeeId } = {}) {
-    const { data } = await httpClient.get(BASE, { params: employeeId ? { employeeId } : undefined });
+    const { data } = await httpClient.get(BASE, {
+      params: employeeId ? { employeeId } : undefined,
+    });
     return data.data;
   },
   async getById(id) {

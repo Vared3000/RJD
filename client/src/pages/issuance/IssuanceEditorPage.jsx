@@ -34,7 +34,9 @@ export function IssuanceEditorPage() {
   const [editingLine, setEditingLine] = useState(null);
   const [confirmingPost, setConfirmingPost] = useState(false);
   const [kitSkipped, setKitSkipped] = useState(null);
-  const canManage = useSessionStore((state) => state.user?.permissions?.includes('issuance.manage'));
+  const canManage = useSessionStore((state) =>
+    state.user?.permissions?.includes('issuance.manage'),
+  );
 
   if (isLoading || !document) {
     return <p className={catalogStyles.hint}>Загрузка…</p>;
@@ -123,12 +125,11 @@ export function IssuanceEditorPage() {
         )}
       </div>
 
-      {applyKit.isError && (
-        <p className={catalogStyles.formError}>{errorMessage(applyKit)}</p>
-      )}
+      {applyKit.isError && <p className={catalogStyles.formError}>{errorMessage(applyKit)}</p>}
       {kitSkipped && kitSkipped.length > 0 && (
         <p className={catalogStyles.formError}>
-          Не подобраны (у работника не указан размер): {kitSkipped.map((s) => s.modelName ?? s.modelId).join(', ')}
+          Не подобраны (у работника не указан размер):{' '}
+          {kitSkipped.map((s) => s.modelName ?? s.modelId).join(', ')}
         </p>
       )}
 

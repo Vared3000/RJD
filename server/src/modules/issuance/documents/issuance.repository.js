@@ -56,7 +56,10 @@ export const issuanceRepository = {
       ],
       transaction,
     });
-    return { ...document.get({ plain: true }), lines: lines.map((line) => line.get({ plain: true })) };
+    return {
+      ...document.get({ plain: true }),
+      lines: lines.map((line) => line.get({ plain: true })),
+    };
   },
 
   createDocument(data) {

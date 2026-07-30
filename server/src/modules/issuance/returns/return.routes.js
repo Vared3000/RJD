@@ -103,11 +103,7 @@ export function createReturnRouter() {
    *     responses:
    *       201: { description: Позиция добавлена, возвращён документ целиком }
    */
-  router.post(
-    '/:id/lines',
-    validateBody(createLineSchema),
-    asyncHandler(returnController.addLine),
-  );
+  router.post('/:id/lines', validateBody(createLineSchema), asyncHandler(returnController.addLine));
 
   /**
    * @openapi

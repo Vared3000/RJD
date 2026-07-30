@@ -16,6 +16,20 @@ function assertDraft(document) {
   }
 }
 
+// Дублирующая проверка перед уникальным индексом БД (см. миграцию 0027) —
+// понятная ошибка вместо падения на constraint. excludeLineId — при
+// редактировании существующей строки исключает её саму из сравнения.
+function assertNoDuplicateLine(lines, { modelId, sizeId }, excludeLineId) {
+  const duplicate = lines.some(
+    (line) => line.id !== excludeLineId && line.modelId === modelId && line.sizeId === sizeId,
+  );
+  if (duplicate) {
+    throw ApiError.badRequest(
+      'В документе уже есть строка с такой же моделью и размером — измените количество в ней',
+    );
+  }
+}
+
 export const issuanceService = {
   list(options) {
     return issuanceRepository.list(options);
@@ -54,6 +68,7 @@ export const issuanceService = {
   async addLine(documentId, data) {
     const document = await issuanceRepository.findById(documentId);
     assertDraft(document);
+    assertNoDuplicateLine(document.lines, data);
     await issuanceRepository.createLine(documentId, data);
     return issuanceRepository.findById(documentId);
   },
@@ -63,6 +78,11 @@ export const issuanceService = {
     assertDraft(document);
     const line = await issuanceRepository.findLine(documentId, lineId);
     if (!line) throw ApiError.notFound('Позиция не найдена');
+    assertNoDuplicateLine(
+      document.lines,
+      { modelId: data.modelId ?? line.modelId, sizeId: data.sizeId ?? line.sizeId },
+      lineId,
+    );
     await issuanceRepository.updateLine(lineId, data);
     return issuanceRepository.findById(documentId);
   },
@@ -98,7 +118,11 @@ export const issuanceService = {
       const sizeField = SIZE_FIELD_BY_TYPE[kitItem.model?.sizeType];
       const sizeId = sizeField ? employee[sizeField] : null;
       if (!sizeId) {
-        skipped.push({ modelId: kitItem.modelId, modelName: kitItem.model?.name, reason: 'no-size' });
+        skipped.push({
+          modelId: kitItem.modelId,
+          modelName: kitItem.model?.name,
+          reason: 'no-size',
+        });
         continue;
       }
       const key = `${kitItem.modelId}:${sizeId}`;

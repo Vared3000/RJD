@@ -1,5 +1,8 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useEmployee, useEmployeeProperty } from '../../features/employees/model/use-employee-card.js';
+import {
+  useEmployee,
+  useEmployeeProperty,
+} from '../../features/employees/model/use-employee-card.js';
 import { useIssuanceList } from '../../features/issuance/documents/model/use-issuance-queries.js';
 import { useReturnList } from '../../features/issuance/returns/model/use-return-queries.js';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';

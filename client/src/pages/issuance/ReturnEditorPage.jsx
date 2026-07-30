@@ -94,7 +94,9 @@ export function ReturnEditorPage() {
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
   const [confirmingPost, setConfirmingPost] = useState(false);
-  const canManage = useSessionStore((state) => state.user?.permissions?.includes('issuance.manage'));
+  const canManage = useSessionStore((state) =>
+    state.user?.permissions?.includes('issuance.manage'),
+  );
 
   if (isLoading || !document) {
     return <p className={catalogStyles.hint}>Загрузка…</p>;

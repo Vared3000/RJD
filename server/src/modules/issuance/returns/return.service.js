@@ -10,6 +10,18 @@ function assertDraft(document) {
   }
 }
 
+// Дублирующая проверка перед уникальным индексом БД (см. миграцию 0027) —
+// понятная ошибка вместо падения на constraint. excludeLineId — при
+// редактировании существующей строки исключает её саму из сравнения.
+function assertNoDuplicateLine(lines, instanceId, excludeLineId) {
+  const duplicate = lines.some(
+    (line) => line.id !== excludeLineId && line.instanceId === instanceId,
+  );
+  if (duplicate) {
+    throw ApiError.badRequest('В документе уже есть строка с этим экземпляром');
+  }
+}
+
 export const returnService = {
   list(options) {
     return returnRepository.list(options);
@@ -52,6 +64,7 @@ export const returnService = {
   async addLine(documentId, data) {
     const document = await returnRepository.findById(documentId);
     assertDraft(document);
+    assertNoDuplicateLine(document.lines, data.instanceId);
     await returnRepository.createLine(documentId, data);
     return returnRepository.findById(documentId);
   },
@@ -61,6 +74,7 @@ export const returnService = {
     assertDraft(document);
     const line = await returnRepository.findLine(documentId, lineId);
     if (!line) throw ApiError.notFound('Позиция не найдена');
+    assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
     await returnRepository.updateLine(lineId, data);
     return returnRepository.findById(documentId);
   },

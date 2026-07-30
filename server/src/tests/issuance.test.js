@@ -25,7 +25,13 @@ test('выдача: автоподбор комплекта -> проведен�
   const auth = (req) => req.set('Authorization', `Bearer ${token}`);
   const unique = `Test Issuance ${Date.now()}`;
 
-  const state = { instanceIds: [], issuanceDocIds: [], returnDocIds: [], receivingDocIds: [], batchIds: [] };
+  const state = {
+    instanceIds: [],
+    issuanceDocIds: [],
+    returnDocIds: [],
+    receivingDocIds: [],
+    batchIds: [],
+  };
   t.after(async () => {
     if (state.instanceIds.length > 0) {
       await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
@@ -226,6 +232,69 @@ test('выдача: автоподбор комплекта -> проведен�
     instanceId: instanceToReturn,
     condition: 'good',
   });
-  const doubleReturnPost = await auth(agent.post(`/api/v1/issuance/returns/${doubleReturnId}/post`));
-  assert.equal(doubleReturnPost.status, 400, 'повторный возврат уже возвращённого экземпляра должен быть отклонён');
+  const doubleReturnPost = await auth(
+    agent.post(`/api/v1/issuance/returns/${doubleReturnId}/post`),
+  );
+  assert.equal(
+    doubleReturnPost.status,
+    400,
+    'повторный возврат уже возвращённого экземпляра должен быть отклонён',
+  );
+
+  // Дубликат строки Выдачи (та же модель+размер) отклоняется на addLine, до проведения.
+  const dupIssuanceDraft = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId,
+    warehouseId,
+    documentDate: '2026-07-29',
+  });
+  const dupIssuanceId = dupIssuanceDraft.body.data.id;
+  state.issuanceDocIds.push(dupIssuanceId);
+  const firstLine = await auth(
+    agent.post(`/api/v1/issuance/documents/${dupIssuanceId}/lines`),
+  ).send({
+    modelId,
+    sizeId,
+    quantity: 1,
+  });
+  assert.equal(firstLine.status, 201);
+  const dupLine = await auth(agent.post(`/api/v1/issuance/documents/${dupIssuanceId}/lines`)).send({
+    modelId,
+    sizeId,
+    quantity: 1,
+  });
+  assert.equal(
+    dupLine.status,
+    400,
+    'повторная строка с той же моделью и размером должна быть отклонена',
+  );
+  await auth(agent.delete(`/api/v1/issuance/documents/${dupIssuanceId}`));
+
+  // Дубликат строки Возврата (тот же instanceId) отклоняется на addLine, до проведения.
+  const dupReturnDraft = await auth(agent.post('/api/v1/issuance/returns')).send({
+    employeeId,
+    warehouseId,
+    documentDate: '2026-07-29',
+  });
+  const dupReturnId = dupReturnDraft.body.data.id;
+  state.returnDocIds.push(dupReturnId);
+  const secondInstanceToReturn = available.body.data[1].id;
+  const firstReturnLine = await auth(
+    agent.post(`/api/v1/issuance/returns/${dupReturnId}/lines`),
+  ).send({
+    instanceId: secondInstanceToReturn,
+    condition: 'good',
+  });
+  assert.equal(firstReturnLine.status, 201);
+  const dupReturnLine = await auth(
+    agent.post(`/api/v1/issuance/returns/${dupReturnId}/lines`),
+  ).send({
+    instanceId: secondInstanceToReturn,
+    condition: 'good',
+  });
+  assert.equal(
+    dupReturnLine.status,
+    400,
+    'повторная строка с тем же экземпляром должна быть отклонена',
+  );
+  await auth(agent.delete(`/api/v1/issuance/returns/${dupReturnId}`));
 });
