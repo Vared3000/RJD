@@ -30,6 +30,7 @@ import { createWriteoffRouter } from './modules/writeoff/writeoff.routes.js';
 import { createInventoryRouter } from './modules/inventory/inventory.routes.js';
 import { createDpoRouter } from './modules/dpo/dpo.routes.js';
 import { createReportsRouter } from './modules/reports/reports.routes.js';
+import { createPrintFormsRouter } from './modules/print-forms/print-forms.routes.js';
 
 export function createApp() {
   const app = express();
@@ -72,6 +73,7 @@ export function createApp() {
   app.use('/api/v1/inventory/documents', createInventoryRouter());
   app.use('/api/v1/dpo', createDpoRouter());
   app.use('/api/v1/reports', createReportsRouter());
+  app.use('/api/v1/print-forms', createPrintFormsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

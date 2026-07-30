@@ -28,7 +28,9 @@ function chunks(values, size = BATCH_SIZE) {
 }
 
 function asText(value, max) {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return text ? text.slice(0, max) : null;
 }
 
@@ -42,10 +44,7 @@ function fileSourceKey(fileHash) {
 }
 
 function pageSourceKey(fileHash, pageNumber) {
-  return crypto
-    .createHash('sha256')
-    .update(`${fileHash}:page:${pageNumber}`, 'utf8')
-    .digest('hex');
+  return crypto.createHash('sha256').update(`${fileHash}:page:${pageNumber}`, 'utf8').digest('hex');
 }
 
 async function upsertSourceRecords(data, transaction) {
@@ -106,12 +105,21 @@ async function upsertSourceRecords(data, transaction) {
   // A personal card can be represented by several merged rows. It gets a
   // synthetic normalized-candidate record while the original rows remain intact.
   for (const candidate of data.candidates) {
-    if (knownKeys.has(candidate.sourceKey)) continue;
+    let candidateRecordKey = candidate.sourceKey;
+    if (knownKeys.has(candidateRecordKey)) {
+      const discriminator =
+        candidate.name ?? candidate.fullName ?? candidate.dpo ?? candidate.sheetName ?? '';
+      candidateRecordKey = crypto
+        .createHash('sha256')
+        .update(`${candidate.sourceKey}:normalized:${candidate.type}:${discriminator}`, 'utf8')
+        .digest('hex');
+    }
+    if (knownKeys.has(candidateRecordKey)) continue;
     const fileHash = fileHashByPath.get(candidate.sourceFile);
     if (!fileHash) throw new Error(`Unknown candidate source file: ${candidate.sourceFile}`);
-    knownKeys.add(candidate.sourceKey);
+    knownKeys.add(candidateRecordKey);
     records.push({
-      sourceKey: candidate.sourceKey,
+      sourceKey: candidateRecordKey,
       sourceFile: candidate.sourceFile,
       fileHash,
       recordType: 'normalized_candidate',
@@ -181,6 +189,40 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     dpoByName.set(name, dpo);
   }
 
+  const dpoCandidates = data.candidates.filter((item) => item.type === 'dpo');
+  const dpoFields = [
+    'fullName',
+    'address',
+    'okpo',
+    'businessUnitCode',
+    'directorFullName',
+    'directorBasis',
+    'contractNumber',
+    'contractDate',
+    'additionalAgreementNumber',
+    'additionalAgreementDate',
+  ];
+  for (const candidate of dpoCandidates) {
+    const dpo = dpoByName.get(candidate.dpo);
+    if (!dpo) continue;
+    const genericFullName = dpo.name.replace(/\s+ДПО$/, ' дирекция пассажирских обустройств');
+    const patch = {};
+    for (const field of dpoFields) {
+      const value = asText(candidate[field], field.includes('Date') ? 10 : 500);
+      if (!value) continue;
+      if (field === 'fullName') {
+        if (!dpo.fullName || dpo.fullName === genericFullName || dpo.fullName === dpo.name) {
+          patch.fullName = value;
+        }
+      } else if (!dpo[field]) {
+        patch[field] = value;
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await dpo.update(patch, { transaction });
+    }
+  }
+
   const nomenclatureCandidates = data.candidates.filter((item) => item.type === 'nomenclature');
   const employeeCandidates = data.candidates.filter((item) => item.type === 'employee');
 
@@ -191,10 +233,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
   }
   const positionByName = new Map();
   for (const name of [...positions].sort((a, b) => a.localeCompare(b, 'ru'))) {
-    positionByName.set(
-      name,
-      await findOrCreateNamed(models.Position, name, { name }, transaction),
-    );
+    positionByName.set(name, await findOrCreateNamed(models.Position, name, { name }, transaction));
   }
 
   const modelByName = new Map();
@@ -219,7 +258,8 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     if (!created) {
       const patch = { archivedAt: null };
       if (!model.sizeType && candidate.sizeType) patch.sizeType = candidate.sizeType;
-      if (!model.requiresHeightSize && candidate.requiresHeightSize) patch.requiresHeightSize = true;
+      if (!model.requiresHeightSize && candidate.requiresHeightSize)
+        patch.requiresHeightSize = true;
       if ((!model.unit || model.unit === 'шт') && candidate.unit) {
         patch.unit = asText(candidate.unit, 16);
       }
@@ -277,7 +317,9 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       const size = firstValue ? sizeByTypeValue.get(`${sizeType}\u0000${firstValue}`) : null;
       if (size) primarySizes[field] = size.id;
     }
-    const position = candidate.position ? positionByName.get(asText(candidate.position, 255)) : null;
+    const position = candidate.position
+      ? positionByName.get(asText(candidate.position, 255))
+      : null;
     const incoming = {
       organizationId: organization.id,
       dpoId: dpo?.id ?? null,
@@ -295,7 +337,8 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     } else {
       const patch = { archivedAt: null };
       for (const [field, value] of Object.entries(incoming)) {
-        if (value != null && (employee[field] == null || field === 'fullName')) patch[field] = value;
+        if (value != null && (employee[field] == null || field === 'fullName'))
+          patch[field] = value;
       }
       await employee.update(patch, { transaction });
     }
@@ -325,7 +368,9 @@ async function importNormalized(data, sourceIdByKey, transaction) {
   for (const candidate of nomenclatureCandidates) {
     const model = modelByName.get(asText(candidate.name, 255));
     if (!model) continue;
-    const position = candidate.position ? positionByName.get(asText(candidate.position, 255)) : null;
+    const position = candidate.position
+      ? positionByName.get(asText(candidate.position, 255))
+      : null;
     const quantity = Math.trunc(Number(candidate.quantity));
     if (position && Number.isFinite(quantity) && quantity > 0) {
       const key = `${position.id}\u0000${model.id}`;
@@ -347,7 +392,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     }
     priceRows.push({
       modelId: model.id,
-      dpoId: candidate.dpo ? dpoByName.get(candidate.dpo)?.id ?? null : null,
+      dpoId: candidate.dpo ? (dpoByName.get(candidate.dpo)?.id ?? null) : null,
       sourceRecordId,
       effectiveDate: candidate.effectiveDate ?? null,
       priceWithoutVat,
@@ -383,6 +428,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
 
   return {
     dpos: dpoByName.size,
+    dpoDetails: dpoCandidates.length,
     positions: positionByName.size,
     models: modelByName.size,
     employees: new Set([...employeeByNaturalKey.values()].map((item) => item.id)).size,

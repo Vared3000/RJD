@@ -64,6 +64,7 @@ export const ROLE_DEFINITIONS = [
       'dpo.manage',
       'issuance.manage',
       'reports.view',
+      'print_forms.use',
     ],
   },
   {

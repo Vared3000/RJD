@@ -91,6 +91,11 @@ const NAV_SECTIONS = [
       { to: '/reports/property-cost', label: 'Стоимость имущества' },
     ],
   },
+  {
+    title: 'Документы',
+    permission: 'print_forms.use',
+    items: [{ to: '/print-forms', label: 'Печатные формы' }],
+  },
 ];
 
 export function AppLayout() {

@@ -134,6 +134,14 @@ def parse_date(text: str) -> str | None:
     return max(dates).isoformat() if dates else None
 
 
+def iso_date(day: str, month: str, year: str) -> str | None:
+    year = f"20{year}" if len(year) == 2 else year
+    try:
+        return date(int(year), int(month), int(day)).isoformat()
+    except ValueError:
+        return None
+
+
 def detect_dpo(*texts: str) -> str | None:
     haystack = " ".join(lower(text) for text in texts)
     for alias, canonical in DPO_ALIASES.items():
@@ -152,6 +160,11 @@ def normalize_name(value: Any) -> str | None:
     if 2 <= len(words) <= 5 and len(" ".join(words)) >= 8:
         return " ".join(words)
     return None
+
+
+def last_person_name(value: Any) -> str | None:
+    words = re.findall(r"[А-ЯЁA-Z][а-яёa-z-]+", clean_text(value))
+    return " ".join(words[-3:]) if len(words) >= 3 else None
 
 
 def numeric(value: Any) -> float | None:
@@ -244,6 +257,148 @@ def read_xls(path: Path) -> Iterable[tuple[str, list[dict[str, Any]]]]:
         book.release_resources()
 
 
+def extract_dpo_details(
+    relative_file: str,
+    file_hash: str,
+    sheet_name: str,
+    rows: list[dict[str, Any]],
+    dpo: str | None,
+) -> dict[str, Any] | None:
+    if not dpo:
+        return None
+
+    first_rows = rows[:40]
+    row_texts = [
+        clean_text(" ".join(clean_text(value) for value in row["values"]))
+        for row in first_rows
+    ]
+    header_text = " ".join(row_texts)
+    full_name = None
+    address = None
+    for line in row_texts[:15]:
+        if (
+            detect_dpo(line) == dpo
+            and "дирекция пассажирских обустройств" in lower(line)
+            and re.search(r"\b\d{6}\b", line)
+        ):
+            postal = re.search(r"\b\d{6}\b", line)
+            full_name = clean_text(line[: postal.start()].rstrip(" ,"))
+            address = clean_text(line[postal.start() :])
+            break
+
+    business_unit_code = None
+    okpo = None
+    for row in first_rows[:15]:
+        values = row["values"]
+        for index, value in enumerate(values):
+            label = lower(value)
+            following = clean_text(values[index + 1]) if index + 1 < len(values) else ""
+            if label == "бе" and following and following != "-":
+                business_unit_code = following
+            if "по окпо" in label and following:
+                okpo = following
+
+    additional_agreement_number = None
+    additional_agreement_date = None
+    agreement = re.search(
+        rf"дополнительн\w*\s+соглашени\w*\s+(?:№\s*)?([0-9А-ЯA-ZЁа-яё/.\-]+)"
+        rf"\s+от\s+{DATE_RE.pattern}",
+        header_text,
+        flags=re.I,
+    )
+    if agreement:
+        additional_agreement_number = agreement.group(1)
+        additional_agreement_date = iso_date(
+            agreement.group(2), agreement.group(3), agreement.group(4)
+        )
+
+    contract_number = None
+    contract_date = None
+    contract_after_number = re.search(
+        rf"(?:к\s+)?договор\w*\s+№\s*([0-9А-ЯA-ZЁа-яё/.\-]+)"
+        rf"\s+от\s+{DATE_RE.pattern}",
+        header_text,
+        flags=re.I,
+    )
+    contract_after_date = re.search(
+        rf"договор\w*\s+от\s+{DATE_RE.pattern}(?:\s+года?)?\s+№\s*"
+        rf"([0-9А-ЯA-ZЁа-яё/.\-]+)",
+        header_text,
+        flags=re.I,
+    )
+    if contract_after_number:
+        contract_number = contract_after_number.group(1)
+        contract_date = iso_date(
+            contract_after_number.group(2),
+            contract_after_number.group(3),
+            contract_after_number.group(4),
+        )
+    elif contract_after_date:
+        contract_date = iso_date(
+            contract_after_date.group(1),
+            contract_after_date.group(2),
+            contract_after_date.group(3),
+        )
+        contract_number = contract_after_date.group(4)
+
+    director_full_name = None
+    director_basis = None
+    representative_index = next(
+        (
+            index
+            for index, line in enumerate(row_texts)
+            if "представитель заказчика" in lower(line)
+        ),
+        None,
+    )
+    if representative_index is not None:
+        for line in row_texts[representative_index : representative_index + 5]:
+            candidate = last_person_name(line)
+            if candidate and "дирекц" not in lower(candidate):
+                director_full_name = candidate
+                break
+        basis_match = re.search(
+            r"действующ\w*\s+на\s+основании\s*(.+)",
+            " ".join(row_texts[representative_index : representative_index + 6]),
+            flags=re.I,
+        )
+        if basis_match:
+            director_basis = clean_text(
+                re.split(r"\(\s*вид документа|составили настоящий акт", basis_match.group(1), flags=re.I)[0]
+            )
+    if not director_full_name:
+        customer_side = re.search(
+            r"Заказчик.+?в лице (.+?),\s*действующ\w*\s+на\s+основании\s+"
+            r"(.+?)(?:,\s*с одной стороны|,\s*и\s+Общество)",
+            header_text,
+            flags=re.I,
+        )
+        if customer_side:
+            director_full_name = last_person_name(customer_side.group(1))
+            director_basis = clean_text(customer_side.group(2))
+
+    values = {
+        "type": "dpo",
+        "sourceKey": source_key(file_hash, f"sheet:{sheet_name}:dpo-details"),
+        "sourceFile": relative_file,
+        "sheetName": sheet_name,
+        "dpo": dpo,
+        "fullName": full_name,
+        "address": address,
+        "okpo": okpo,
+        "businessUnitCode": business_unit_code,
+        "directorFullName": director_full_name,
+        "directorBasis": director_basis,
+        "contractNumber": contract_number,
+        "contractDate": contract_date,
+        "additionalAgreementNumber": additional_agreement_number,
+        "additionalAgreementDate": additional_agreement_date,
+    }
+    return values if any(value for key, value in values.items() if key not in {
+        "type", "sourceKey", "sourceFile", "sheetName", "dpo"
+    }) else None
+
+
 def analyze_sheet(
     relative_file: str,
     file_hash: str,
@@ -258,6 +413,9 @@ def analyze_sheet(
     # heading is therefore more authoritative than the path.
     dpo = detect_dpo(sheet_name, sheet_text) or file_dpo
     document_date = parse_date(f"{relative_file} {sheet_text}")
+    dpo_details = extract_dpo_details(relative_file, file_hash, sheet_name, rows, dpo)
+    if dpo_details:
+        candidates.append(dpo_details)
 
     # One sheet may contain one or more repeated tables. Each recognized header
     # governs rows until the next recognized header.
@@ -284,6 +442,7 @@ def analyze_sheet(
         quantity_idx = column(headers, "кол-во")
         if quantity_idx is None:
             quantity_idx = column(headers, "количество")
+        coverage_days_idx = column(headers, "дней", "обеспеч")
         clothing_idx = column(headers, "размер", "одежд")
         height_idx = column(headers, "рост")
         shoe_idx = column(headers, "размер", "обув")
@@ -366,6 +525,7 @@ def analyze_sheet(
                         "requiresHeightSize": requires_height,
                         "position": current_position,
                         "quantity": numeric(cell(values, quantity_idx)),
+                        "coverageDays": numeric(cell(values, coverage_days_idx)),
                         "employee": current_employee,
                         "dpo": dpo,
                         "effectiveDate": document_date,
