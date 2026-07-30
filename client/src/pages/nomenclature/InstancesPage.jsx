@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
+import {
+  compareSizes,
+  isPlausibleAtomicSize,
+} from '../../features/catalogs/model/size-options.js';
 
 const STATUS_LABELS = {
   in_stock: 'На складе',
@@ -82,6 +86,16 @@ const fields = [
     label: 'Размер',
     type: 'select',
     optionsResource: 'sizes',
+    optionsFilterResource: 'nomenclature-models',
+    optionsFilter: (size, { values, relatedItems }) => {
+      const model = relatedItems.find((item) => item.id === values.modelId);
+      return (
+        isPlausibleAtomicSize(size) &&
+        size.type !== 'height' &&
+        (!model?.sizeType || size.type === model.sizeType)
+      );
+    },
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: (size) => `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`,
   },
@@ -90,7 +104,16 @@ const fields = [
     label: 'Рост (для составного размера одежды)',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'height',
+    optionsFilterResource: 'nomenclature-models',
+    optionsFilter: (size, { values, relatedItems }) => {
+      const model = relatedItems.find((item) => item.id === values.modelId);
+      return (
+        size.type === 'height' &&
+        isPlausibleAtomicSize(size) &&
+        Boolean(model?.requiresHeightSize)
+      );
+    },
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },

@@ -1,4 +1,4 @@
-import { Controller } from 'react-hook-form';
+import { Controller, useWatch } from 'react-hook-form';
 import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Select } from '../../../shared/ui/Select.jsx';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
@@ -11,7 +11,8 @@ const INPUT_TYPES = { number: 'number', email: 'email', date: 'date' };
 //          optionsResource?, optionValue?, optionLabel? — для select со
 //          списком из другого справочника (например, организация);
 //          optionsFilter?(item) — сузить список загруженных записей
-//          (например, размеры только одного типа). }
+//          (например, размеры только одного типа);
+//          optionsSort?(a, b) — задать удобный порядок значений. }
 export function CatalogFormField({ field, form }) {
   const {
     register,
@@ -55,12 +56,27 @@ function resolveAccessor(accessor, item) {
 
 function SelectField({ field, control, error }) {
   const resourceHooks = field.optionsResource ? createCatalogHooks(field.optionsResource) : null;
+  const filterResourceHooks = field.optionsFilterResource
+    ? createCatalogHooks(field.optionsFilterResource)
+    : null;
   // Для select со связанным справочником всегда подгружаем только активные записи.
   const { data: fetchedItems } = resourceHooks ? resourceHooks.useList(false) : { data: null };
+  const { data: filterItems } = filterResourceHooks
+    ? filterResourceHooks.useList(false)
+    : { data: null };
+  const formValues = useWatch({ control });
 
   const options = field.optionsResource
     ? (fetchedItems ?? [])
-        .filter((item) => (field.optionsFilter ? field.optionsFilter(item) : true))
+        .filter((item) =>
+          field.optionsFilter
+            ? field.optionsFilter(item, {
+                values: formValues,
+                relatedItems: filterItems ?? [],
+              })
+            : true,
+        )
+        .sort((left, right) => (field.optionsSort ? field.optionsSort(left, right) : 0))
         .map((item) => ({
           value: resolveAccessor(field.optionValue, item),
           label: resolveAccessor(field.optionLabel, item),

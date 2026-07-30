@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
+import {
+  atomicSizeOfType,
+  compareSizes,
+} from '../../features/catalogs/model/size-options.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
@@ -98,7 +102,8 @@ const fields = [
     label: 'Размер одежды',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'clothing',
+    optionsFilter: atomicSizeOfType('clothing'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
@@ -107,7 +112,8 @@ const fields = [
     label: 'Рост',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'height',
+    optionsFilter: atomicSizeOfType('height'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
@@ -116,7 +122,8 @@ const fields = [
     label: 'Размер обуви',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'shoe',
+    optionsFilter: atomicSizeOfType('shoe'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
@@ -125,7 +132,8 @@ const fields = [
     label: 'Размер головного убора',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'headwear',
+    optionsFilter: atomicSizeOfType('headwear'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
@@ -134,7 +142,8 @@ const fields = [
     label: 'Размер ремня',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'belt',
+    optionsFilter: atomicSizeOfType('belt'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
@@ -143,7 +152,8 @@ const fields = [
     label: 'Размер перчаток',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'gloves',
+    optionsFilter: atomicSizeOfType('gloves'),
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },

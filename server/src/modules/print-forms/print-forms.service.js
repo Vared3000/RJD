@@ -237,7 +237,7 @@ async function buildAppendix15(context) {
   if (context.documents.length === 0) {
     const grouped = new Map();
     for (const candidate of importedCandidates(context, false)) {
-      if (!candidate.position || candidate.employee || num(candidate.quantity) <= 0) continue;
+      if (!candidate.position || candidate.employee || !candidate.name) continue;
       const price = priceValues({
         priceWithoutVat: candidate.priceWithoutVat,
         priceWithVat: candidate.priceWithVat,
@@ -378,7 +378,7 @@ async function buildAppendix17(context) {
   if (context.documents.length === 0) {
     const rows = [];
     for (const candidate of importedCandidates(context, true)) {
-      if (!candidate.employee || num(candidate.quantity) <= 0) continue;
+      if (!candidate.employee || !candidate.name) continue;
       const price = priceValues({
         priceWithoutVat: candidate.priceWithoutVat,
         priceWithVat: candidate.priceWithVat,
@@ -511,6 +511,7 @@ export const printFormsService = {
     if (!builder) throw ApiError.notFound('Печатная форма не найдена');
     const context = await loadContext(query);
     const data = await builder(context);
+    data.form = form;
     const extension = query.format;
     const buffer = extension === 'pdf' ? await generatePdf(data) : await generateExcel(data);
     return {

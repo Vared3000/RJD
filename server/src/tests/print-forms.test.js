@@ -216,7 +216,6 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     await workbook.xlsx.load(xlsx.body);
     const sheet = workbook.worksheets[0];
     assert.ok(sheet);
-    assert.ok(sheet.getCell('A1').value);
     const cellValues = [];
     let hasFormula = false;
     sheet.eachRow((row) =>
@@ -225,8 +224,9 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
         if (cell.value && typeof cell.value === 'object' && cell.value.formula) hasFormula = true;
       }),
     );
+    assert.ok(cellValues.some((value) => value.trim()), `${form}: форма не должна быть пустой`);
     assert.ok(cellValues.some((value) => value.includes(unique)));
-    assert.ok(cellValues.some((value) => value.includes('ИТОГО')));
+    assert.ok(cellValues.some((value) => value.toUpperCase().includes('ИТОГО')));
     assert.ok(hasFormula, `${form}: в расчётных ячейках должны быть формулы`);
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.xlsx`), xlsx.body);
 

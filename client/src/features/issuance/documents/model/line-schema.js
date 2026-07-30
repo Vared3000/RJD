@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  compareSizes,
+  isPlausibleAtomicSize,
+} from '../../../catalogs/model/size-options.js';
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
 
@@ -32,6 +36,16 @@ export const lineFields = [
     label: 'Размер',
     type: 'select',
     optionsResource: 'sizes',
+    optionsFilterResource: 'nomenclature-models',
+    optionsFilter: (size, { values, relatedItems }) => {
+      const model = relatedItems.find((item) => item.id === values.modelId);
+      return (
+        isPlausibleAtomicSize(size) &&
+        size.type !== 'height' &&
+        (!model?.sizeType || size.type === model.sizeType)
+      );
+    },
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: (size) => `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`,
   },
@@ -40,7 +54,16 @@ export const lineFields = [
     label: 'Рост (для составного размера одежды)',
     type: 'select',
     optionsResource: 'sizes',
-    optionsFilter: (size) => size.type === 'height',
+    optionsFilterResource: 'nomenclature-models',
+    optionsFilter: (size, { values, relatedItems }) => {
+      const model = relatedItems.find((item) => item.id === values.modelId);
+      return (
+        size.type === 'height' &&
+        isPlausibleAtomicSize(size) &&
+        Boolean(model?.requiresHeightSize)
+      );
+    },
+    optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
   },
