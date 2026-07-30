@@ -55,6 +55,14 @@ const NAV_SECTIONS = [
       { to: '/issuance/returns', label: 'Возврат' },
     ],
   },
+  {
+    title: 'Стирка/Ремонт',
+    permission: 'laundry.manage',
+    items: [
+      { to: '/laundry/documents', label: 'Стирка' },
+      { to: '/repair/documents', label: 'Ремонт' },
+    ],
+  },
 ];
 
 export function AppLayout() {

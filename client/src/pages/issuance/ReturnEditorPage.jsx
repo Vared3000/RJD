@@ -17,6 +17,7 @@ import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const CONDITION_LABELS = { new: 'Новое', good: 'Хорошее', worn: 'Изношено', damaged: 'Повреждено' };
+const ROUTE_TO_LABELS = { in_stock: 'На склад', laundry: 'В стирку', repair: 'В ремонт' };
 
 function errorMessage(mutation) {
   if (!mutation?.isError) return null;
@@ -31,6 +32,7 @@ function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSa
   const { data: instances, isLoading } = useAvailableInstances(employeeId);
   const [instanceId, setInstanceId] = useState('');
   const [condition, setCondition] = useState('good');
+  const [routeTo, setRouteTo] = useState('in_stock');
   const [note, setNote] = useState('');
 
   const options = (instances ?? [])
@@ -42,7 +44,7 @@ function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSa
 
   function handleSubmit(event) {
     event.preventDefault();
-    onSubmit({ instanceId, condition, note });
+    onSubmit({ instanceId, condition, routeTo, note });
   }
 
   return (
@@ -65,6 +67,13 @@ function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSa
           value={condition}
           onChange={(event) => setCondition(event.target.value)}
           options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label }))}
+        />
+        <Select
+          id="routeTo"
+          label="Куда направить"
+          value={routeTo}
+          onChange={(event) => setRouteTo(event.target.value)}
+          options={Object.entries(ROUTE_TO_LABELS).map(([value, label]) => ({ value, label }))}
         />
         <TextField
           id="note"
@@ -188,6 +197,7 @@ export function ReturnEditorPage() {
               <th>Модель</th>
               <th>Размер</th>
               <th>Состояние</th>
+              <th>Куда направлено</th>
               <th>Примечание</th>
               {isDraft && canManage && <th aria-label="Действия" />}
             </tr>
@@ -195,7 +205,7 @@ export function ReturnEditorPage() {
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={6}>
+                <td className={catalogStyles.hint} colSpan={7}>
                   Позиций пока нет
                 </td>
               </tr>
@@ -206,6 +216,7 @@ export function ReturnEditorPage() {
                 <td>{line.instance?.model?.name ?? '—'}</td>
                 <td>{line.instance?.size?.value ?? '—'}</td>
                 <td>{CONDITION_LABELS[line.condition] ?? line.condition}</td>
+                <td>{ROUTE_TO_LABELS[line.routeTo] ?? line.routeTo}</td>
                 <td>{line.note ?? '—'}</td>
                 {isDraft && canManage && (
                   <td className={catalogStyles.actions}>

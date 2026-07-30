@@ -109,9 +109,9 @@ export const returnRepository = {
     return Instance.findByPk(instanceId, { transaction, lock: transaction.LOCK.UPDATE });
   },
 
-  markInstanceReturned(instanceId, { warehouseId, condition }, { transaction }) {
+  markInstanceReturned(instanceId, { warehouseId, condition, routeTo }, { transaction }) {
     return Instance.update(
-      { status: 'in_stock', warehouseId, employeeId: null, condition },
+      { status: routeTo ?? 'in_stock', warehouseId, employeeId: null, condition },
       { where: { id: instanceId }, transaction },
     );
   },

@@ -23,6 +23,8 @@ import { createEmployeesRouter } from './modules/employees/employees.routes.js';
 import { createKitsRouter } from './modules/kits/kits.routes.js';
 import { createIssuanceRouter } from './modules/issuance/documents/issuance.routes.js';
 import { createReturnRouter } from './modules/issuance/returns/return.routes.js';
+import { createLaundryRouter } from './modules/laundry/laundry.routes.js';
+import { createRepairRouter } from './modules/repair/repair.routes.js';
 
 export function createApp() {
   const app = express();
@@ -58,6 +60,8 @@ export function createApp() {
   app.use('/api/v1/kits', createKitsRouter());
   app.use('/api/v1/issuance/documents', createIssuanceRouter());
   app.use('/api/v1/issuance/returns', createReturnRouter());
+  app.use('/api/v1/laundry/documents', createLaundryRouter());
+  app.use('/api/v1/repair/documents', createRepairRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

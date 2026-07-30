@@ -22,6 +22,10 @@ import { defineIssuanceDocument } from './issuance-document.model.js';
 import { defineIssuanceLine } from './issuance-line.model.js';
 import { defineReturnDocument } from './return-document.model.js';
 import { defineReturnLine } from './return-line.model.js';
+import { defineLaundryDocument } from './laundry-document.model.js';
+import { defineLaundryLine } from './laundry-line.model.js';
+import { defineRepairDocument } from './repair-document.model.js';
+import { defineRepairLine } from './repair-line.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -46,6 +50,10 @@ const IssuanceDocument = defineIssuanceDocument(sequelize);
 const IssuanceLine = defineIssuanceLine(sequelize);
 const ReturnDocument = defineReturnDocument(sequelize);
 const ReturnLine = defineReturnLine(sequelize);
+const LaundryDocument = defineLaundryDocument(sequelize);
+const LaundryLine = defineLaundryLine(sequelize);
+const RepairDocument = defineRepairDocument(sequelize);
+const RepairLine = defineRepairLine(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -158,6 +166,27 @@ ReturnDocument.hasMany(ReturnLine, { foreignKey: 'documentId', as: 'lines' });
 ReturnLine.belongsTo(ReturnDocument, { foreignKey: 'documentId', as: 'document' });
 ReturnLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 
+// Документы "Стирка"/"Ремонт" (Этап 9) — шапка -> строки (конкретный
+// экземпляр, как у Возврата), двухфазное проведение через
+// server/src/modules/service-documents/.
+LaundryDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+LaundryDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+LaundryDocument.belongsTo(User, { foreignKey: 'sentByUserId', as: 'sentByUser' });
+LaundryDocument.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
+
+LaundryDocument.hasMany(LaundryLine, { foreignKey: 'documentId', as: 'lines' });
+LaundryLine.belongsTo(LaundryDocument, { foreignKey: 'documentId', as: 'document' });
+LaundryLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
+RepairDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+RepairDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+RepairDocument.belongsTo(User, { foreignKey: 'sentByUserId', as: 'sentByUser' });
+RepairDocument.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
+
+RepairDocument.hasMany(RepairLine, { foreignKey: 'documentId', as: 'lines' });
+RepairLine.belongsTo(RepairDocument, { foreignKey: 'documentId', as: 'document' });
+RepairLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+
 export const models = {
   Role,
   Permission,
@@ -182,6 +211,10 @@ export const models = {
   IssuanceLine,
   ReturnDocument,
   ReturnLine,
+  LaundryDocument,
+  LaundryLine,
+  RepairDocument,
+  RepairLine,
 };
 
 export { sequelize };

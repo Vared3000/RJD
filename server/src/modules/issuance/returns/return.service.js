@@ -91,10 +91,12 @@ export const returnService = {
   // Проведение — необратимо: по каждой строке проверяет, что экземпляр
   // сейчас выдан именно тому работнику, что указан в шапке (мог быть уже
   // возвращён другим документом или изначально принадлежать другому
-  // работнику), переводит его в in_stock на склад документа и создаёт
-  // движение склада. Упрощение этого этапа (см. HANDOFF.md): возврат сразу
-  // ставит in_stock, минуя "Стирку" — маршрутизация через стирку/ремонт
-  // будет пересмотрена в Этапе 9.
+  // работнику), переводит его на склад документа и создаёт движение склада.
+  // Целевой статус — line.routeTo (Этап 9): 'in_stock' по умолчанию, либо
+  // 'laundry'/'repair', если работник сдал вещь сразу на стирку/в ремонт —
+  // тогда отдельный документ Стирка/Ремонт подхватит её напрямую (см.
+  // server/src/modules/service-documents/), без промежуточного оприходования
+  // на склад.
   async post(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
       const document = await returnRepository.findForPosting(documentId, { transaction });
@@ -120,10 +122,12 @@ export const returnService = {
 
         await returnRepository.markInstanceReturned(
           instance.id,
-          { warehouseId: document.warehouseId, condition: line.condition },
+          { warehouseId: document.warehouseId, condition: line.condition, routeTo: line.routeTo },
           { transaction },
         );
 
+        const routeSuffix =
+          line.routeTo && line.routeTo !== 'in_stock' ? ` (направлено: ${line.routeTo})` : '';
         movementRows.push({
           instanceId: instance.id,
           fromWarehouseId: null,
@@ -131,7 +135,7 @@ export const returnService = {
           documentType: 'return',
           documentId: document.id,
           occurredAt: document.documentDate,
-          note: `Возврат ${document.number}`,
+          note: `Возврат ${document.number}${routeSuffix}`,
         });
       }
 

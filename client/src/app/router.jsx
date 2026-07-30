@@ -21,6 +21,10 @@ import { IssuanceListPage } from '../pages/issuance/IssuanceListPage.jsx';
 import { IssuanceEditorPage } from '../pages/issuance/IssuanceEditorPage.jsx';
 import { ReturnListPage } from '../pages/issuance/ReturnListPage.jsx';
 import { ReturnEditorPage } from '../pages/issuance/ReturnEditorPage.jsx';
+import { LaundryListPage } from '../pages/laundry/LaundryListPage.jsx';
+import { LaundryEditorPage } from '../pages/laundry/LaundryEditorPage.jsx';
+import { RepairListPage } from '../pages/repair/RepairListPage.jsx';
+import { RepairEditorPage } from '../pages/repair/RepairEditorPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -64,6 +68,10 @@ export function AppRouter() {
         <Route path="issuance/documents/:id" element={<IssuanceEditorPage />} />
         <Route path="issuance/returns" element={<ReturnListPage />} />
         <Route path="issuance/returns/:id" element={<ReturnEditorPage />} />
+        <Route path="laundry/documents" element={<LaundryListPage />} />
+        <Route path="laundry/documents/:id" element={<LaundryEditorPage />} />
+        <Route path="repair/documents" element={<RepairListPage />} />
+        <Route path="repair/documents/:id" element={<RepairEditorPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
