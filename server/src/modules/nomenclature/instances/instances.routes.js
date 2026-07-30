@@ -14,22 +14,38 @@ async function assertActiveExists(Model, id, label) {
 
 async function validateRelations(data, { current } = {}) {
   const modelId = data.modelId !== undefined ? data.modelId : current?.modelId;
-  const heightSizeId =
-    data.heightSizeId !== undefined ? data.heightSizeId : current?.heightSizeId;
+  const sizeId = data.sizeId !== undefined ? data.sizeId : current?.sizeId;
+  const heightSizeId = data.heightSizeId !== undefined ? data.heightSizeId : current?.heightSizeId;
+  const normalized = { ...data };
   const model = modelId
     ? await assertActiveExists(models.NomenclatureModel, modelId, 'Модель номенклатуры')
     : null;
-  if (data.sizeId !== undefined) {
-    await assertActiveExists(models.Size, data.sizeId, 'Размер');
+
+  if (!model?.sizeType) {
+    normalized.sizeId = null;
+    normalized.heightSizeId = null;
+  } else {
+    if (!sizeId) {
+      throw ApiError.badRequest('Для этой модели необходимо указать размер');
+    }
+    const size = await assertActiveExists(models.Size, sizeId, 'Размер');
+    if (size.type !== model.sizeType) {
+      throw ApiError.badRequest('Выбранный размер не соответствует типу размера модели');
+    }
+    normalized.sizeId = sizeId;
   }
-  if (heightSizeId) {
+
+  if (model?.requiresHeightSize && !heightSizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать рост');
+  }
+  if (model?.requiresHeightSize && heightSizeId) {
     const heightSize = await assertActiveExists(models.Size, heightSizeId, 'Рост');
     if (heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост: указан размер другого типа');
     }
-  }
-  if (model?.requiresHeightSize && !heightSizeId) {
-    throw ApiError.badRequest('Для этой модели необходимо указать рост');
+    normalized.heightSizeId = heightSizeId;
+  } else if (model?.sizeType) {
+    normalized.heightSizeId = null;
   }
   if (data.batchId) {
     await assertActiveExists(models.Batch, data.batchId, 'Партия');
@@ -37,6 +53,7 @@ async function validateRelations(data, { current } = {}) {
   if (data.warehouseId) {
     await assertActiveExists(models.Warehouse, data.warehouseId, 'Склад');
   }
+  return normalized;
 }
 
 async function beforeCreate(data) {

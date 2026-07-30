@@ -54,6 +54,7 @@ test('поступление: черновик -> строки -> проведе
   });
   const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `Test Model ${unique}`,
+    sizeType: 'clothing',
   });
   const size = await auth(agent.post('/api/v1/sizes')).send({
     type: 'clothing',

@@ -38,6 +38,7 @@ test('номенклатура: модель -> размер -> экземпля
 
   const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `Test Model ${unique}`,
+    sizeType: 'clothing',
   });
   assert.equal(model.status, 201);
 

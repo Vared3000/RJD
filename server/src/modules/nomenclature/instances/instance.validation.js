@@ -12,7 +12,7 @@ const optionalCost = z.preprocess(emptyToNull, z.coerce.number().nonnegative().n
 
 export const createInstanceSchema = z.object({
   modelId: z.string().uuid('Выберите модель'),
-  sizeId: z.string().uuid('Выберите размер'),
+  sizeId: optionalUuid.optional(),
   heightSizeId: optionalUuid.optional(),
   batchId: optionalUuid.optional(),
   warehouseId: optionalUuid.optional(),

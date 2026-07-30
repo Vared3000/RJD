@@ -98,16 +98,20 @@ test('выдача: автоподбор комплекта -> проведен�
   });
   assert.equal(kitItem.status, 201);
 
-  // Комплект отклоняет модель без sizeType.
+  // Безразмерные позиции (бейджи, бирки и т. п.) разрешены в комплекте.
   const modelNoType = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `${unique} no-type`,
   });
   t.after(() => models.NomenclatureModel.destroy({ where: { name: `${unique} no-type` } }));
-  const kitRejected = await auth(agent.post('/api/v1/kits')).send({
+  const sizeLessKitItem = await auth(agent.post('/api/v1/kits')).send({
     positionId,
     modelId: modelNoType.body.data.id,
   });
-  assert.equal(kitRejected.status, 400);
+  assert.equal(sizeLessKitItem.status, 201);
+  const archivedSizeLessKitItem = await auth(
+    agent.delete(`/api/v1/kits/${sizeLessKitItem.body.data.id}`),
+  );
+  assert.equal(archivedSizeLessKitItem.status, 200);
 
   // Оприходуем 2 экземпляра.
   const receivingDraft = await auth(agent.post('/api/v1/purchases/receiving')).send({
@@ -482,4 +486,130 @@ test('выдача: составной размер одежды подбира�
   assert.equal(skipped.body.data.lines.length, 0);
   assert.equal(skipped.body.meta.skipped.length, 1);
   assert.equal(skipped.body.meta.skipped[0].reason, 'no-size');
+});
+
+test('безразмерная позиция проходит поступление, комплект и выдачу без размера', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = `Test Sizeless ${Date.now()}`;
+  const state = {};
+
+  t.after(async () => {
+    if (state.instanceId) {
+      await models.StockMovement.destroy({ where: { instanceId: state.instanceId } });
+    }
+    if (state.issuanceId) {
+      await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
+    }
+    if (state.instanceId) {
+      await models.Instance.destroy({ where: { id: state.instanceId } });
+    }
+    if (state.receivingId) {
+      await models.ReceivingDocument.destroy({ where: { id: state.receivingId } });
+    }
+    if (state.batchId) {
+      await models.Batch.destroy({ where: { id: state.batchId } });
+    }
+    if (state.positionId) {
+      await models.PositionKitItem.destroy({ where: { positionId: state.positionId } });
+    }
+    if (state.employeeId) {
+      await models.Employee.destroy({ where: { id: state.employeeId } });
+    }
+    if (state.positionId) {
+      await models.Position.destroy({ where: { id: state.positionId } });
+    }
+    if (state.modelId) {
+      await models.NomenclatureModel.destroy({ where: { id: state.modelId } });
+    }
+    if (state.warehouseId) {
+      await models.Warehouse.destroy({ where: { id: state.warehouseId } });
+    }
+    if (state.supplierId) {
+      await models.Supplier.destroy({ where: { id: state.supplierId } });
+    }
+    if (state.organizationId) {
+      await models.Organization.destroy({ where: { id: state.organizationId } });
+    }
+  });
+
+  const organization = await models.Organization.create({ name: unique });
+  state.organizationId = organization.id;
+  const warehouse = await models.Warehouse.create({
+    organizationId: organization.id,
+    name: unique,
+  });
+  state.warehouseId = warehouse.id;
+  const supplier = await models.Supplier.create({ name: unique });
+  state.supplierId = supplier.id;
+  const model = await models.NomenclatureModel.create({ name: `${unique} Badge`, sizeType: null });
+  state.modelId = model.id;
+  const position = await models.Position.create({ name: unique });
+  state.positionId = position.id;
+  const employee = await models.Employee.create({
+    organizationId: organization.id,
+    positionId: position.id,
+    fullName: unique,
+    hireDate: '2026-01-01',
+  });
+  state.employeeId = employee.id;
+  await models.PositionKitItem.create({
+    positionId: position.id,
+    modelId: model.id,
+    quantity: 1,
+  });
+
+  const receiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
+    supplierId: supplier.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-07-31',
+  });
+  state.receivingId = receiving.body.data.id;
+  const receivingLine = await auth(
+    agent.post(`/api/v1/purchases/receiving/${state.receivingId}/lines`),
+  ).send({
+    modelId: model.id,
+    quantity: 1,
+    purchasePrice: 100,
+  });
+  assert.equal(receivingLine.status, 201);
+  assert.equal(receivingLine.body.data.lines[0].sizeId, null);
+
+  const postedReceiving = await auth(
+    agent.post(`/api/v1/purchases/receiving/${state.receivingId}/post`),
+  );
+  assert.equal(postedReceiving.status, 200);
+  state.batchId = postedReceiving.body.data.batchId;
+  const instance = await models.Instance.findOne({ where: { modelId: model.id } });
+  state.instanceId = instance.id;
+  assert.equal(instance.sizeId, null);
+
+  const issuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: employee.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-07-31',
+  });
+  state.issuanceId = issuance.body.data.id;
+  const applied = await auth(
+    agent.post(`/api/v1/issuance/documents/${state.issuanceId}/apply-kit`),
+  );
+  assert.equal(applied.status, 200);
+  assert.equal(applied.body.data.lines.length, 1);
+  assert.equal(applied.body.data.lines[0].sizeId, null);
+  assert.deepEqual(applied.body.meta.skipped, []);
+
+  const postedIssuance = await auth(
+    agent.post(`/api/v1/issuance/documents/${state.issuanceId}/post`),
+  );
+  assert.equal(postedIssuance.status, 200);
+  await instance.reload();
+  assert.equal(instance.status, 'issued');
+  assert.equal(instance.employeeId, employee.id);
 });

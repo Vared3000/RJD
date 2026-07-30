@@ -17,7 +17,7 @@ export const updateDocumentSchema = createDocumentSchema.partial();
 
 export const createLineSchema = z.object({
   modelId: z.string().uuid('Выберите модель'),
-  sizeId: z.string().uuid('Выберите размер'),
+  sizeId: optionalUuid.optional(),
   heightSizeId: optionalUuid.optional(),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
 });

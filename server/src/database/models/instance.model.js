@@ -12,7 +12,7 @@ export function defineInstance(sequelize) {
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       modelId: { type: DataTypes.UUID, allowNull: false, field: 'model_id' },
-      sizeId: { type: DataTypes.UUID, allowNull: false, field: 'size_id' },
+      sizeId: { type: DataTypes.UUID, allowNull: true, field: 'size_id' },
       heightSizeId: { type: DataTypes.UUID, allowNull: true, field: 'height_size_id' },
       batchId: { type: DataTypes.UUID, allowNull: true, field: 'batch_id' },
       warehouseId: { type: DataTypes.UUID, allowNull: true, field: 'warehouse_id' },

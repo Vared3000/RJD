@@ -16,13 +16,7 @@ async function validateRelations(data) {
     await assertActiveExists(models.Position, data.positionId, 'Должность');
   }
   if (data.modelId !== undefined) {
-    const model = await assertActiveExists(models.NomenclatureModel, data.modelId, 'Модель');
-    if (!model.sizeType) {
-      throw ApiError.badRequest(
-        'У модели не указан тип размера (sizeType) — сначала укажите его в номенклатуре, ' +
-          'иначе автоподбор комплекта не сможет выбрать размер работника',
-      );
-    }
+    await assertActiveExists(models.NomenclatureModel, data.modelId, 'Модель');
   }
 }
 

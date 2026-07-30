@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
-import {
-  compareSizes,
-  isPlausibleAtomicSize,
-} from '../../features/catalogs/model/size-options.js';
+import { compareSizes, isPlausibleAtomicSize } from '../../features/catalogs/model/size-options.js';
 
 const STATUS_LABELS = {
   in_stock: 'На складе',
@@ -30,11 +27,16 @@ const SIZE_TYPE_LABELS = {
 };
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
+const optionalUuid = z.preprocess(emptyToUndefined, z.string().uuid().optional());
+
+function selectedModel({ values, relatedItems }) {
+  return relatedItems.find((item) => item.id === values.modelId);
+}
 
 const schema = z.object({
   modelId: z.string().uuid('Выберите модель'),
-  sizeId: z.string().uuid('Выберите размер'),
-  heightSizeId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+  sizeId: optionalUuid,
+  heightSizeId: optionalUuid,
   warehouseId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   inventoryNumber: z.string().max(64).optional().or(z.literal('')),
   status: z.enum(['in_stock', 'issued', 'laundry', 'repair', 'write_off']).default('in_stock'),
@@ -80,6 +82,17 @@ const fields = [
     optionsResource: 'nomenclature-models',
     optionValue: 'id',
     optionLabel: 'name',
+    optionsSort: (left, right) => left.name.localeCompare(right.name, 'ru'),
+    searchable: true,
+    required: true,
+    placeholder: 'Введите название позиции…',
+    hint: (context) => {
+      const model = selectedModel(context);
+      if (!model) return 'Введите часть названия модели.';
+      return model.sizeType
+        ? 'Ниже показаны только размеры, подходящие этой модели.'
+        : 'Безразмерная позиция — размер и рост не требуются.';
+    },
   },
   {
     name: 'sizeId',
@@ -92,12 +105,15 @@ const fields = [
       return (
         isPlausibleAtomicSize(size) &&
         size.type !== 'height' &&
-        (!model?.sizeType || size.type === model.sizeType)
+        Boolean(model?.sizeType) &&
+        size.type === model.sizeType
       );
     },
+    hiddenWhen: (context) => !selectedModel(context)?.sizeType,
     optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: (size) => `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`,
+    required: true,
   },
   {
     name: 'heightSizeId',
@@ -108,14 +124,14 @@ const fields = [
     optionsFilter: (size, { values, relatedItems }) => {
       const model = relatedItems.find((item) => item.id === values.modelId);
       return (
-        size.type === 'height' &&
-        isPlausibleAtomicSize(size) &&
-        Boolean(model?.requiresHeightSize)
+        size.type === 'height' && isPlausibleAtomicSize(size) && Boolean(model?.requiresHeightSize)
       );
     },
+    hiddenWhen: (context) => !selectedModel(context)?.requiresHeightSize,
     optionsSort: compareSizes,
     optionValue: 'id',
     optionLabel: 'value',
+    required: true,
   },
   {
     name: 'warehouseId',

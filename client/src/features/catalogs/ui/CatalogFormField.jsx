@@ -1,6 +1,7 @@
 import { Controller, useWatch } from 'react-hook-form';
 import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Select } from '../../../shared/ui/Select.jsx';
+import { SearchableSelect } from '../../../shared/ui/SearchableSelect.jsx';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
 import styles from './CatalogFormField.module.css';
 
@@ -38,6 +39,8 @@ export function CatalogFormField({ field, form }) {
   return (
     <TextField
       label={field.label}
+      hint={field.hint}
+      required={field.required}
       type={INPUT_TYPES[field.type] ?? 'text'}
       placeholder={field.placeholder}
       error={error}
@@ -65,14 +68,20 @@ function SelectField({ field, control, error }) {
     ? filterResourceHooks.useList(false)
     : { data: null };
   const formValues = useWatch({ control });
+  const fieldContext = {
+    values: formValues,
+    relatedItems: filterItems ?? fetchedItems ?? [],
+    optionsItems: fetchedItems ?? [],
+  };
+
+  if (field.hiddenWhen?.(fieldContext)) return null;
 
   const options = field.optionsResource
     ? (fetchedItems ?? [])
         .filter((item) =>
           field.optionsFilter
             ? field.optionsFilter(item, {
-                values: formValues,
-                relatedItems: filterItems ?? [],
+                ...fieldContext,
               })
             : true,
         )
@@ -82,13 +91,23 @@ function SelectField({ field, control, error }) {
           label: resolveAccessor(field.optionLabel, item),
         }))
     : (field.options ?? []);
+  const hint = typeof field.hint === 'function' ? field.hint(fieldContext) : field.hint;
+  const FieldComponent = field.searchable ? SearchableSelect : Select;
 
   return (
     <Controller
       name={field.name}
       control={control}
       render={({ field: controllerField }) => (
-        <Select label={field.label} error={error} options={options} {...controllerField} />
+        <FieldComponent
+          label={field.label}
+          error={error}
+          hint={hint}
+          required={field.required}
+          placeholder={field.placeholder}
+          options={options}
+          {...controllerField}
+        />
       )}
     />
   );

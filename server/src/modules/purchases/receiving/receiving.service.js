@@ -15,21 +15,37 @@ function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
 }
 
-async function validateLineSizes(data, currentLine) {
+async function normalizeLineSizes(data, currentLine) {
   const modelId = valueFrom(data, currentLine, 'modelId');
+  const sizeId = valueFrom(data, currentLine, 'sizeId');
   const heightSizeId = valueFrom(data, currentLine, 'heightSizeId');
   const model = await receivingRepository.findActiveModel(modelId);
   if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
 
-  if (heightSizeId) {
+  if (!model.sizeType) {
+    return { ...data, sizeId: null, heightSizeId: null };
+  }
+
+  if (!sizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать размер');
+  }
+  const size = await receivingRepository.findActiveSize(sizeId);
+  if (!size || size.type !== model.sizeType) {
+    throw ApiError.badRequest('Размер не найден, архивирован или не соответствует типу модели');
+  }
+
+  if (model.requiresHeightSize && !heightSizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать рост');
+  }
+  if (model.requiresHeightSize && heightSizeId) {
     const heightSize = await receivingRepository.findActiveSize(heightSizeId);
     if (!heightSize || heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
     }
+    return { ...data, sizeId, heightSizeId };
   }
-  if (model.requiresHeightSize && !heightSizeId) {
-    throw ApiError.badRequest('Для этой модели необходимо указать рост');
-  }
+
+  return { ...data, sizeId, heightSizeId: null };
 }
 
 export const receivingService = {
@@ -70,8 +86,8 @@ export const receivingService = {
   async addLine(documentId, data) {
     const document = await receivingRepository.findById(documentId);
     assertDraft(document);
-    await validateLineSizes(data);
-    await receivingRepository.createLine(documentId, data);
+    const normalizedData = await normalizeLineSizes(data);
+    await receivingRepository.createLine(documentId, normalizedData);
     return receivingRepository.findById(documentId);
   },
 
@@ -80,8 +96,8 @@ export const receivingService = {
     assertDraft(document);
     const line = await receivingRepository.findLine(documentId, lineId);
     if (!line) throw ApiError.notFound('Позиция не найдена');
-    await validateLineSizes(data, line);
-    await receivingRepository.updateLine(lineId, data);
+    const normalizedData = await normalizeLineSizes(data, line);
+    await receivingRepository.updateLine(lineId, normalizedData);
     return receivingRepository.findById(documentId);
   },
 

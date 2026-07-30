@@ -2,7 +2,7 @@ import { forwardRef } from 'react';
 import styles from './Select.module.css';
 
 export const Select = forwardRef(function Select(
-  { label, error, options = [], placeholder = 'Выберите…', id, ...props },
+  { label, error, hint, required, options = [], placeholder = 'Выберите…', id, ...props },
   ref,
 ) {
   const fieldId = id ?? props.name;
@@ -11,6 +11,7 @@ export const Select = forwardRef(function Select(
       {label && (
         <label className={styles.label} htmlFor={fieldId}>
           {label}
+          {required && <span className={styles.required}> *</span>}
         </label>
       )}
       <select
@@ -26,6 +27,7 @@ export const Select = forwardRef(function Select(
           </option>
         ))}
       </select>
+      {hint && !error && <span className={styles.hint}>{hint}</span>}
       {error && <span className={styles.error}>{error}</span>}
     </div>
   );

@@ -37,6 +37,7 @@ export function EntityFormModal({
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: withSafeDefaults(fields, defaultValues),
+    shouldUnregister: true,
   });
 
   return (

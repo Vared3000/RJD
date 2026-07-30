@@ -68,15 +68,17 @@ export function createReferenceService(
     },
 
     async create(data) {
-      if (validateRelations) await validateRelations(data);
-      const finalData = beforeCreate ? await beforeCreate(data) : data;
+      const validatedData = validateRelations ? ((await validateRelations(data)) ?? data) : data;
+      const finalData = beforeCreate ? await beforeCreate(validatedData) : validatedData;
       return repository.create(finalData);
     },
 
     async update(id, data) {
       const current = validateRelations ? await repository.findById(id) : null;
-      if (validateRelations) await validateRelations(data, { id, current });
-      const item = await repository.updateById(id, data);
+      const validatedData = validateRelations
+        ? ((await validateRelations(data, { id, current })) ?? data)
+        : data;
+      const item = await repository.updateById(id, validatedData);
       if (!item) throw ApiError.notFound(`${entityName} не найден(а) или архивирован(а)`);
       return item;
     },

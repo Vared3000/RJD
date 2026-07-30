@@ -190,7 +190,9 @@ export function WriteoffEditorPage() {
                 <td>{line.instance?.model?.name ?? '—'}</td>
                 <td>
                   {line.instance?.size
-                    ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                    ? line.instance.size
+                      ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                      : 'Без размера'
                     : '—'}
                 </td>
                 <td>{line.reason}</td>

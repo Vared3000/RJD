@@ -41,21 +41,37 @@ function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
 }
 
-async function validateLineSizes(data, currentLine) {
+async function normalizeLineSizes(data, currentLine) {
   const modelId = valueFrom(data, currentLine, 'modelId');
+  const sizeId = valueFrom(data, currentLine, 'sizeId');
   const heightSizeId = valueFrom(data, currentLine, 'heightSizeId');
   const model = await issuanceRepository.findActiveModel(modelId);
   if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
 
-  if (heightSizeId) {
+  if (!model.sizeType) {
+    return { ...data, sizeId: null, heightSizeId: null };
+  }
+
+  if (!sizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать размер');
+  }
+  const size = await issuanceRepository.findActiveSize(sizeId);
+  if (!size || size.type !== model.sizeType) {
+    throw ApiError.badRequest('Размер не найден, архивирован или не соответствует типу модели');
+  }
+
+  if (model.requiresHeightSize && !heightSizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать рост');
+  }
+  if (model.requiresHeightSize && heightSizeId) {
     const heightSize = await issuanceRepository.findActiveSize(heightSizeId);
     if (!heightSize || heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
     }
+    return { ...data, sizeId, heightSizeId };
   }
-  if (model.requiresHeightSize && !heightSizeId) {
-    throw ApiError.badRequest('Для этой модели необходимо указать рост');
-  }
+
+  return { ...data, sizeId, heightSizeId: null };
 }
 
 export const issuanceService = {
@@ -96,9 +112,9 @@ export const issuanceService = {
   async addLine(documentId, data) {
     const document = await issuanceRepository.findById(documentId);
     assertDraft(document);
-    await validateLineSizes(data);
-    assertNoDuplicateLine(document.lines, data);
-    await issuanceRepository.createLine(documentId, data);
+    const normalizedData = await normalizeLineSizes(data);
+    assertNoDuplicateLine(document.lines, normalizedData);
+    await issuanceRepository.createLine(documentId, normalizedData);
     return issuanceRepository.findById(documentId);
   },
 
@@ -107,17 +123,17 @@ export const issuanceService = {
     assertDraft(document);
     const line = await issuanceRepository.findLine(documentId, lineId);
     if (!line) throw ApiError.notFound('Позиция не найдена');
-    await validateLineSizes(data, line);
+    const normalizedData = await normalizeLineSizes(data, line);
     assertNoDuplicateLine(
       document.lines,
       {
-        modelId: data.modelId ?? line.modelId,
-        sizeId: data.sizeId ?? line.sizeId,
-        heightSizeId: valueFrom(data, line, 'heightSizeId'),
+        modelId: normalizedData.modelId ?? line.modelId,
+        sizeId: normalizedData.sizeId,
+        heightSizeId: normalizedData.heightSizeId,
       },
       lineId,
     );
-    await issuanceRepository.updateLine(lineId, data);
+    await issuanceRepository.updateLine(lineId, normalizedData);
     return issuanceRepository.findById(documentId);
   },
 
@@ -146,9 +162,7 @@ export const issuanceService = {
     );
 
     const existingKeys = new Set(
-      document.lines.map(
-        (line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`,
-      ),
+      document.lines.map((line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`),
     );
     const skipped = [];
 
@@ -156,7 +170,8 @@ export const issuanceService = {
       const sizeField = SIZE_FIELD_BY_TYPE[kitItem.model?.sizeType];
       const sizeId = sizeField ? employee[sizeField] : null;
       const heightSizeId = kitItem.model?.requiresHeightSize ? employee.heightSizeId : null;
-      if (!sizeId || (kitItem.model?.requiresHeightSize && !heightSizeId)) {
+      const requiresSize = Boolean(kitItem.model?.sizeType);
+      if ((requiresSize && !sizeId) || (kitItem.model?.requiresHeightSize && !heightSizeId)) {
         skipped.push({
           modelId: kitItem.modelId,
           modelName: kitItem.model?.name,
@@ -209,9 +224,11 @@ export const issuanceService = {
 
         if (instances.length < line.quantity) {
           const modelName = line.model?.name ?? line.modelId;
-          const sizeValue = line.size?.value ?? line.sizeId;
+          const sizeDescription = line.size?.value
+            ? `, размер ${line.size.value}`
+            : ', без размера';
           throw ApiError.badRequest(
-            `Недостаточно на складе: «${modelName}», размер ${sizeValue} — ` +
+            `Недостаточно на складе: «${modelName}»${sizeDescription} — ` +
               `доступно ${instances.length} из ${line.quantity}`,
           );
         }
