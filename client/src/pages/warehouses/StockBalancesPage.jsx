@@ -5,7 +5,14 @@ import { Select } from '../../shared/ui/Select.jsx';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 import pageStyles from './StockPage.module.css';
 
-const SIZE_TYPE_LABELS = { clothing: 'Размер', height: 'Рост', shoe: 'Обувь' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'Размер',
+  height: 'Рост',
+  shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
+};
 
 function formatSize(size) {
   if (!size) return '—';
@@ -58,6 +65,7 @@ export function StockBalancesPage() {
               <th>Склад</th>
               <th>Модель</th>
               <th>Размер</th>
+              <th>Рост</th>
               <th>Количество</th>
               <th>Стоимость</th>
             </tr>
@@ -65,14 +73,14 @@ export function StockBalancesPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td className={styles.hint} colSpan={5}>
+                <td className={styles.hint} colSpan={6}>
                   Загрузка…
                 </td>
               </tr>
             )}
             {!isLoading && rows?.length === 0 && (
               <tr>
-                <td className={styles.hint} colSpan={5}>
+                <td className={styles.hint} colSpan={6}>
                   Остатков нет
                 </td>
               </tr>
@@ -82,6 +90,7 @@ export function StockBalancesPage() {
                 <td>{row.warehouse?.name ?? '—'}</td>
                 <td>{row.model?.name ?? '—'}</td>
                 <td>{formatSize(row.size)}</td>
+                <td>{row.heightSize?.value ?? '—'}</td>
                 <td>{row.quantity}</td>
                 <td>{formatMoney(row.totalCost)}</td>
               </tr>
@@ -90,7 +99,7 @@ export function StockBalancesPage() {
           {rows?.length > 0 && (
             <tfoot>
               <tr>
-                <td colSpan={3}>
+                <td colSpan={4}>
                   <strong>Итого</strong>
                 </td>
                 <td>

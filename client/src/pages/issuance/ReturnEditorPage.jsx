@@ -214,7 +214,11 @@ export function ReturnEditorPage() {
               <tr key={line.id}>
                 <td>{line.instance?.inventoryNumber}</td>
                 <td>{line.instance?.model?.name ?? '—'}</td>
-                <td>{line.instance?.size?.value ?? '—'}</td>
+                <td>
+                  {line.instance?.size
+                    ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                    : '—'}
+                </td>
                 <td>{CONDITION_LABELS[line.condition] ?? line.condition}</td>
                 <td>{ROUTE_TO_LABELS[line.routeTo] ?? line.routeTo}</td>
                 <td>{line.note ?? '—'}</td>

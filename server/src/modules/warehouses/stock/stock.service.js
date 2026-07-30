@@ -11,7 +11,9 @@ export const stockService = {
     const [warehouses, nomenclatureModels, sizes] = await Promise.all([
       stockRepository.findWarehouses(uniqueIds(groups.map((g) => g.warehouseId))),
       stockRepository.findModels(uniqueIds(groups.map((g) => g.modelId))),
-      stockRepository.findSizes(uniqueIds(groups.map((g) => g.sizeId))),
+      stockRepository.findSizes(
+        uniqueIds(groups.flatMap((g) => [g.sizeId, g.heightSizeId])),
+      ),
     ]);
 
     const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
@@ -22,6 +24,7 @@ export const stockService = {
       warehouse: warehouseById.get(group.warehouseId) ?? null,
       model: modelById.get(group.modelId) ?? null,
       size: sizeById.get(group.sizeId) ?? null,
+      heightSize: sizeById.get(group.heightSizeId) ?? null,
       quantity: Number(group.quantity),
       totalCost: group.totalCost != null ? Number(group.totalCost) : 0,
     }));

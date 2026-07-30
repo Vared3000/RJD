@@ -147,7 +147,11 @@ export function InventoryEditorPage() {
                 </td>
                 <td>{line.instance?.inventoryNumber}</td>
                 <td>{line.instance?.model?.name ?? '—'}</td>
-                <td>{line.instance?.size?.value ?? '—'}</td>
+                <td>
+                  {line.instance?.size
+                    ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                    : '—'}
+                </td>
                 {isDraft && canManage && (
                   <td className={catalogStyles.actions}>
                     <button

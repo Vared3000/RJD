@@ -22,6 +22,7 @@ const detailInclude = [
         attributes: ['id', 'name', 'article', 'unit'],
       },
       { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
     ],
   },
 ];
@@ -85,6 +86,14 @@ export const receivingRepository = {
 
   deleteLine(lineId) {
     return ReceivingLine.destroy({ where: { id: lineId } });
+  },
+
+  findActiveModel(id) {
+    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null } });
+  },
+
+  findActiveSize(id) {
+    return models.Size.findOne({ where: { id, archivedAt: null } });
   },
 
   createBatch(data, { transaction }) {

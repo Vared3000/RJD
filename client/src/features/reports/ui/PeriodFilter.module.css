@@ -1,0 +1,32 @@
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.presets {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.field input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}

@@ -9,14 +9,27 @@ import { generateInventoryNumber } from './generate-inventory-number.js';
 async function assertActiveExists(Model, id, label) {
   const record = await Model.findOne({ where: { id, archivedAt: null } });
   if (!record) throw ApiError.badRequest(`${label} не найден(а) или архивирован(а)`);
+  return record;
 }
 
-async function validateRelations(data) {
-  if (data.modelId !== undefined) {
-    await assertActiveExists(models.NomenclatureModel, data.modelId, 'Модель номенклатуры');
-  }
+async function validateRelations(data, { current } = {}) {
+  const modelId = data.modelId !== undefined ? data.modelId : current?.modelId;
+  const heightSizeId =
+    data.heightSizeId !== undefined ? data.heightSizeId : current?.heightSizeId;
+  const model = modelId
+    ? await assertActiveExists(models.NomenclatureModel, modelId, 'Модель номенклатуры')
+    : null;
   if (data.sizeId !== undefined) {
     await assertActiveExists(models.Size, data.sizeId, 'Размер');
+  }
+  if (heightSizeId) {
+    const heightSize = await assertActiveExists(models.Size, heightSizeId, 'Рост');
+    if (heightSize.type !== 'height') {
+      throw ApiError.badRequest('Рост: указан размер другого типа');
+    }
+  }
+  if (model?.requiresHeightSize && !heightSizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать рост');
   }
   if (data.batchId) {
     await assertActiveExists(models.Batch, data.batchId, 'Партия');
@@ -43,6 +56,7 @@ export function createInstancesRouter() {
     include: [
       { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name', 'article'] },
       { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
       { model: models.Batch, as: 'batch', attributes: ['id', 'code'] },
       { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
     ],
@@ -54,7 +68,8 @@ export function createInstancesRouter() {
       tag: 'Номенклатура: Экземпляры',
       entityName: 'Экземпляр',
       requestBodyHint:
-        'modelId, sizeId (обязательно), batchId, warehouseId, inventoryNumber (авто, если не задан), status, condition, cost',
+        'modelId, sizeId (обязательно), heightSizeId, batchId, warehouseId, ' +
+        'inventoryNumber (авто, если не задан), status, condition, cost',
     }),
   );
 

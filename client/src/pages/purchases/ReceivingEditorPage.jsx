@@ -17,7 +17,14 @@ import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-const SIZE_TYPE_LABELS = { clothing: 'Размер', height: 'Рост', shoe: 'Обувь' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'Размер',
+  height: 'Рост',
+  shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
+};
 
 function errorMessage(mutation) {
   if (!mutation?.isError) return null;
@@ -147,6 +154,7 @@ export function ReceivingEditorPage() {
             <tr>
               <th>Модель</th>
               <th>Размер</th>
+              <th>Рост</th>
               <th>Кол-во</th>
               <th>Цена закупки</th>
               <th>Для работника</th>
@@ -158,7 +166,7 @@ export function ReceivingEditorPage() {
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={8}>
+                <td className={catalogStyles.hint} colSpan={9}>
                   Позиций пока нет
                 </td>
               </tr>
@@ -171,6 +179,7 @@ export function ReceivingEditorPage() {
                     ? `${SIZE_TYPE_LABELS[line.size.type] ?? line.size.type}: ${line.size.value}`
                     : '—'}
                 </td>
+                <td>{line.heightSize?.value ?? '—'}</td>
                 <td>{line.quantity}</td>
                 <td>{line.purchasePrice} ₽</td>
                 <td>{line.employeeCost != null ? `${line.employeeCost} ₽` : '—'}</td>
@@ -200,7 +209,7 @@ export function ReceivingEditorPage() {
           {lines.length > 0 && (
             <tfoot>
               <tr>
-                <td colSpan={6} className={styles.totalLabel}>
+                <td colSpan={7} className={styles.totalLabel}>
                   Итого
                 </td>
                 <td>{totalSum.toFixed(2)} ₽</td>

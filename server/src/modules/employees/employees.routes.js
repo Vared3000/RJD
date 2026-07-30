@@ -41,6 +41,9 @@ async function validateRelations(data) {
   if (data.positionId) {
     await assertActiveExists(models.Position, data.positionId, 'Должность');
   }
+  if (data.dpoId) {
+    await assertActiveExists(models.Dpo, data.dpoId, 'ДПО');
+  }
   if (data.clothingSizeId) {
     await assertSize(data.clothingSizeId, 'clothing', 'Размер одежды');
   }
@@ -49,6 +52,15 @@ async function validateRelations(data) {
   }
   if (data.shoeSizeId) {
     await assertSize(data.shoeSizeId, 'shoe', 'Размер обуви');
+  }
+  if (data.headwearSizeId) {
+    await assertSize(data.headwearSizeId, 'headwear', 'Размер головного убора');
+  }
+  if (data.beltSizeId) {
+    await assertSize(data.beltSizeId, 'belt', 'Размер ремня');
+  }
+  if (data.glovesSizeId) {
+    await assertSize(data.glovesSizeId, 'gloves', 'Размер перчаток');
   }
 }
 
@@ -62,6 +74,7 @@ async function getEmployeeProperty(employeeId) {
     include: [
       { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
       { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
     ],
     order: [['createdAt', 'ASC']],
   });
@@ -85,9 +98,18 @@ export function createEmployeesRouter() {
       { model: models.Organization, as: 'organization', attributes: ['id', 'name'] },
       { model: models.Subdivision, as: 'subdivision', attributes: ['id', 'name'] },
       { model: models.Position, as: 'position', attributes: ['id', 'name'] },
+      { model: models.Dpo, as: 'dpo', attributes: ['id', 'name'] },
       { model: models.Size, as: 'clothingSize', attributes: ['id', 'type', 'value'] },
       { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
       { model: models.Size, as: 'shoeSize', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'headwearSize', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'beltSize', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'glovesSize', attributes: ['id', 'type', 'value'] },
+      {
+        model: models.EmployeeMeasurement,
+        as: 'measurements',
+        attributes: ['id', 'sizeType', 'value'],
+      },
     ],
   });
 
@@ -97,9 +119,9 @@ export function createEmployeesRouter() {
       tag: 'Работники',
       entityName: 'Работник',
       requestBodyHint:
-        'organizationId, fullName, hireDate (обязательно), subdivisionId, positionId, ' +
+        'organizationId, fullName (обязательно), hireDate, subdivisionId, positionId, dpoId, ' +
         'personnelNumber, birthDate, terminationDate, clothingSizeId, heightSizeId, ' +
-        'shoeSizeId, phone',
+        'shoeSizeId, headwearSizeId, beltSizeId, glovesSizeId, phone',
     }),
   );
 

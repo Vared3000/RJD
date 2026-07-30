@@ -32,6 +32,11 @@ import { defineWriteoffDocument } from './writeoff-document.model.js';
 import { defineWriteoffLine } from './writeoff-line.model.js';
 import { defineInventoryDocument } from './inventory-document.model.js';
 import { defineInventoryLine } from './inventory-line.model.js';
+import { defineDpo } from './dpo.model.js';
+import { defineDpoHistory } from './dpo-history.model.js';
+import { defineSourceImportRecord } from './source-import-record.model.js';
+import { defineNomenclaturePrice } from './nomenclature-price.model.js';
+import { defineEmployeeMeasurement } from './employee-measurement.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -66,6 +71,11 @@ const WriteoffDocument = defineWriteoffDocument(sequelize);
 const WriteoffLine = defineWriteoffLine(sequelize);
 const InventoryDocument = defineInventoryDocument(sequelize);
 const InventoryLine = defineInventoryLine(sequelize);
+const Dpo = defineDpo(sequelize);
+const DpoHistory = defineDpoHistory(sequelize);
+const SourceImportRecord = defineSourceImportRecord(sequelize);
+const NomenclaturePrice = defineNomenclaturePrice(sequelize);
+const EmployeeMeasurement = defineEmployeeMeasurement(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -106,6 +116,8 @@ Instance.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
 
 Size.hasMany(Instance, { foreignKey: 'sizeId', as: 'instances' });
 Instance.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+Size.hasMany(Instance, { foreignKey: 'heightSizeId', as: 'heightInstances' });
+Instance.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 
 Batch.hasMany(Instance, { foreignKey: 'batchId', as: 'instances' });
 Instance.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
@@ -124,13 +136,14 @@ ReceivingDocument.hasMany(ReceivingLine, { foreignKey: 'documentId', as: 'lines'
 ReceivingLine.belongsTo(ReceivingDocument, { foreignKey: 'documentId', as: 'document' });
 ReceivingLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
 ReceivingLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+ReceivingLine.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 
 // Движения склада: экземпляр + откуда/куда
 StockMovement.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 StockMovement.belongsTo(Warehouse, { foreignKey: 'fromWarehouseId', as: 'fromWarehouse' });
 StockMovement.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
 
-// Работник: организация/подразделение/должность + три размера (одежда/рост/обувь)
+// Работник: организация/подразделение/должность + индивидуальные размеры.
 Organization.hasMany(Employee, { foreignKey: 'organizationId', as: 'employees' });
 Employee.belongsTo(Organization, { foreignKey: 'organizationId', as: 'organization' });
 
@@ -143,6 +156,9 @@ Employee.belongsTo(Position, { foreignKey: 'positionId', as: 'position' });
 Employee.belongsTo(Size, { foreignKey: 'clothingSizeId', as: 'clothingSize' });
 Employee.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 Employee.belongsTo(Size, { foreignKey: 'shoeSizeId', as: 'shoeSize' });
+Employee.belongsTo(Size, { foreignKey: 'headwearSizeId', as: 'headwearSize' });
+Employee.belongsTo(Size, { foreignKey: 'beltSizeId', as: 'beltSize' });
+Employee.belongsTo(Size, { foreignKey: 'glovesSizeId', as: 'glovesSize' });
 
 // Экземпляр может быть выдан работнику (Этап 8)
 Employee.hasMany(Instance, { foreignKey: 'employeeId', as: 'instances' });
@@ -165,6 +181,7 @@ IssuanceDocument.hasMany(IssuanceLine, { foreignKey: 'documentId', as: 'lines' }
 IssuanceLine.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'document' });
 IssuanceLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
 IssuanceLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+IssuanceLine.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 
 // Документ "Возврат": шапка -> строки (конкретный экземпляр + состояние при
 // возврате), в отличие от "Выдачи" — по экземплярам, не по модели/размеру,
@@ -231,6 +248,40 @@ InventoryDocument.hasMany(InventoryLine, { foreignKey: 'documentId', as: 'lines'
 InventoryLine.belongsTo(InventoryDocument, { foreignKey: 'documentId', as: 'document' });
 InventoryLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 
+// ДПО заказчика (раздел 10 ТЗ) — работник может быть привязан к ДПО;
+// история изменений ДПО — отдельная таблица (см. dpo-history.model.js).
+Dpo.hasMany(Employee, { foreignKey: 'dpoId', as: 'employees' });
+Employee.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
+
+Dpo.hasMany(DpoHistory, { foreignKey: 'dpoId', as: 'history' });
+DpoHistory.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
+DpoHistory.belongsTo(User, { foreignKey: 'changedByUserId', as: 'changedBy' });
+
+// Источник импорта хранит исходную строку/страницу целиком; нормализованная цена
+// ссылается на неё, чтобы любое значение можно было проследить до акта.
+NomenclatureModel.hasMany(NomenclaturePrice, { foreignKey: 'modelId', as: 'prices' });
+NomenclaturePrice.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+Dpo.hasMany(NomenclaturePrice, { foreignKey: 'dpoId', as: 'nomenclaturePrices' });
+NomenclaturePrice.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
+SourceImportRecord.hasOne(NomenclaturePrice, {
+  foreignKey: 'sourceRecordId',
+  as: 'nomenclaturePrice',
+});
+NomenclaturePrice.belongsTo(SourceImportRecord, {
+  foreignKey: 'sourceRecordId',
+  as: 'sourceRecord',
+});
+Employee.hasMany(EmployeeMeasurement, { foreignKey: 'employeeId', as: 'measurements' });
+EmployeeMeasurement.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+SourceImportRecord.hasMany(EmployeeMeasurement, {
+  foreignKey: 'sourceRecordId',
+  as: 'employeeMeasurements',
+});
+EmployeeMeasurement.belongsTo(SourceImportRecord, {
+  foreignKey: 'sourceRecordId',
+  as: 'sourceRecord',
+});
+
 export const models = {
   Role,
   Permission,
@@ -265,6 +316,11 @@ export const models = {
   WriteoffLine,
   InventoryDocument,
   InventoryLine,
+  Dpo,
+  DpoHistory,
+  SourceImportRecord,
+  NomenclaturePrice,
+  EmployeeMeasurement,
 };
 
 export { sequelize };

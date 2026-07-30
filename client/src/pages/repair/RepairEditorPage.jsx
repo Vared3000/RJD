@@ -252,7 +252,11 @@ export function RepairEditorPage() {
               <tr key={line.id}>
                 <td>{line.instance?.inventoryNumber}</td>
                 <td>{line.instance?.model?.name ?? '—'}</td>
-                <td>{line.instance?.size?.value ?? '—'}</td>
+                <td>
+                  {line.instance?.size
+                    ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                    : '—'}
+                </td>
                 <td>{CONDITION_LABELS[line.conditionBefore] ?? line.conditionBefore ?? '—'}</td>
                 <td>{CONDITION_LABELS[line.conditionAfter] ?? line.conditionAfter ?? '—'}</td>
                 <td>{line.cost != null ? `${line.cost} ₽` : '—'}</td>

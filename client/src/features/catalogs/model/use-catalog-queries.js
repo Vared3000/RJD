@@ -7,10 +7,10 @@ import { createCatalogApi } from '../api/catalog-api-factory.js';
 export function createCatalogHooks(resource) {
   const api = createCatalogApi(resource);
 
-  function useList(includeArchived = false) {
+  function useList(includeArchived = false, extra = {}) {
     return useQuery({
-      queryKey: [resource, { includeArchived }],
-      queryFn: () => api.list({ includeArchived }),
+      queryKey: [resource, { includeArchived, ...extra }],
+      queryFn: () => api.list({ includeArchived, ...extra }),
     });
   }
 

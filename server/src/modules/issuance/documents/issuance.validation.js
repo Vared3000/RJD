@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
+const optionalUuid = z.preprocess(
+  emptyToNull,
+  z.string().uuid('Некорректный идентификатор').nullable(),
+);
 
 export const createDocumentSchema = z.object({
   employeeId: z.string().uuid('Выберите работника'),
@@ -14,6 +18,7 @@ export const updateDocumentSchema = createDocumentSchema.partial();
 export const createLineSchema = z.object({
   modelId: z.string().uuid('Выберите модель'),
   sizeId: z.string().uuid('Выберите размер'),
+  heightSizeId: optionalUuid.optional(),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
 });
 

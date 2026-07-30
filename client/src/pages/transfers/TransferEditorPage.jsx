@@ -186,7 +186,11 @@ export function TransferEditorPage() {
               <tr key={line.id}>
                 <td>{line.instance?.inventoryNumber}</td>
                 <td>{line.instance?.model?.name ?? '—'}</td>
-                <td>{line.instance?.size?.value ?? '—'}</td>
+                <td>
+                  {line.instance?.size
+                    ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
+                    : '—'}
+                </td>
                 <td>{line.note ?? '—'}</td>
                 {isDraft && canManage && (
                   <td className={catalogStyles.actions}>

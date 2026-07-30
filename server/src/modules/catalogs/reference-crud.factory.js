@@ -74,7 +74,8 @@ export function createReferenceService(
     },
 
     async update(id, data) {
-      if (validateRelations) await validateRelations(data);
+      const current = validateRelations ? await repository.findById(id) : null;
+      if (validateRelations) await validateRelations(data, { id, current });
       const item = await repository.updateById(id, data);
       if (!item) throw ApiError.notFound(`${entityName} не найден(а) или архивирован(а)`);
       return item;

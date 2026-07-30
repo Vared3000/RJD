@@ -11,6 +11,27 @@ function assertDraft(document) {
   }
 }
 
+function valueFrom(data, currentLine, field) {
+  return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
+}
+
+async function validateLineSizes(data, currentLine) {
+  const modelId = valueFrom(data, currentLine, 'modelId');
+  const heightSizeId = valueFrom(data, currentLine, 'heightSizeId');
+  const model = await receivingRepository.findActiveModel(modelId);
+  if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
+
+  if (heightSizeId) {
+    const heightSize = await receivingRepository.findActiveSize(heightSizeId);
+    if (!heightSize || heightSize.type !== 'height') {
+      throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
+    }
+  }
+  if (model.requiresHeightSize && !heightSizeId) {
+    throw ApiError.badRequest('Для этой модели необходимо указать рост');
+  }
+}
+
 export const receivingService = {
   list() {
     return receivingRepository.list();
@@ -49,6 +70,7 @@ export const receivingService = {
   async addLine(documentId, data) {
     const document = await receivingRepository.findById(documentId);
     assertDraft(document);
+    await validateLineSizes(data);
     await receivingRepository.createLine(documentId, data);
     return receivingRepository.findById(documentId);
   },
@@ -58,6 +80,7 @@ export const receivingService = {
     assertDraft(document);
     const line = await receivingRepository.findLine(documentId, lineId);
     if (!line) throw ApiError.notFound('Позиция не найдена');
+    await validateLineSizes(data, line);
     await receivingRepository.updateLine(lineId, data);
     return receivingRepository.findById(documentId);
   },
@@ -105,6 +128,7 @@ export const receivingService = {
           instanceRows.push({
             modelId: line.modelId,
             sizeId: line.sizeId,
+            heightSizeId: line.heightSizeId ?? null,
             batchId: batch.id,
             warehouseId: document.warehouseId,
             inventoryNumber,

@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
 const optionalNumber = (schema) => z.preprocess(emptyToNull, schema.nullable());
+const optionalUuid = z.preprocess(
+  emptyToNull,
+  z.string().uuid('Некорректный идентификатор').nullable(),
+);
 
 export const createDocumentSchema = z.object({
   supplierId: z.string().uuid('Выберите поставщика'),
@@ -17,6 +21,7 @@ export const updateDocumentSchema = createDocumentSchema.partial();
 export const createLineSchema = z.object({
   modelId: z.string().uuid('Выберите модель'),
   sizeId: z.string().uuid('Выберите размер'),
+  heightSizeId: optionalUuid.optional(),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
   purchasePrice: z.coerce.number().nonnegative('Цена не может быть отрицательной'),
   employeeCost: optionalNumber(z.coerce.number().nonnegative()).optional(),

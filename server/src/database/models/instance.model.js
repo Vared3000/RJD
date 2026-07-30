@@ -13,6 +13,7 @@ export function defineInstance(sequelize) {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       modelId: { type: DataTypes.UUID, allowNull: false, field: 'model_id' },
       sizeId: { type: DataTypes.UUID, allowNull: false, field: 'size_id' },
+      heightSizeId: { type: DataTypes.UUID, allowNull: true, field: 'height_size_id' },
       batchId: { type: DataTypes.UUID, allowNull: true, field: 'batch_id' },
       warehouseId: { type: DataTypes.UUID, allowNull: true, field: 'warehouse_id' },
       // Работник, которому выдан экземпляр (документ "Выдача", Этап 8);
@@ -29,8 +30,8 @@ export function defineInstance(sequelize) {
       barcode: { type: DataTypes.STRING(64), allowNull: true, unique: true },
       status: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'in_stock' },
       condition: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'new' },
-      cost: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-      employeeCost: { type: DataTypes.DECIMAL(12, 2), allowNull: true, field: 'employee_cost' },
+      cost: { type: DataTypes.DECIMAL(14, 4), allowNull: true },
+      employeeCost: { type: DataTypes.DECIMAL(14, 4), allowNull: true, field: 'employee_cost' },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
     { tableName: 'instances' },

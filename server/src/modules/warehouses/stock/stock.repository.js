@@ -18,11 +18,12 @@ export const stockRepository = {
         'warehouseId',
         'modelId',
         'sizeId',
+        'heightSizeId',
         [fn('COUNT', col('id')), 'quantity'],
         [fn('SUM', col('cost')), 'totalCost'],
       ],
       where,
-      group: ['warehouseId', 'modelId', 'sizeId'],
+      group: ['warehouseId', 'modelId', 'sizeId', 'heightSizeId'],
       raw: true,
     });
   },
@@ -60,6 +61,7 @@ export const stockRepository = {
           include: [
             { model: NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
             { model: Size, as: 'size', attributes: ['id', 'type', 'value'] },
+            { model: Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
           ],
         },
         { model: Warehouse, as: 'fromWarehouse', attributes: ['id', 'name'] },

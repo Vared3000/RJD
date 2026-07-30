@@ -5,13 +5,21 @@ const emptyToUndefined = (value) => (value === '' ? undefined : value);
 export const lineSchema = z.object({
   modelId: z.string().uuid('Выберите модель'),
   sizeId: z.string().uuid('Выберите размер'),
+  heightSizeId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
   purchasePrice: z.coerce.number().nonnegative('Цена не может быть отрицательной'),
   employeeCost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
   vatRate: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(100).optional()),
 });
 
-const SIZE_TYPE_LABELS = { clothing: 'Размер', height: 'Рост', shoe: 'Обувь' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'Размер',
+  height: 'Рост',
+  shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
+};
 
 export const lineFields = [
   {
@@ -29,6 +37,15 @@ export const lineFields = [
     optionsResource: 'sizes',
     optionValue: 'id',
     optionLabel: (size) => `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`,
+  },
+  {
+    name: 'heightSizeId',
+    label: 'Рост (для составного размера одежды)',
+    type: 'select',
+    optionsResource: 'sizes',
+    optionsFilter: (size) => size.type === 'height',
+    optionValue: 'id',
+    optionLabel: 'value',
   },
   { name: 'quantity', label: 'Количество', type: 'number', defaultValue: 1 },
   { name: 'purchasePrice', label: 'Закупочная цена', type: 'number' },

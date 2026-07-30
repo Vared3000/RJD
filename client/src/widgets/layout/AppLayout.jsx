@@ -41,10 +41,12 @@ const NAV_SECTIONS = [
   },
   {
     title: 'Работники',
-    permission: 'employees.view',
+    // У раздела нет единого права (ДПО — dpo.manage, не employees.view) —
+    // фильтруются сами пункты, как у "Складские документы".
     items: [
-      { to: '/employees', label: 'Работники' },
-      { to: '/employees/kits', label: 'Комплекты' },
+      { to: '/employees', label: 'Работники', permission: 'employees.view' },
+      { to: '/employees/kits', label: 'Комплекты', permission: 'employees.view' },
+      { to: '/dpo', label: 'ДПО', permission: 'dpo.manage' },
     ],
   },
   {
@@ -72,6 +74,21 @@ const NAV_SECTIONS = [
       { to: '/transfers/documents', label: 'Перемещение', permission: 'transfers.manage' },
       { to: '/inventory/documents', label: 'Инвентаризация', permission: 'inventory.manage' },
       { to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' },
+    ],
+  },
+  {
+    title: 'Отчётность',
+    permission: 'reports.view',
+    items: [
+      { to: '/reports/employees', label: 'Работники' },
+      { to: '/reports/dpo', label: 'ДПО' },
+      { to: '/reports/purchases', label: 'Закупки' },
+      { to: '/reports/suppliers', label: 'Поставщики' },
+      { to: '/reports/writeoffs', label: 'Списания' },
+      { to: '/reports/repairs', label: 'Ремонты' },
+      { to: '/reports/warehouses', label: 'Склады' },
+      { to: '/reports/stock-balances', label: 'Остатки' },
+      { to: '/reports/property-cost', label: 'Стоимость имущества' },
     ],
   },
 ];

@@ -16,13 +16,21 @@ const CONDITION_LABELS = {
   damaged: 'Повреждено',
 };
 
-const SIZE_TYPE_LABELS = { clothing: 'Размер', height: 'Рост', shoe: 'Обувь' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'Размер',
+  height: 'Рост',
+  shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
+};
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
 
 const schema = z.object({
   modelId: z.string().uuid('Выберите модель'),
   sizeId: z.string().uuid('Выберите размер'),
+  heightSizeId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   warehouseId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   inventoryNumber: z.string().max(64).optional().or(z.literal('')),
   status: z.enum(['in_stock', 'issued', 'laundry', 'repair', 'write_off']).default('in_stock'),
@@ -39,6 +47,11 @@ const columns = [
     label: 'Размер',
     render: (item) =>
       item.size ? `${SIZE_TYPE_LABELS[item.size.type] ?? item.size.type}: ${item.size.value}` : '—',
+  },
+  {
+    key: 'heightSize',
+    label: 'Рост',
+    render: (item) => item.heightSize?.value ?? '—',
   },
   { key: 'status', label: 'Статус', render: (item) => STATUS_LABELS[item.status] ?? item.status },
   {
@@ -71,6 +84,15 @@ const fields = [
     optionsResource: 'sizes',
     optionValue: 'id',
     optionLabel: (size) => `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`,
+  },
+  {
+    name: 'heightSizeId',
+    label: 'Рост (для составного размера одежды)',
+    type: 'select',
+    optionsResource: 'sizes',
+    optionsFilter: (size) => size.type === 'height',
+    optionValue: 'id',
+    optionLabel: 'value',
   },
   {
     name: 'warehouseId',

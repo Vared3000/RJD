@@ -11,6 +11,14 @@ import styles from './EmployeeCardPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const DOCUMENT_TYPE_LABELS = { issuance: 'Выдача', return: 'Возврат' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'одежда',
+  height: 'рост',
+  shoe: 'обувь',
+  headwear: 'головной убор',
+  belt: 'ремень',
+  gloves: 'перчатки',
+};
 
 function formatMoney(value) {
   return value == null ? '—' : `${Number(value).toFixed(2)} ₽`;
@@ -34,6 +42,15 @@ export function EmployeeCardPage() {
   ].sort((a, b) => new Date(b.documentDate) - new Date(a.documentDate));
 
   const instances = property?.instances ?? [];
+  const importedMeasurements = Object.entries(
+    (employee.measurements ?? []).reduce((groups, measurement) => {
+      groups[measurement.sizeType] ??= new Set();
+      groups[measurement.sizeType].add(measurement.value);
+      return groups;
+    }, {}),
+  )
+    .map(([type, values]) => `${SIZE_TYPE_LABELS[type] ?? type}: ${[...values].join(', ')}`)
+    .join('; ');
 
   return (
     <div className={catalogStyles.page}>
@@ -58,7 +75,7 @@ export function EmployeeCardPage() {
         </div>
         <div>
           <span className={styles.label}>Дата приёма</span>
-          <span>{employee.hireDate}</span>
+          <span>{employee.hireDate ?? '—'}</span>
         </div>
         <div>
           <span className={styles.label}>Стаж</span>
@@ -81,8 +98,24 @@ export function EmployeeCardPage() {
           <span>{employee.shoeSize?.value ?? '—'}</span>
         </div>
         <div>
+          <span className={styles.label}>Размер головного убора</span>
+          <span>{employee.headwearSize?.value ?? '—'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Размер ремня</span>
+          <span>{employee.beltSize?.value ?? '—'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Размер перчаток</span>
+          <span>{employee.glovesSize?.value ?? '—'}</span>
+        </div>
+        <div>
           <span className={styles.label}>Телефон</span>
           <span>{employee.phone ?? '—'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Все размеры из актов</span>
+          <span>{importedMeasurements || '—'}</span>
         </div>
       </div>
 
@@ -94,6 +127,7 @@ export function EmployeeCardPage() {
               <th>Инв. номер</th>
               <th>Модель</th>
               <th>Размер</th>
+              <th>Рост</th>
               <th>Стоимость</th>
               <th>Для работника</th>
             </tr>
@@ -101,14 +135,14 @@ export function EmployeeCardPage() {
           <tbody>
             {isLoadingProperty && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={5}>
+                <td className={catalogStyles.hint} colSpan={6}>
                   Загрузка…
                 </td>
               </tr>
             )}
             {!isLoadingProperty && instances.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={5}>
+                <td className={catalogStyles.hint} colSpan={6}>
                   Сейчас на руках у работника ничего нет
                 </td>
               </tr>
@@ -118,6 +152,7 @@ export function EmployeeCardPage() {
                 <td>{instance.inventoryNumber}</td>
                 <td>{instance.model?.name ?? '—'}</td>
                 <td>{instance.size?.value ?? '—'}</td>
+                <td>{instance.heightSize?.value ?? '—'}</td>
                 <td>{formatMoney(instance.cost)}</td>
                 <td>{formatMoney(instance.employeeCost)}</td>
               </tr>
@@ -126,7 +161,7 @@ export function EmployeeCardPage() {
           {instances.length > 0 && (
             <tfoot>
               <tr>
-                <td colSpan={3} className={styles.totalLabel}>
+                <td colSpan={4} className={styles.totalLabel}>
                   Итого
                 </td>
                 <td>{formatMoney(property.totalCost)}</td>

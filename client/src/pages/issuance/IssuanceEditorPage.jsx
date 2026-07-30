@@ -17,7 +17,14 @@ import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-const SIZE_TYPE_LABELS = { clothing: 'Размер', height: 'Рост', shoe: 'Обувь' };
+const SIZE_TYPE_LABELS = {
+  clothing: 'Размер',
+  height: 'Рост',
+  shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
+};
 
 function errorMessage(mutation) {
   if (!mutation?.isError) return null;
@@ -146,6 +153,7 @@ export function IssuanceEditorPage() {
             <tr>
               <th>Модель</th>
               <th>Размер</th>
+              <th>Рост</th>
               <th>Кол-во</th>
               {isDraft && canManage && <th aria-label="Действия" />}
             </tr>
@@ -153,7 +161,7 @@ export function IssuanceEditorPage() {
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={4}>
+                <td className={catalogStyles.hint} colSpan={5}>
                   Позиций пока нет
                 </td>
               </tr>
@@ -166,6 +174,7 @@ export function IssuanceEditorPage() {
                     ? `${SIZE_TYPE_LABELS[line.size.type] ?? line.size.type}: ${line.size.value}`
                     : '—'}
                 </td>
+                <td>{line.heightSize?.value ?? '—'}</td>
                 <td>{line.quantity}</td>
                 {isDraft && canManage && (
                   <td className={catalogStyles.actions}>

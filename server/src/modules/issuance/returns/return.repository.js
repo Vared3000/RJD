@@ -5,6 +5,7 @@ const { ReturnDocument, ReturnLine, Instance, StockMovement } = models;
 const instanceInclude = [
   { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
   { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+  { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
 ];
 
 const listInclude = [

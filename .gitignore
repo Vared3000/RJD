@@ -10,4 +10,8 @@ Thumbs.db
 /server/uploads/
 /server/tmp/
 /client/dist/
+/tmp/
 pnpm-debug.log*
+
+# Референсные материалы заказчика (акты, карточки, отчёты) — не для репозитория
+/РЖД 2й этаж/

@@ -31,6 +31,17 @@ import { WriteoffListPage } from '../pages/writeoff/WriteoffListPage.jsx';
 import { WriteoffEditorPage } from '../pages/writeoff/WriteoffEditorPage.jsx';
 import { InventoryListPage } from '../pages/inventory/InventoryListPage.jsx';
 import { InventoryEditorPage } from '../pages/inventory/InventoryEditorPage.jsx';
+import { ReportEmployeesPage } from '../pages/reports/ReportEmployeesPage.jsx';
+import { ReportDpoPage } from '../pages/reports/ReportDpoPage.jsx';
+import { ReportPurchasesPage } from '../pages/reports/ReportPurchasesPage.jsx';
+import { ReportSuppliersPage } from '../pages/reports/ReportSuppliersPage.jsx';
+import { ReportWriteoffsPage } from '../pages/reports/ReportWriteoffsPage.jsx';
+import { ReportRepairsPage } from '../pages/reports/ReportRepairsPage.jsx';
+import { ReportWarehousesPage } from '../pages/reports/ReportWarehousesPage.jsx';
+import { ReportStockBalancesPage } from '../pages/reports/ReportStockBalancesPage.jsx';
+import { ReportPropertyCostPage } from '../pages/reports/ReportPropertyCostPage.jsx';
+import { DpoPage } from '../pages/dpo/DpoPage.jsx';
+import { DpoHistoryPage } from '../pages/dpo/DpoHistoryPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -70,6 +81,8 @@ export function AppRouter() {
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/kits" element={<KitsPage />} />
         <Route path="employees/:id" element={<EmployeeCardPage />} />
+        <Route path="dpo" element={<DpoPage />} />
+        <Route path="dpo/:id/history" element={<DpoHistoryPage />} />
         <Route path="issuance/documents" element={<IssuanceListPage />} />
         <Route path="issuance/documents/:id" element={<IssuanceEditorPage />} />
         <Route path="issuance/returns" element={<ReturnListPage />} />
@@ -84,6 +97,15 @@ export function AppRouter() {
         <Route path="writeoff/documents/:id" element={<WriteoffEditorPage />} />
         <Route path="inventory/documents" element={<InventoryListPage />} />
         <Route path="inventory/documents/:id" element={<InventoryEditorPage />} />
+        <Route path="reports/employees" element={<ReportEmployeesPage />} />
+        <Route path="reports/dpo" element={<ReportDpoPage />} />
+        <Route path="reports/purchases" element={<ReportPurchasesPage />} />
+        <Route path="reports/suppliers" element={<ReportSuppliersPage />} />
+        <Route path="reports/writeoffs" element={<ReportWriteoffsPage />} />
+        <Route path="reports/repairs" element={<ReportRepairsPage />} />
+        <Route path="reports/warehouses" element={<ReportWarehousesPage />} />
+        <Route path="reports/stock-balances" element={<ReportStockBalancesPage />} />
+        <Route path="reports/property-cost" element={<ReportPropertyCostPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

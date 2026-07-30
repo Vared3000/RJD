@@ -18,10 +18,12 @@ export function CatalogPage({
   viewPermission = 'catalogs.view',
   managePermission = 'catalogs.manage',
   archiveColumnLabel = 'Статус',
+  searchable = false,
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
   const [showArchived, setShowArchived] = useState(false);
-  const { data: items, isLoading } = useList(showArchived);
+  const [search, setSearch] = useState('');
+  const { data: items, isLoading } = useList(showArchived, searchable ? { search } : {});
   const { create, update, archive, restore } = useCatalogMutations();
   const [editingItem, setEditingItem] = useState(null);
   const permissions = useSessionStore((state) => state.user?.permissions ?? []);
@@ -57,14 +59,25 @@ export function CatalogPage({
         {canManage && <Button onClick={() => setEditingItem({})}>+ Добавить</Button>}
       </div>
 
-      <label className={styles.archiveToggle}>
-        <input
-          type="checkbox"
-          checked={showArchived}
-          onChange={(event) => setShowArchived(event.target.checked)}
-        />
-        Показать архивные
-      </label>
+      <div className={styles.filterBar}>
+        <label className={styles.archiveToggle}>
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+          />
+          Показать архивные
+        </label>
+        {searchable && (
+          <input
+            type="search"
+            placeholder="Поиск…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className={styles.searchInput}
+          />
+        )}
+      </div>
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>

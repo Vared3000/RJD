@@ -11,7 +11,7 @@ export function defineRepairLine(sequelize) {
       instanceId: { type: DataTypes.UUID, allowNull: false, field: 'instance_id' },
       conditionBefore: { type: DataTypes.STRING(32), allowNull: true, field: 'condition_before' },
       conditionAfter: { type: DataTypes.STRING(32), allowNull: true, field: 'condition_after' },
-      cost: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+      cost: { type: DataTypes.DECIMAL(14, 4), allowNull: true },
       note: { type: DataTypes.STRING(500), allowNull: true },
       sortOrder: {
         type: DataTypes.INTEGER,

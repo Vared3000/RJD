@@ -298,3 +298,188 @@ test('выдача: автоподбор комплекта -> проведен�
   );
   await auth(agent.delete(`/api/v1/issuance/returns/${dupReturnId}`));
 });
+
+test('выдача: составной размер одежды подбирает экземпляр нужного роста', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const stamp = String(Date.now()).slice(-10);
+  const unique = `Test Composite Size ${stamp}`;
+  const state = {
+    organizationId: null,
+    warehouseId: null,
+    supplierId: null,
+    positionId: null,
+    modelId: null,
+    sizeIds: [],
+    employeeIds: [],
+    receivingId: null,
+    batchId: null,
+    issuanceIds: [],
+    instanceIds: [],
+  };
+
+  t.after(async () => {
+    if (state.instanceIds.length) {
+      await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
+    }
+    if (state.issuanceIds.length) {
+      await models.IssuanceDocument.destroy({ where: { id: state.issuanceIds } });
+    }
+    if (state.instanceIds.length) {
+      await models.Instance.destroy({ where: { id: state.instanceIds } });
+    }
+    if (state.receivingId) {
+      await models.ReceivingDocument.destroy({ where: { id: state.receivingId } });
+    }
+    if (state.batchId) {
+      await models.Batch.destroy({ where: { id: state.batchId } });
+    }
+    if (state.employeeIds.length) {
+      await models.Employee.destroy({ where: { id: state.employeeIds } });
+    }
+    if (state.positionId) {
+      await models.PositionKitItem.destroy({ where: { positionId: state.positionId } });
+      await models.Position.destroy({ where: { id: state.positionId } });
+    }
+    if (state.modelId) {
+      await models.NomenclatureModel.destroy({ where: { id: state.modelId } });
+    }
+    if (state.sizeIds.length) {
+      await models.Size.destroy({ where: { id: state.sizeIds } });
+    }
+    if (state.warehouseId) {
+      await models.Warehouse.destroy({ where: { id: state.warehouseId } });
+    }
+    if (state.supplierId) {
+      await models.Supplier.destroy({ where: { id: state.supplierId } });
+    }
+    if (state.organizationId) {
+      await models.Organization.destroy({ where: { id: state.organizationId } });
+    }
+  });
+
+  const organization = await models.Organization.create({ name: unique });
+  state.organizationId = organization.id;
+  const warehouse = await models.Warehouse.create({
+    organizationId: organization.id,
+    name: unique,
+  });
+  state.warehouseId = warehouse.id;
+  const supplier = await models.Supplier.create({ name: unique });
+  state.supplierId = supplier.id;
+  const clothingSize = await models.Size.create({ type: 'clothing', value: `CS56-${stamp}` });
+  state.sizeIds.push(clothingSize.id);
+  const height170 = await models.Size.create({ type: 'height', value: `H170-${stamp}` });
+  state.sizeIds.push(height170.id);
+  const height182 = await models.Size.create({ type: 'height', value: `H182-${stamp}` });
+  state.sizeIds.push(height182.id);
+  const model = await models.NomenclatureModel.create({
+    name: unique,
+    sizeType: 'clothing',
+    requiresHeightSize: true,
+  });
+  state.modelId = model.id;
+  const position = await models.Position.create({ name: unique });
+  state.positionId = position.id;
+  await models.PositionKitItem.create({
+    positionId: position.id,
+    modelId: model.id,
+    quantity: 1,
+  });
+  const employeeWithHeight = await models.Employee.create({
+    organizationId: organization.id,
+    positionId: position.id,
+    fullName: `${unique} with height`,
+    hireDate: '2026-01-01',
+    clothingSizeId: clothingSize.id,
+    heightSizeId: height170.id,
+  });
+  const employeeWithoutHeight = await models.Employee.create({
+    organizationId: organization.id,
+    positionId: position.id,
+    fullName: `${unique} without height`,
+    hireDate: '2026-01-01',
+    clothingSizeId: clothingSize.id,
+  });
+  state.employeeIds.push(employeeWithHeight.id, employeeWithoutHeight.id);
+
+  // Одно поступление содержит два экземпляра одинаковых модели/размера,
+  // различающихся только ростом.
+  const receiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
+    supplierId: supplier.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-07-01',
+  });
+  state.receivingId = receiving.body.data.id;
+  for (const heightSizeId of [height170.id, height182.id]) {
+    const line = await auth(
+      agent.post(`/api/v1/purchases/receiving/${state.receivingId}/lines`),
+    ).send({
+      modelId: model.id,
+      sizeId: clothingSize.id,
+      heightSizeId,
+      quantity: 1,
+      purchasePrice: 2500,
+    });
+    assert.equal(line.status, 201);
+  }
+  const postedReceiving = await auth(
+    agent.post(`/api/v1/purchases/receiving/${state.receivingId}/post`),
+  );
+  assert.equal(postedReceiving.status, 200);
+  state.batchId = postedReceiving.body.data.batchId;
+  const instances = await models.Instance.findAll({ where: { modelId: model.id } });
+  state.instanceIds.push(...instances.map((instance) => instance.id));
+  assert.deepEqual(
+    new Set(instances.map((instance) => instance.heightSizeId)),
+    new Set([height170.id, height182.id]),
+  );
+
+  const issuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: employeeWithHeight.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-07-30',
+  });
+  state.issuanceIds.push(issuance.body.data.id);
+  const applied = await auth(
+    agent.post(`/api/v1/issuance/documents/${issuance.body.data.id}/apply-kit`),
+  );
+  assert.equal(applied.status, 200);
+  assert.equal(applied.body.data.lines[0].sizeId, clothingSize.id);
+  assert.equal(applied.body.data.lines[0].heightSizeId, height170.id);
+  assert.deepEqual(applied.body.meta.skipped, []);
+
+  const postedIssuance = await auth(
+    agent.post(`/api/v1/issuance/documents/${issuance.body.data.id}/post`),
+  );
+  assert.equal(postedIssuance.status, 200);
+  const selectedInstance = await models.Instance.findOne({
+    where: { modelId: model.id, employeeId: employeeWithHeight.id },
+  });
+  assert.equal(selectedInstance.heightSizeId, height170.id);
+  const otherHeightInstance = await models.Instance.findOne({
+    where: { modelId: model.id, heightSizeId: height182.id },
+  });
+  assert.equal(otherHeightInstance.status, 'in_stock');
+
+  const skippedIssuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: employeeWithoutHeight.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-07-30',
+  });
+  state.issuanceIds.push(skippedIssuance.body.data.id);
+  const skipped = await auth(
+    agent.post(`/api/v1/issuance/documents/${skippedIssuance.body.data.id}/apply-kit`),
+  );
+  assert.equal(skipped.status, 200);
+  assert.equal(skipped.body.data.lines.length, 0);
+  assert.equal(skipped.body.meta.skipped.length, 1);
+  assert.equal(skipped.body.meta.skipped[0].reason, 'no-size');
+});

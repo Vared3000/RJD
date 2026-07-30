@@ -5,10 +5,15 @@ const SIZE_TYPE_LABELS = {
   clothing: 'Размер одежды',
   height: 'Рост',
   shoe: 'Обувь',
+  headwear: 'Головной убор',
+  belt: 'Ремень',
+  gloves: 'Перчатки',
 };
 
 const schema = z.object({
-  type: z.enum(['clothing', 'height', 'shoe'], { message: 'Выберите тип' }),
+  type: z.enum(['clothing', 'height', 'shoe', 'headwear', 'belt', 'gloves'], {
+    message: 'Выберите тип',
+  }),
   value: z.string().min(1, 'Укажите значение').max(32),
   sortOrder: z.coerce.number().int().default(0),
 });

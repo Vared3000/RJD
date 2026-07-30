@@ -8,6 +8,9 @@ export function defineEmployee(sequelize) {
       organizationId: { type: DataTypes.UUID, allowNull: false, field: 'organization_id' },
       subdivisionId: { type: DataTypes.UUID, allowNull: true, field: 'subdivision_id' },
       positionId: { type: DataTypes.UUID, allowNull: true, field: 'position_id' },
+      // ДПО заказчика (раздел 10 ТЗ) — используется отчётом по ДПО (раздел 12
+      // ТЗ) и будущими печатными формами (Этап 12).
+      dpoId: { type: DataTypes.UUID, allowNull: true, field: 'dpo_id' },
       fullName: { type: DataTypes.STRING(255), allowNull: false, field: 'full_name' },
       personnelNumber: {
         type: DataTypes.STRING(64),
@@ -16,7 +19,7 @@ export function defineEmployee(sequelize) {
         field: 'personnel_number',
       },
       birthDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'birth_date' },
-      hireDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'hire_date' },
+      hireDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'hire_date' },
       // Дата увольнения — бизнес-факт (используется в расчёте стажа и в
       // отчётности, раздел 12 ТЗ), не путать с archivedAt (мягкое удаление
       // самой записи — см. docs/architecture.md).
@@ -24,6 +27,9 @@ export function defineEmployee(sequelize) {
       clothingSizeId: { type: DataTypes.UUID, allowNull: true, field: 'clothing_size_id' },
       heightSizeId: { type: DataTypes.UUID, allowNull: true, field: 'height_size_id' },
       shoeSizeId: { type: DataTypes.UUID, allowNull: true, field: 'shoe_size_id' },
+      headwearSizeId: { type: DataTypes.UUID, allowNull: true, field: 'headwear_size_id' },
+      beltSizeId: { type: DataTypes.UUID, allowNull: true, field: 'belt_size_id' },
+      glovesSizeId: { type: DataTypes.UUID, allowNull: true, field: 'gloves_size_id' },
       phone: { type: DataTypes.STRING(32), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },

@@ -11,6 +11,14 @@ export function defineNomenclatureModel(sequelize) {
       // Тип размера модели (одежда/рост/обувь) — по нему автоподбор
       // комплекта (Этап 8) выбирает нужный из трёх размеров работника.
       sizeType: { type: DataTypes.STRING(32), allowNull: true, field: 'size_type' },
+      // Составной размер "одежда + рост" (см. HANDOFF.md) — осмысленно
+      // только при sizeType='clothing', проверяется в валидации.
+      requiresHeightSize: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'requires_height_size',
+      },
       description: { type: DataTypes.STRING(1000), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },

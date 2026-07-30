@@ -16,8 +16,13 @@ const detailInclude = [
     model: IssuanceLine,
     as: 'lines',
     include: [
-      { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name', 'sizeType'] },
+      {
+        model: models.NomenclatureModel,
+        as: 'model',
+        attributes: ['id', 'name', 'sizeType', 'requiresHeightSize'],
+      },
       { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+      { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
     ],
   },
 ];
@@ -53,6 +58,7 @@ export const issuanceRepository = {
       include: [
         { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
         { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
+        { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
       ],
       transaction,
     });
@@ -93,13 +99,31 @@ export const issuanceRepository = {
     return IssuanceLine.destroy({ where: { id: lineId } });
   },
 
+  findActiveModel(id) {
+    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null } });
+  },
+
+  findActiveSize(id) {
+    return models.Size.findOne({ where: { id, archivedAt: null } });
+  },
+
   // Подбор экземпляров под строку при проведении — FOR UPDATE SKIP LOCKED,
   // чтобы два одновременно проводимых документа Выдачи не забрали один и
   // тот же экземпляр (без SKIP LOCKED второй запрос просто ждал бы
   // разблокировки и потом всё равно получил бы уже занятые записи в выборке).
-  findAvailableInstances({ modelId, sizeId, warehouseId, limit }, { transaction }) {
+  findAvailableInstances(
+    { modelId, sizeId, heightSizeId, warehouseId, limit },
+    { transaction },
+  ) {
     return Instance.findAll({
-      where: { modelId, sizeId, warehouseId, status: 'in_stock', archivedAt: null },
+      where: {
+        modelId,
+        sizeId,
+        heightSizeId: heightSizeId ?? null,
+        warehouseId,
+        status: 'in_stock',
+        archivedAt: null,
+      },
       order: [['createdAt', 'ASC']],
       limit,
       transaction,
@@ -134,7 +158,11 @@ export const issuanceRepository = {
     const kitItems = await PositionKitItem.findAll({
       where: { positionId: employee.positionId, archivedAt: null },
       include: [
-        { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name', 'sizeType'] },
+        {
+          model: models.NomenclatureModel,
+          as: 'model',
+          attributes: ['id', 'name', 'sizeType', 'requiresHeightSize'],
+        },
       ],
     });
     return { employee, kitItems };

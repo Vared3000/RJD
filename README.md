@@ -67,12 +67,39 @@ Frontend будет доступен на порту 80, backend — на 4000.
 ./scripts/restore.sh файл.dump    # восстановление (перезаписывает БД!)
 ```
 
+## Импорт реальных актов РЖД
+
+Импорт двухслойный и идемпотентный:
+
+- каждая непустая строка `.xlsx`/`.xls`, каждая страница PDF и метаданные
+  каждого файла сохраняются в `source_import_records`;
+- распознанные ДПО, ФИО, телефоны, табельные номера, должности, все варианты
+  размеров, номенклатура, комплекты и цены нормализуются в рабочие таблицы;
+- `employee_measurements` сохраняет все встреченные размеры работника, даже
+  если в основной карточке выбран только один текущий размер каждого типа;
+- цены хранятся с точностью до четырёх знаков в `nomenclature_prices` и доступны
+  по `GET /nomenclature-models/:id/prices`.
+
+Исходная папка и промежуточный JSON содержат персональные данные и исключены из
+Git (`/РЖД 2й этаж/`, `/server/tmp/`, `/tmp/`). Порядок запуска:
+
+```powershell
+python -m pip install -r scripts/requirements-import.txt
+python scripts/extract-rzd-reference-data.py "РЖД 2й этаж" "server/tmp/rzd-reference-import.json"
+pnpm db:migrate
+pnpm --filter @workwear/server import:rzd -- .\tmp\rzd-reference-import.json
+```
+
+Повторный запуск обновляет записи по стабильному ключу источника и не создаёт
+дубликаты.
+
 ## Скрипты
 
 | Команда | Назначение |
 |---|---|
 | `pnpm dev` | backend + frontend одновременно |
 | `pnpm db:migrate` / `db:seed` | миграции и сид БД |
+| `pnpm --filter @workwear/server import:rzd -- <json>` | импорт извлечённых актов РЖД |
 | `pnpm lint` / `format` | ESLint / Prettier по всему репозиторию |
 | `pnpm test` | тесты backend (node:test + supertest) |
 | `pnpm build` | продакшн-сборка |
@@ -261,4 +288,7 @@ service-document.factory.js`, а не продублированы: в отли�
 - [x] Этап 10 — Складские документы (Перемещение — draft/posted с движением
       на оба склада; Списание — draft/posted, status='write_off';
       Инвентаризация — снимок остатков + подтверждение, без мутации остатков)
-- [ ] Этап 11–14 — см. PROJECT_SPECIFICATION.md, раздел 17
+- [x] Этап 11 — ДПО (полный CRUD + история изменений) и Отчётность (раздел 12
+      ТЗ: 9 JSON-эндпоинтов /reports/*, включая расчёт фактических дней
+      обеспечения из истории StockMovement+IssuanceDocument/ReturnDocument)
+- [ ] Этап 12–14 — см. PROJECT_SPECIFICATION.md, раздел 17

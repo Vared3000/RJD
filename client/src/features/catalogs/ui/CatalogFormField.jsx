@@ -2,10 +2,11 @@ import { Controller } from 'react-hook-form';
 import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Select } from '../../../shared/ui/Select.jsx';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
+import styles from './CatalogFormField.module.css';
 
 const INPUT_TYPES = { number: 'number', email: 'email', date: 'date' };
 
-// field: { name, label, type: 'text'|'email'|'number'|'date'|'select', required,
+// field: { name, label, type: 'text'|'email'|'number'|'date'|'select'|'checkbox', required,
 //          options?: [{value,label}] — для статичного select,
 //          optionsResource?, optionValue?, optionLabel? — для select со
 //          списком из другого справочника (например, организация);
@@ -21,6 +22,16 @@ export function CatalogFormField({ field, form }) {
 
   if (field.type === 'select') {
     return <SelectField field={field} control={control} error={error} />;
+  }
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className={styles.checkboxField}>
+        <input type="checkbox" {...register(field.name)} />
+        <span>{field.label}</span>
+        {error && <span className={styles.error}>{error}</span>}
+      </label>
+    );
   }
 
   return (

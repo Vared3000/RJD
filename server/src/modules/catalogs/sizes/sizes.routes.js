@@ -19,7 +19,8 @@ export function createSizesRouter() {
       tag: 'Справочники: Размеры',
       entityName: 'Размер',
       requestBodyHint:
-        "type: 'clothing'|'height'|'shoe' (обязательно), value (обязательно), sortOrder",
+        "type: 'clothing'|'height'|'shoe'|'headwear'|'belt'|'gloves' " +
+        '(обязательно), value (обязательно), sortOrder',
     }),
   );
 

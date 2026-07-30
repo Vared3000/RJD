@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 
-export const SIZE_TYPES = ['clothing', 'height', 'shoe'];
+export const SIZE_TYPES = ['clothing', 'height', 'shoe', 'headwear', 'belt', 'gloves'];
 
 export function defineSize(sequelize) {
   return sequelize.define(
