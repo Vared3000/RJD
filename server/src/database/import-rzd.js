@@ -18,6 +18,7 @@ const EMPLOYEE_SIZE_FIELD = {
   belt: 'beltSizeId',
   gloves: 'glovesSizeId',
 };
+const NON_PERSON_EMPLOYEE_RE = /^(?:начальник|претензи|настоящий|сохранн)/i;
 
 function chunks(values, size = BATCH_SIZE) {
   const result = [];
@@ -150,6 +151,28 @@ async function upsertSourceRecords(data, transaction) {
         'payload',
         'updatedAt',
       ],
+    });
+  }
+
+  // Нормализованные записи производны от исходных строк. Удаляем только
+  // устаревшие производные записи текущего набора файлов, если правила
+  // распознавания стали точнее; оригинальные строки и страницы не трогаем.
+  const existingDerived = await models.SourceImportRecord.findAll({
+    where: {
+      recordType: 'normalized_candidate',
+      fileHash: { [Op.in]: [...new Set(fileHashByPath.values())] },
+    },
+    attributes: ['id', 'sourceKey'],
+    raw: true,
+    transaction,
+  });
+  const staleDerivedIds = existingDerived
+    .filter((record) => !knownKeys.has(record.sourceKey))
+    .map((record) => record.id);
+  for (const batch of chunks(staleDerivedIds, 1000)) {
+    await models.SourceImportRecord.destroy({
+      where: { id: { [Op.in]: batch } },
+      transaction,
     });
   }
 
@@ -383,6 +406,24 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       }
     }
   }
+
+  // Ранние версии распознавания принимали подписи вроде «Начальник ...» и
+  // «Настоящий Акт Сторон» за ФИО. Они не удаляются физически, а скрываются
+  // из рабочих списков; настоящие работники без табельного номера остаются.
+  const employeesWithoutPersonnel = await models.Employee.findAll({
+    where: {
+      organizationId: organization.id,
+      personnelNumber: null,
+    },
+    attributes: ['id', 'fullName', 'archivedAt'],
+    transaction,
+  });
+  for (const employee of employeesWithoutPersonnel) {
+    if (NON_PERSON_EMPLOYEE_RE.test(employee.fullName) && !employee.archivedAt) {
+      await employee.update({ archivedAt: new Date() }, { transaction });
+    }
+  }
+
   for (const batch of chunks(measurementRows)) {
     await models.EmployeeMeasurement.bulkCreate(batch, {
       transaction,

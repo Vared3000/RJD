@@ -62,6 +62,10 @@ DATE_RE = re.compile(r"(?<!\d)(\d{1,2})[./](\d{1,2})[./](20\d{2}|\d{2})(?!\d)")
 PHONE_RE = re.compile(r"(?:\+7|8)[\s()\-]*\d{3}[\s()\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}")
 PERSONNEL_RE = re.compile(r"^\d{5,12}$")
 SIZE_VALUE_RE = re.compile(r"\d+(?:[.,]\d+)?")
+NON_PERSON_NAME_RE = re.compile(
+    r"^(?:начальник|претензи|настоящий|сохранн)",
+    flags=re.I,
+)
 MONTHS = {
     "январ": 1,
     "феврал": 2,
@@ -155,7 +159,11 @@ def normalize_name(value: Any) -> str | None:
     text = clean_text(value)
     text = re.sub(r"\([^)]*(?:комплект|замен|увол|размер)[^)]*\)", "", text, flags=re.I)
     text = clean_text(text)
-    if not text or any(token in lower(text) for token in ("фио", "ф.и.о", "работника заказчика")):
+    if (
+        not text
+        or NON_PERSON_NAME_RE.search(text)
+        or any(token in lower(text) for token in ("фио", "ф.и.о", "работника заказчика"))
+    ):
         return None
     words = re.findall(r"[А-ЯЁA-Z][а-яёa-z-]+", text)
     if 2 <= len(words) <= 5 and len(" ".join(words)) >= 8:

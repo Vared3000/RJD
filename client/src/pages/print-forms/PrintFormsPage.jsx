@@ -4,6 +4,7 @@ import { downloadPrintForm } from '../../features/print-forms/api/print-forms-ap
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { Button } from '../../shared/ui/Button.jsx';
+import { SearchableSelect } from '../../shared/ui/SearchableSelect.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './PrintFormsPage.module.css';
@@ -93,12 +94,15 @@ export function PrintFormsPage() {
           }}
           options={(dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name }))}
         />
-        <Select
-          label="Работник (для личной карточки)"
+        <SearchableSelect
+          label="Работник"
           value={employeeId}
-          onChange={(event) => setEmployeeId(event.target.value)}
+          onChange={setEmployeeId}
+          disabled={!dpoId}
+          placeholder={dpoId ? 'Введите ФИО или табельный номер…' : 'Сначала выберите ДПО'}
+          hint="Нужен только для личной карточки"
           options={(employees ?? [])
-            .filter((employee) => !dpoId || employee.dpoId === dpoId)
+            .filter((employee) => employee.dpoId === dpoId)
             .map((employee) => ({
               value: employee.id,
               label: [employee.fullName, employee.personnelNumber].filter(Boolean).join(' · '),
