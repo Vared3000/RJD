@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
+import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useRepairsReport } from '../../features/reports/model/use-reports-queries.js';
 import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
@@ -51,6 +52,10 @@ export function ReportRepairsPage() {
         />
       </div>
 
+      <ReportExportButtons
+        report="repairs"
+        params={{ ...range, warehouseId: warehouseId || undefined }}
+      />
       <ReportTable
         columns={columns}
         rows={data?.rows}

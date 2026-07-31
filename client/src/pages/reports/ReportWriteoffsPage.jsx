@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
+import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useWriteoffsReport } from '../../features/reports/model/use-reports-queries.js';
 import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
@@ -31,7 +32,10 @@ export function ReportWriteoffsPage() {
   const [range, setRange] = useState(() => resolvePreset('month'));
   const [warehouseId, setWarehouseId] = useState('');
   const { data: warehouses } = createCatalogHooks('warehouses').useList(false);
-  const { data, isLoading } = useWriteoffsReport({ ...range, warehouseId: warehouseId || undefined });
+  const { data, isLoading } = useWriteoffsReport({
+    ...range,
+    warehouseId: warehouseId || undefined,
+  });
 
   return (
     <div className={styles.page}>
@@ -49,6 +53,10 @@ export function ReportWriteoffsPage() {
         />
       </div>
 
+      <ReportExportButtons
+        report="writeoffs"
+        params={{ ...range, warehouseId: warehouseId || undefined }}
+      />
       <ReportTable
         columns={columns}
         rows={data?.rows}

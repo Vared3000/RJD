@@ -13,6 +13,12 @@ async function loginAsAdmin(agent) {
   return res.body.data.accessToken;
 }
 
+function binaryParser(res, callback) {
+  const chunks = [];
+  res.on('data', (chunk) => chunks.push(chunk));
+  res.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
 test('отчёты: дни обеспечения по ДПО/работникам + smoke по остальным эндпоинтам', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
     t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
@@ -164,7 +170,9 @@ test('отчёты: дни обеспечения по ДПО/работника
     instanceId: instance.id,
     condition: 'good',
   });
-  const return1Posted = await auth(agent.post(`/api/v1/issuance/returns/${return1.body.data.id}/post`));
+  const return1Posted = await auth(
+    agent.post(`/api/v1/issuance/returns/${return1.body.data.id}/post`),
+  );
   assert.equal(return1Posted.status, 200);
 
   // --- Выдача №2: тот же экземпляр -> работник 2, с 20.06, без возврата ---
@@ -258,4 +266,34 @@ test('отчёты: дни обеспечения по ДПО/работника
     warehouseId,
   });
   assert.equal(repairsReport.status, 200);
+
+  const exportQueries = {
+    'stock-balances': { warehouseId },
+    'property-cost': { dpoId },
+    purchases: { from: '2026-06-01', to: '2026-06-30', supplierId },
+    suppliers: { from: '2026-06-01', to: '2026-06-30' },
+    writeoffs: { from: '2026-06-01', to: '2026-06-30', warehouseId },
+    repairs: { from: '2026-06-01', to: '2026-06-30', warehouseId },
+    warehouses: { from: '2026-06-01', to: '2026-06-30', warehouseId },
+    employees: { from: '2026-06-01', to: '2026-06-30', dpoId },
+    dpo: { from: '2026-06-01', to: '2026-06-30', dpoId },
+  };
+  for (const [report, query] of Object.entries(exportQueries)) {
+    const xlsx = await auth(agent.get(`/api/v1/reports/${report}/export`))
+      .query({ ...query, format: 'xlsx' })
+      .buffer(true)
+      .parse(binaryParser);
+    assert.equal(xlsx.status, 200, `${report}: Excel`);
+    assert.match(xlsx.headers['content-type'], /spreadsheetml/);
+    assert.equal(xlsx.body.subarray(0, 2).toString(), 'PK');
+
+    const pdf = await auth(agent.get(`/api/v1/reports/${report}/export`))
+      .query({ ...query, format: 'pdf' })
+      .buffer(true)
+      .parse(binaryParser);
+    assert.equal(pdf.status, 200, `${report}: PDF`);
+    assert.match(pdf.headers['content-type'], /application\/pdf/);
+    assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
+    assert.ok(pdf.body.length > 1000);
+  }
 });

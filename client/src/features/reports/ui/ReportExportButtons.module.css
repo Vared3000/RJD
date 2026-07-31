@@ -1,0 +1,18 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.error {
+  color: var(--color-danger, #b42318);
+  font-size: 0.875rem;
+}

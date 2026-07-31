@@ -15,6 +15,7 @@ export function createReportsRouter() {
   const router = Router();
   router.use(requireAuth, requirePermission(PERMISSION));
 
+  router.get('/:report/export', asyncHandler(reportsController.export));
   router.get('/stock-balances', asyncHandler(reportsController.stockBalances));
   router.get('/property-cost', asyncHandler(reportsController.propertyCost));
   router.get('/purchases', asyncHandler(reportsController.purchases));
@@ -26,13 +27,59 @@ export function createReportsRouter() {
   router.get('/dpo', asyncHandler(reportsController.dpo));
 
   const periodParams = [
-    { name: 'period', in: 'query', schema: { type: 'string', enum: ['day', 'month', 'quarter', 'year'] } },
+    {
+      name: 'period',
+      in: 'query',
+      schema: { type: 'string', enum: ['day', 'month', 'quarter', 'year'] },
+    },
     { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
     { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
     { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
   ];
 
   extendSwaggerPaths({
+    '/reports/{report}/export': {
+      get: {
+        tags: ['Отчёты'],
+        summary: 'Выгрузить отчёт в Excel или PDF',
+        parameters: [
+          {
+            name: 'report',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              enum: [
+                'stock-balances',
+                'property-cost',
+                'purchases',
+                'suppliers',
+                'writeoffs',
+                'repairs',
+                'warehouses',
+                'employees',
+                'dpo',
+              ],
+            },
+          },
+          {
+            name: 'format',
+            in: 'query',
+            schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' },
+          },
+          ...periodParams,
+        ],
+        responses: {
+          200: {
+            description: 'Файл отчёта',
+            content: {
+              'application/pdf': {},
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {},
+            },
+          },
+        },
+      },
+    },
     '/reports/stock-balances': {
       get: {
         tags: ['Отчёты'],
@@ -128,9 +175,11 @@ export function createReportsRouter() {
     '/reports/dpo': {
       get: {
         tags: ['Отчёты'],
-        summary:
-          'Отчёт по ДПО: работники, стоимость имущества, выдано за период, дни обеспечения',
-        parameters: [...periodParams, { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+        summary: 'Отчёт по ДПО: работники, стоимость имущества, выдано за период, дни обеспечения',
+        parameters: [
+          ...periodParams,
+          { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+        ],
         responses: { 200: { description: 'Список по ДПО + итоги' } },
       },
     },

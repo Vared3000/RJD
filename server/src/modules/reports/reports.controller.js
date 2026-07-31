@@ -1,5 +1,6 @@
 import { reportsService } from './reports.service.js';
 import { success } from '../../utils/respond.js';
+import { reportExportService } from './report-export.service.js';
 
 function respond(res, { rows, totals, from, to }) {
   const meta = { totals };
@@ -9,6 +10,13 @@ function respond(res, { rows, totals, from, to }) {
 }
 
 export const reportsController = {
+  async export(req, res) {
+    const file = await reportExportService.generate(req.params.report, req.query);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.setHeader('Content-Length', file.buffer.length);
+    return res.send(file.buffer);
+  },
   async stockBalances(req, res) {
     respond(res, await reportsService.stockBalances(req.query));
   },

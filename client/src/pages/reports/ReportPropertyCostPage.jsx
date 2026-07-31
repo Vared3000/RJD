@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
+import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { usePropertyCostReport } from '../../features/reports/model/use-reports-queries.js';
 import { formatMoney } from '../../features/reports/model/format-money.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
@@ -43,6 +44,7 @@ export function ReportPropertyCostPage() {
         />
       </div>
 
+      <ReportExportButtons report="property-cost" params={{ dpoId: dpoId || undefined }} />
       <ReportTable
         columns={columns}
         rows={data?.rows}

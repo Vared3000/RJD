@@ -20,3 +20,20 @@ export const reportsApi = {
   employees: (params) => getReport('employees', params),
   dpo: (params) => getReport('dpo', params),
 };
+
+export async function downloadReport(report, params, format) {
+  const response = await httpClient.get(`/reports/${report}/export`, {
+    params: pruneParams({ ...params, format }),
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] ?? '';
+  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ?? `${report}.${format}`;
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

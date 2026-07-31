@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
+import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useDpoReport } from '../../features/reports/model/use-reports-queries.js';
 import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
@@ -47,6 +48,7 @@ export function ReportDpoPage() {
         />
       </div>
 
+      <ReportExportButtons report="dpo" params={{ ...range, dpoId: dpoId || undefined }} />
       <ReportTable
         columns={columns}
         rows={data?.rows}
