@@ -183,6 +183,29 @@ def split_measurements(value: Any) -> list[str]:
     return list(dict.fromkeys(match.replace(",", ".") for match in SIZE_VALUE_RE.findall(text)))
 
 
+def split_card_sizes(value: Any) -> list[str]:
+    text = clean_text(value)
+    if not text:
+        return []
+    return list(
+        dict.fromkeys(
+            part
+            for part in (clean_text(item) for item in re.split(r"[,;/]+", text))
+            if re.fullmatch(r"\d+(?:\.\d+)?", part)
+        )
+    )
+
+
+def date_value(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = clean_text(value)
+    iso_match = re.search(r"\b(20\d{2}-\d{2}-\d{2})(?=T|\b)", text)
+    return iso_match.group(1) if iso_match else parse_date(text)
+
+
 def classify_size_type(item_name: str) -> tuple[str | None, bool]:
     text = lower(item_name)
     if any(word in text for word in ("обув", "туфл", "ботин", "сапог", "полубот")):
@@ -417,6 +440,146 @@ def analyze_sheet(
     if dpo_details:
         candidates.append(dpo_details)
 
+    # Personal cards are stored as repeated 31/38-row blocks. Extract every
+    # block separately so employees, norms, service lives and issue/return
+    # history remain available to the application instead of becoming one
+    # flattened prose record per sheet.
+    card_starts = [
+        index
+        for index, values in enumerate(row_values)
+        if "личная карточка по обеспечению" in lower(" ".join(clean_text(value) for value in values))
+    ]
+    for card_order, card_start in enumerate(card_starts):
+        card_end = card_starts[card_order + 1] if card_order + 1 < len(card_starts) else len(rows)
+        card_rows = rows[card_start:card_end]
+        employee_match = None
+        employee_row = None
+        for row in card_rows:
+            row_text = clean_text(" ".join(clean_text(value) for value in row["values"]))
+            match = re.search(
+                r"Работник\s+Заказчика:\s*(.+?)\s+таб\.?\s*№\s*([0-9]+)"
+                r"(?:\s+должность:\s*(.+))?$",
+                row_text,
+                flags=re.I,
+            )
+            if match:
+                employee_match = match
+                employee_row = row
+                break
+        if not employee_match or not employee_row:
+            continue
+
+        employee_name = normalize_name(employee_match.group(1))
+        if not employee_name:
+            continue
+        personnel_number = employee_match.group(2)
+        position = clean_text(employee_match.group(3)) or None
+        measurements: dict[str, list[str]] = {}
+        hire_date = None
+        termination_date = None
+        for row in card_rows:
+            values = row["values"]
+            row_text = clean_text(" ".join(clean_text(value) for value in values))
+            clothing = re.search(
+                r"Индивидуальные размеры одежды:\s*([0-9,.; ]+)\s*/\s*([0-9,.; ]+)",
+                row_text,
+                flags=re.I,
+            )
+            if clothing:
+                measurements["clothing"] = split_card_sizes(clothing.group(1))
+                measurements["height"] = split_card_sizes(clothing.group(2))
+            for size_type, pattern in (
+                ("shoe", r"размер\s+обуви:\s*([0-9,./ ]+)"),
+                ("headwear", r"размеры?\s+головного\s+убора:\s*([0-9,./ ]+)"),
+                ("belt", r"размеры?\s+рем(?:ня|ень):\s*([0-9,./ ]+)"),
+                ("gloves", r"размеры?\s+перчат(?:ок|ки):\s*([0-9,./ ]+)"),
+            ):
+                match = re.search(pattern, row_text, flags=re.I)
+                if match:
+                    measurements[size_type] = split_card_sizes(match.group(1))
+            if re.search(r"при[её]м\s*/?\s*заявка", row_text, flags=re.I):
+                hire_date = next((date_value(value) for value in reversed(values) if date_value(value)), None)
+            if "увольнение" in lower(row_text):
+                termination_date = next(
+                    (date_value(value) for value in reversed(values) if date_value(value)),
+                    None,
+                )
+
+        employee = {
+            "fullName": employee_name,
+            "personnelNumber": personnel_number,
+            "position": position,
+            "dpo": dpo,
+            "phone": None,
+            "hireDate": hire_date,
+            "terminationDate": termination_date,
+            "measurements": measurements,
+        }
+        card_row_number = rows[card_start]["rowNumber"]
+        candidates.append(
+            {
+                "type": "employee",
+                "sourceKey": source_key(
+                    file_hash,
+                    f"sheet:{sheet_name}:card:{card_row_number}:employee",
+                ),
+                "rowNumber": employee_row["rowNumber"],
+                "formType": "personal-card",
+                "cardStartRow": card_row_number,
+                **employee,
+            }
+        )
+
+        for row in card_rows:
+            values = row["values"]
+            item_name = clean_text(cell(values, 1))
+            ordinal = numeric(cell(values, 0))
+            if (
+                not ordinal
+                or not item_name
+                or numeric(item_name) is not None
+                or "наименование" in lower(item_name)
+            ):
+                continue
+            size_type, requires_height = classify_size_type(item_name)
+            issued_date = date_value(cell(values, 7))
+            returned_date = date_value(cell(values, 10))
+            candidates.append(
+                {
+                    "type": "nomenclature",
+                    "sourceKey": source_key(
+                        file_hash,
+                        f"sheet:{sheet_name}:card:{card_row_number}:row:{row['rowNumber']}",
+                    ),
+                    "rowNumber": row["rowNumber"],
+                    "name": item_name,
+                    "unit": clean_text(cell(values, 2)) or "шт.",
+                    "sizeType": size_type,
+                    "requiresHeightSize": requires_height,
+                    "position": position,
+                    "quantity": numeric(cell(values, 3)),
+                    "normQuantity": numeric(cell(values, 4)),
+                    "serviceLifeYears": numeric(cell(values, 5)),
+                    "issuedQuantity": numeric(cell(values, 6)),
+                    "issuedDate": issued_date,
+                    "returnedQuantity": numeric(cell(values, 9)),
+                    "returnedDate": returned_date,
+                    "employee": employee,
+                    "dpo": dpo,
+                    "effectiveDate": issued_date or document_date,
+                    "formType": "personal-card",
+                    "cardStartRow": card_row_number,
+                    "priceWithoutVat": None,
+                    "displayedPriceWithoutVat": None,
+                    "subtotalWithoutVat": None,
+                    "totalWithoutVat": None,
+                    "vatAmount": None,
+                    "priceWithVat": None,
+                    "totalWithVat": None,
+                    "sourceFormulas": {},
+                }
+            )
+
     # One sheet may contain one or more repeated tables. Each recognized header
     # governs rows until the next recognized header.
     header_positions = []
@@ -648,7 +811,7 @@ def analyze_sheet(
         card_text,
         flags=re.I,
     )
-    if card_match:
+    if card_match and not card_starts:
         name = normalize_name(card_match.group(1))
         if name:
             measurements: dict[str, list[str]] = {}

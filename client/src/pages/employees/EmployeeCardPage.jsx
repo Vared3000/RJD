@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   useEmployee,
@@ -6,6 +7,8 @@ import {
 import { useIssuanceList } from '../../features/issuance/documents/model/use-issuance-queries.js';
 import { useReturnList } from '../../features/issuance/returns/model/use-return-queries.js';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
+import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import { Button } from '../../shared/ui/Button.jsx';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './EmployeeCardPage.module.css';
 
@@ -27,6 +30,8 @@ function formatMoney(value) {
 export function EmployeeCardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [printPending, setPrintPending] = useState('');
+  const [printError, setPrintError] = useState('');
   const { data: employee, isLoading: isLoadingEmployee } = useEmployee(id);
   const { data: property, isLoading: isLoadingProperty } = useEmployeeProperty(id);
   const { data: issuanceDocuments } = useIssuanceList(id);
@@ -52,6 +57,20 @@ export function EmployeeCardPage() {
     .map(([type, values]) => `${SIZE_TYPE_LABELS[type] ?? type}: ${[...values].join(', ')}`)
     .join('; ');
 
+  async function downloadPersonalCard(format) {
+    setPrintPending(format);
+    setPrintError('');
+    try {
+      await downloadPrintForm('personal-card', { employeeId: id, format });
+    } catch (requestError) {
+      setPrintError(
+        requestError.response?.data?.message ?? 'Не удалось сформировать личную карточку',
+      );
+    } finally {
+      setPrintPending('');
+    }
+  }
+
   return (
     <div className={catalogStyles.page}>
       <div className={catalogStyles.header}>
@@ -66,7 +85,20 @@ export function EmployeeCardPage() {
             {employee.subdivision?.name && ` · ${employee.subdivision.name}`}
           </p>
         </div>
+        <div className={catalogStyles.actions}>
+          <Button onClick={() => downloadPersonalCard('xlsx')} disabled={Boolean(printPending)}>
+            {printPending === 'xlsx' ? 'Формирование…' : 'Личная карточка Excel'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => downloadPersonalCard('pdf')}
+            disabled={Boolean(printPending)}
+          >
+            {printPending === 'pdf' ? 'Формирование…' : 'Личная карточка PDF'}
+          </Button>
+        </div>
       </div>
+      {printError && <p className={styles.error}>{printError}</p>}
 
       <div className={styles.summary}>
         <div>

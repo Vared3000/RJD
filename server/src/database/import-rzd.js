@@ -39,6 +39,14 @@ function positiveMoney(value) {
   return Number.isFinite(number) && number > 0 ? number.toFixed(4) : null;
 }
 
+function inferServiceLifeYears(name) {
+  const value = String(name ?? '').toLowerCase();
+  if (/пальто|плащ|куртка/.test(value)) return 4;
+  if (/головн|шапк|кепк|перчат|вареж|ремень|сумк/.test(value)) return 3;
+  if (/бейдж|зажим/.test(value)) return 1;
+  return 2;
+}
+
 function fileSourceKey(fileHash) {
   return crypto.createHash('sha256').update(`${fileHash}:file`, 'utf8').digest('hex');
 }
@@ -338,7 +346,13 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     } else {
       const patch = { archivedAt: null };
       for (const [field, value] of Object.entries(incoming)) {
-        if (value != null && (employee[field] == null || field === 'fullName'))
+        const authoritativeCardSize =
+          candidate.formType === 'personal-card' &&
+          Object.values(EMPLOYEE_SIZE_FIELD).includes(field);
+        if (
+          value != null &&
+          (employee[field] == null || field === 'fullName' || authoritativeCardSize)
+        )
           patch[field] = value;
       }
       await employee.update(patch, { transaction });
@@ -375,10 +389,15 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     const quantity = Math.trunc(Number(candidate.quantity));
     if (position && Number.isFinite(quantity) && quantity > 0) {
       const key = `${position.id}\u0000${model.id}`;
+      const importedServiceLife = Math.trunc(Number(candidate.serviceLifeYears));
       kitQuantityByKey.set(key, {
         positionId: position.id,
         modelId: model.id,
         quantity: Math.max(quantity, kitQuantityByKey.get(key)?.quantity ?? 0),
+        serviceLifeYears:
+          Number.isFinite(importedServiceLife) && importedServiceLife > 0
+            ? importedServiceLife
+            : inferServiceLifeYears(model.name),
       });
     }
 
@@ -408,8 +427,20 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       defaults: item,
       transaction,
     });
-    if (!created && (record.archivedAt || record.quantity !== item.quantity)) {
-      await record.update({ quantity: item.quantity, archivedAt: null }, { transaction });
+    if (
+      !created &&
+      (record.archivedAt ||
+        record.quantity !== item.quantity ||
+        record.serviceLifeYears !== item.serviceLifeYears)
+    ) {
+      await record.update(
+        {
+          quantity: item.quantity,
+          serviceLifeYears: item.serviceLifeYears,
+          archivedAt: null,
+        },
+        { transaction },
+      );
     }
   }
   for (const batch of chunks(priceRows)) {

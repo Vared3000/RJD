@@ -5,17 +5,20 @@ const schema = z.object({
   positionId: z.string().uuid('Выберите должность'),
   modelId: z.string().uuid('Выберите модель'),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля').default(1),
+  serviceLifeYears: z.coerce
+    .number()
+    .int()
+    .min(1, 'Минимальный срок — 1 год')
+    .max(20, 'Максимальный срок — 20 лет'),
 });
 
 const columns = [
   { key: 'position', label: 'Должность', render: (item) => item.position?.name ?? '—' },
   { key: 'model', label: 'Модель', render: (item) => item.model?.name ?? '—' },
   { key: 'quantity', label: 'Количество' },
+  { key: 'serviceLifeYears', label: 'Срок, лет', render: (item) => item.serviceLifeYears ?? '—' },
 ];
 
-// В выборе модели — только модели с указанным типом размера: без него
-// автоподбор комплекта в документе "Выдача" не сможет определить, какой из
-// трёх размеров работника подставить (см. issuance.service.js: applyKit).
 const fields = [
   {
     name: 'positionId',
@@ -30,11 +33,16 @@ const fields = [
     label: 'Модель',
     type: 'select',
     optionsResource: 'nomenclature-models',
-    optionsFilter: (model) => Boolean(model.sizeType),
     optionValue: 'id',
     optionLabel: 'name',
   },
   { name: 'quantity', label: 'Количество', type: 'number', defaultValue: 1 },
+  {
+    name: 'serviceLifeYears',
+    label: 'Срок использования, лет',
+    type: 'number',
+    defaultValue: 2,
+  },
 ];
 
 export function KitsPage() {

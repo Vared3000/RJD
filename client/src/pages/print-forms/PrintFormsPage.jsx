@@ -24,17 +24,28 @@ const FORMS = [
     title: 'Приложение 1.7',
     description: 'Передача одежды работникам с ФИО, табельными и инвентарными номерами.',
   },
+  {
+    code: 'personal-card',
+    title: 'Личная карточка работника',
+    description: 'Размеры, нормы, сроки использования, история выдачи и возврата одежды.',
+  },
 ];
 
 export function PrintFormsPage() {
   const [range, setRange] = useState(() => resolvePreset('month'));
   const [dpoId, setDpoId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: employees } = createCatalogHooks('employees').useList(false);
 
   async function download(form, format) {
-    if (!dpoId) {
+    if (form === 'personal-card' && !employeeId) {
+      setError('Сначала выберите работника');
+      return;
+    }
+    if (form !== 'personal-card' && !dpoId) {
       setError('Сначала выберите ДПО');
       return;
     }
@@ -42,7 +53,7 @@ export function PrintFormsPage() {
     setPending(key);
     setError('');
     try {
-      await downloadPrintForm(form, { dpoId, ...range, format });
+      await downloadPrintForm(form, { dpoId: dpoId || undefined, employeeId, ...range, format });
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ??
@@ -70,8 +81,22 @@ export function PrintFormsPage() {
         <Select
           label="ДПО"
           value={dpoId}
-          onChange={(event) => setDpoId(event.target.value)}
+          onChange={(event) => {
+            setDpoId(event.target.value);
+            setEmployeeId('');
+          }}
           options={(dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name }))}
+        />
+        <Select
+          label="Работник (для личной карточки)"
+          value={employeeId}
+          onChange={(event) => setEmployeeId(event.target.value)}
+          options={(employees ?? [])
+            .filter((employee) => !dpoId || employee.dpoId === dpoId)
+            .map((employee) => ({
+              value: employee.id,
+              label: [employee.fullName, employee.personnelNumber].filter(Boolean).join(' · '),
+            }))}
         />
       </div>
 

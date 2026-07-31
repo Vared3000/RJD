@@ -14,22 +14,41 @@ export function createPrintFormsRouter() {
     '/print-forms/{form}': {
       get: {
         tags: ['Печатные формы'],
-        summary: 'Сформировать ФПУ-26, Приложение 1.5 или Приложение 1.7',
+        summary: 'Сформировать ФПУ-26, Приложение 1.5, Приложение 1.7 или личную карточку',
         parameters: [
           {
             name: 'form',
             in: 'path',
             required: true,
-            schema: { type: 'string', enum: ['fpu-26', 'appendix-1-5', 'appendix-1-7'] },
+            schema: {
+              type: 'string',
+              enum: ['fpu-26', 'appendix-1-5', 'appendix-1-7', 'personal-card'],
+            },
           },
           {
             name: 'dpoId',
             in: 'query',
-            required: true,
+            description: 'Обязателен для актов и приложений',
             schema: { type: 'string', format: 'uuid' },
           },
-          { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
-          { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          {
+            name: 'employeeId',
+            in: 'query',
+            description: 'Обязателен для личной карточки',
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'from',
+            in: 'query',
+            description: 'Обязателен для актов и приложений',
+            schema: { type: 'string', format: 'date' },
+          },
+          {
+            name: 'to',
+            in: 'query',
+            description: 'Обязателен для актов и приложений',
+            schema: { type: 'string', format: 'date' },
+          },
           { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'] } },
         ],
         responses: {

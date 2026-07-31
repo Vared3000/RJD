@@ -45,7 +45,8 @@ export function createKitsRouter() {
       basePath: '/kits',
       tag: 'Работники: Комплекты по должности',
       entityName: 'Позиция комплекта',
-      requestBodyHint: 'positionId, modelId (обязательно), quantity',
+      requestBodyHint:
+        'positionId, modelId (обязательно), quantity, serviceLifeYears (нормативный срок)',
     }),
   );
 

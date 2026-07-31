@@ -36,7 +36,9 @@ function parseColumn(columnLetters) {
 }
 
 function printBounds(sheet) {
-  const printArea = String(sheet.pageSetup.printArea || `A1:${sheet.lastColumn.letter}${sheet.rowCount}`);
+  const printArea = String(
+    sheet.pageSetup.printArea || `A1:${sheet.lastColumn.letter}${sheet.rowCount}`,
+  );
   const firstArea = printArea.split('&&')[0];
   const match = firstArea.match(/\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)/i);
   if (!match) {
@@ -239,6 +241,8 @@ function drawCell({
   scale,
   borders,
   showText,
+  textX = x,
+  textBoxWidth = width,
 }) {
   const background = fillColor(cell);
   if (background) doc.save().fillColor(background).rect(x, y, width, height).fill().restore();
@@ -252,7 +256,7 @@ function drawCell({
   const text = cellText(cell);
   if (!text) return;
   const padding = Math.max(0.8, 1.8 * scale);
-  const textWidth = Math.max(1, width - padding * 2);
+  const textWidth = Math.max(1, textBoxWidth - padding * 2);
   const textHeight = Math.max(1, height - padding * 2);
   const size = Math.max(3.8, Number(cell.font?.size ?? 10) * scale);
   const wrapText = cell.alignment?.wrapText === true || text.includes('\n');
@@ -278,7 +282,46 @@ function drawCell({
     options,
     cell.alignment?.vertical,
   );
-  doc.text(text, x + padding, textY, options);
+  doc.text(text, textX + padding, textY, options);
+}
+
+function hasVisibleBorder(cell) {
+  return Object.values(cell.border ?? {}).some((border) => border?.style);
+}
+
+function overflowColumns(sheet, bounds, merges, row, column, cell) {
+  if (!cellText(cell) || cell.alignment?.wrapText || hasVisibleBorder(cell)) {
+    return { left: column, right: column };
+  }
+  let left = column;
+  let right = column;
+  if (horizontalAlignment(cell) === 'center') {
+    while (left > bounds.firstColumn) {
+      const candidateColumn = left - 1;
+      const candidate = sheet.getCell(row, candidateColumn);
+      if (
+        mergeAt(merges, row, candidateColumn) ||
+        cellText(candidate) ||
+        hasVisibleBorder(candidate)
+      ) {
+        break;
+      }
+      left = candidateColumn;
+    }
+  }
+  while (right < bounds.lastColumn) {
+    const candidateColumn = right + 1;
+    const candidate = sheet.getCell(row, candidateColumn);
+    if (
+      mergeAt(merges, row, candidateColumn) ||
+      cellText(candidate) ||
+      hasVisibleBorder(candidate)
+    ) {
+      break;
+    }
+    right = candidateColumn;
+  }
+  return { left, right };
 }
 
 function drawPage({
@@ -328,6 +371,7 @@ function drawPage({
       }
 
       const cell = sheet.getCell(row, column);
+      const overflow = overflowColumns(sheet, bounds, merges, row, column, cell);
       drawCell({
         doc,
         cell,
@@ -338,6 +382,8 @@ function drawPage({
         scale,
         borders: cell.border ?? {},
         showText: true,
+        textX: originX + (columnX.get(overflow.left) ?? 0),
+        textBoxWidth: widthBetween(columnWidths, overflow.left, overflow.right),
       });
     }
   }
@@ -369,7 +415,15 @@ export async function generatePdf(data) {
   ).reduce((sum, width) => sum + width, 0);
   const availableWidth = pageWidth - margins.left - margins.right;
   const availableHeight = pageHeight - margins.top - margins.bottom;
-  const scale = Math.min(1, availableWidth / naturalWidth);
+  const configuredScale = Number(sheet.pageSetup.scale);
+  const naturalHeight = Array.from({ length: bounds.lastRow - bounds.firstRow + 1 }, (_, index) =>
+    rowPoints(sheet, bounds.firstRow + index),
+  ).reduce((sum, height) => sum + height, 0);
+  const scale = Math.min(
+    Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale / 100 : 1,
+    availableWidth / naturalWidth,
+    data.form === 'personal-card' ? availableHeight / naturalHeight : 1,
+  );
   const positions = positionMaps(sheet, bounds, scale);
   const pages = rowPages(sheet, bounds, availableHeight, scale);
   const merges = mergeModels(sheet);

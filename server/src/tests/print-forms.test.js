@@ -52,6 +52,8 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     receivingId: null,
     batchId: null,
     issuanceId: null,
+    returnId: null,
+    kitId: null,
     instanceIds: [],
     sourceRecordIds: [],
   };
@@ -62,6 +64,9 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     }
     if (state.issuanceId) {
       await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
+    }
+    if (state.returnId) {
+      await models.ReturnDocument.destroy({ where: { id: state.returnId } });
     }
     if (state.instanceIds.length > 0) {
       await models.Instance.destroy({ where: { id: state.instanceIds } });
@@ -74,6 +79,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       await models.NomenclaturePrice.destroy({ where: { sourceRecordId: state.sourceRecordIds } });
       await models.SourceImportRecord.destroy({ where: { id: state.sourceRecordIds } });
     }
+    if (state.kitId) await models.PositionKitItem.destroy({ where: { id: state.kitId } });
     if (state.employeeId) await models.Employee.destroy({ where: { id: state.employeeId } });
     if (state.dpoId) {
       await models.DpoHistory.destroy({ where: { dpoId: state.dpoId } });
@@ -132,6 +138,14 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   assert.equal(employee.status, 201);
   assert.equal(employee.body.data.positionId, state.positionId);
   state.employeeId = employee.body.data.id;
+  const kit = await auth(agent.post('/api/v1/kits')).send({
+    positionId: state.positionId,
+    modelId: state.modelId,
+    quantity: 1,
+    serviceLifeYears: 4,
+  });
+  assert.equal(kit.status, 201);
+  state.kitId = kit.body.data.id;
 
   const sourceRecord = await models.SourceImportRecord.create({
     sourceKey: `print-form-test-${Date.now()}`,
@@ -224,7 +238,10 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
         if (cell.value && typeof cell.value === 'object' && cell.value.formula) hasFormula = true;
       }),
     );
-    assert.ok(cellValues.some((value) => value.trim()), `${form}: форма не должна быть пустой`);
+    assert.ok(
+      cellValues.some((value) => value.trim()),
+      `${form}: форма не должна быть пустой`,
+    );
     assert.ok(cellValues.some((value) => value.includes(unique)));
     assert.ok(cellValues.some((value) => value.toUpperCase().includes('ИТОГО')));
     assert.ok(hasFormula, `${form}: в расчётных ячейках должны быть формулы`);
@@ -249,7 +266,55 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.pdf`), pdf.body);
   }
 
+  const returnDraft = await auth(agent.post('/api/v1/issuance/returns')).send({
+    employeeId: state.employeeId,
+    warehouseId: state.warehouseId,
+    documentDate: '2026-07-29',
+  });
+  assert.equal(returnDraft.status, 201);
+  state.returnId = returnDraft.body.data.id;
+  await auth(agent.post(`/api/v1/issuance/returns/${state.returnId}/lines`)).send({
+    instanceId: state.instanceIds[0],
+    condition: 'good',
+  });
+  const returnPosted = await auth(agent.post(`/api/v1/issuance/returns/${state.returnId}/post`));
+  assert.equal(returnPosted.status, 200);
+
+  const personalCard = await auth(agent.get('/api/v1/print-forms/personal-card'))
+    .query({ employeeId: state.employeeId, format: 'xlsx' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(personalCard.status, 200);
+  const personalWorkbook = new ExcelJS.Workbook();
+  await personalWorkbook.xlsx.load(personalCard.body);
+  const personalSheet = personalWorkbook.worksheets[0];
+  assert.match(String(personalSheet.getCell('A6').value ?? ''), /Петров Пётр Петрович/);
+  assert.match(String(personalSheet.getCell('A7').value ?? ''), /52\/182/);
+  assert.equal(personalSheet.getCell('B13').value, unique);
+  assert.equal(personalSheet.getCell('F13').value, 4);
+  assert.equal(personalSheet.getCell('G13').value, 1);
+  assert.equal(personalSheet.getCell('H13').value, '15.07.2026');
+  const returnedRow = [13, 14].find(
+    (rowNumber) => personalSheet.getCell(`J${rowNumber}`).value === 1,
+  );
+  assert.ok(returnedRow, 'возврат должен быть отражён в личной карточке');
+  assert.equal(personalSheet.getCell(`K${returnedRow}`).value, '29.07.2026');
+
+  const personalPdf = await auth(agent.get('/api/v1/print-forms/personal-card'))
+    .query({ employeeId: state.employeeId, format: 'pdf' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(personalPdf.status, 200);
+  assert.equal(personalPdf.body.subarray(0, 4).toString(), '%PDF');
+  assert.ok(personalPdf.body.length > 5000);
+  if (qaDirectory) {
+    await writeFile(path.join(qaDirectory, 'personal-card.xlsx'), personalCard.body);
+    await writeFile(path.join(qaDirectory, 'personal-card.pdf'), personalPdf.body);
+  }
+
   await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
+  await models.ReturnDocument.destroy({ where: { id: state.returnId } });
+  state.returnId = null;
   await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
   state.issuanceId = null;
   await models.Instance.destroy({ where: { id: state.instanceIds } });
@@ -366,28 +431,68 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       vatAmount: 0,
       totalWithVat: 0,
     },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2021-06-01',
+      formType: 'personal-card',
+      cardStartRow: 1,
+      rowNumber: 13,
+      name: `${unique} архив личной карточки`,
+      unit: 'шт.',
+      position: unique,
+      employee: {
+        fullName: 'Петров Пётр Петрович',
+        personnelNumber: employee.body.data.personnelNumber,
+      },
+      quantity: 1,
+      normQuantity: 1,
+      serviceLifeYears: 3,
+      issuedQuantity: 1,
+      issuedDate: '2021-06-01',
+      returnedQuantity: 1,
+      returnedDate: '2024-06-01',
+    },
   ];
   for (const [index, payload] of archiveCandidates.entries()) {
     const isFpu26 = payload.formType === 'fpu-26';
+    const isPersonalCard = payload.formType === 'personal-card';
     const record = await models.SourceImportRecord.create({
       sourceKey: `print-form-archive-test-${Date.now()}-${index}`,
-      sourceFile: isFpu26
-        ? 'archive-order-fpu-26.xlsx'
-        : payload.employee
-          ? 'archive-order-1-7.xlsx'
-          : 'archive-order-1-5.xlsx',
+      sourceFile: isPersonalCard
+        ? 'archive-personal-card.xlsx'
+        : isFpu26
+          ? 'archive-order-fpu-26.xlsx'
+          : payload.employee
+            ? 'archive-order-1-7.xlsx'
+            : 'archive-order-1-5.xlsx',
       fileHash: String(index + 1).repeat(64),
       recordType: 'normalized_candidate',
-      sheetName: isFpu26
-        ? 'Акт выполненных работ'
-        : payload.employee
-          ? 'Приложение 1.7'
-          : 'Приложение 1.5',
+      sheetName: isPersonalCard
+        ? 'Личная карточка'
+        : isFpu26
+          ? 'Акт выполненных работ'
+          : payload.employee
+            ? 'Приложение 1.7'
+            : 'Приложение 1.5',
       rowNumber: payload.rowNumber ?? null,
       payload,
     });
     state.sourceRecordIds.push(record.id);
   }
+
+  const archivedPersonalCard = await auth(agent.get('/api/v1/print-forms/personal-card'))
+    .query({ employeeId: state.employeeId, format: 'xlsx' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(archivedPersonalCard.status, 200);
+  const archivedPersonalWorkbook = new ExcelJS.Workbook();
+  await archivedPersonalWorkbook.xlsx.load(archivedPersonalCard.body);
+  const archivedPersonalSheet = archivedPersonalWorkbook.worksheets[0];
+  assert.equal(archivedPersonalSheet.getCell('B13').value, `${unique} архив личной карточки`);
+  assert.equal(archivedPersonalSheet.getCell('F13').value, 3);
+  assert.equal(archivedPersonalSheet.getCell('H13').value, '01.06.2021');
+  assert.equal(archivedPersonalSheet.getCell('K13').value, '01.06.2024');
 
   for (const form of ['fpu-26', 'appendix-1-5', 'appendix-1-7']) {
     const xlsx = await auth(agent.get(`/api/v1/print-forms/${form}`))

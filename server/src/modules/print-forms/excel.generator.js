@@ -41,6 +41,12 @@ const TEMPLATE_CONFIG = {
     prototypeRows: 1,
     dataMerges: [],
   },
+  'personal-card': {
+    file: 'personal-card.xlsx',
+    dataStart: 13,
+    prototypeRows: 12,
+    dataMerges: [],
+  },
 };
 
 const MONTHS_GENITIVE = [
@@ -121,10 +127,9 @@ function mergeModels(sheet) {
 }
 
 function rangeAddress(sheet, model) {
-  return `${sheet.getCell(model.top, model.left).address}:${sheet.getCell(
-    model.bottom,
-    model.right,
-  ).address}`;
+  return `${sheet.getCell(model.top, model.left).address}:${
+    sheet.getCell(model.bottom, model.right).address
+  }`;
 }
 
 function shiftMerge(model, delta) {
@@ -222,7 +227,9 @@ function periodPrepositional(from, to) {
 }
 
 function unitNominative(dpo) {
-  const fromFullName = String(dpo.fullName ?? '').split(/\s[-–—]\s/)[0].trim();
+  const fromFullName = String(dpo.fullName ?? '')
+    .split(/\s[-–—]\s/)[0]
+    .trim();
   if (fromFullName && /дирекц/i.test(fromFullName)) return fromFullName;
   return String(dpo.name ?? 'ДПО').replace(/\s+ДПО$/i, ' дирекция пассажирских обустройств');
 }
@@ -259,12 +266,16 @@ function toGenitiveWord(word, isSurname = false) {
 }
 
 function fullNameGenitive(fullName) {
-  const words = String(fullName ?? '').trim().split(/\s+/);
+  const words = String(fullName ?? '')
+    .trim()
+    .split(/\s+/);
   return words.map((word, index) => toGenitiveWord(word, index === 0)).join(' ');
 }
 
 function initialsFirst(fullName) {
-  const [surname = '', first = '', patronymic = ''] = String(fullName ?? '').trim().split(/\s+/);
+  const [surname = '', first = '', patronymic = ''] = String(fullName ?? '')
+    .trim()
+    .split(/\s+/);
   return [first, patronymic]
     .filter(Boolean)
     .map((part) => `${part[0].toUpperCase()}.`)
@@ -273,7 +284,9 @@ function initialsFirst(fullName) {
 }
 
 function surnameInitials(fullName) {
-  const [surname = '', first = '', patronymic = ''] = String(fullName ?? '').trim().split(/\s+/);
+  const [surname = '', first = '', patronymic = ''] = String(fullName ?? '')
+    .trim()
+    .split(/\s+/);
   const initials = [first, patronymic]
     .filter(Boolean)
     .map((part) => `${part[0].toUpperCase()}.`)
@@ -313,18 +326,7 @@ function formatMoney(value) {
   });
 }
 
-const ONES_MALE = [
-  '',
-  'один',
-  'два',
-  'три',
-  'четыре',
-  'пять',
-  'шесть',
-  'семь',
-  'восемь',
-  'девять',
-];
+const ONES_MALE = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
 const ONES_FEMALE = ['', 'одна', 'две', ...ONES_MALE.slice(3)];
 const TEENS = [
   'десять',
@@ -338,8 +340,30 @@ const TEENS = [
   'восемнадцать',
   'девятнадцать',
 ];
-const TENS = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
-const HUNDREDS = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+const TENS = [
+  '',
+  '',
+  'двадцать',
+  'тридцать',
+  'сорок',
+  'пятьдесят',
+  'шестьдесят',
+  'семьдесят',
+  'восемьдесят',
+  'девяносто',
+];
+const HUNDREDS = [
+  '',
+  'сто',
+  'двести',
+  'триста',
+  'четыреста',
+  'пятьсот',
+  'шестьсот',
+  'семьсот',
+  'восемьсот',
+  'девятьсот',
+];
 
 function pluralForm(value, forms) {
   const lastTwo = value % 100;
@@ -393,10 +417,11 @@ function amountInWords(value) {
   const words = numberWords(rubles);
   return `${formatMoney(rounded / 100)} (${words[0].toUpperCase()}${words.slice(
     1,
-  )}) ${pluralForm(rubles, ['рубль', 'рубля', 'рублей'])} ${pad2(kopecks)} ${pluralForm(
-    kopecks,
-    ['копейка', 'копейки', 'копеек'],
-  )}`;
+  )}) ${pluralForm(rubles, ['рубль', 'рубля', 'рублей'])} ${pad2(kopecks)} ${pluralForm(kopecks, [
+    'копейка',
+    'копейки',
+    'копеек',
+  ])}`;
 }
 
 function formula(formulaText, result) {
@@ -463,10 +488,7 @@ function fillFpu26(sheet, data, positions) {
         sheet,
         `H${rowNumber}`,
         row.sourceFormulas?.displayedPriceWithoutVat
-          ? formula(
-              row.sourceFormulas.displayedPriceWithoutVat,
-              row.displayedPriceWithoutVat,
-            )
+          ? formula(row.sourceFormulas.displayedPriceWithoutVat, row.displayedPriceWithoutVat)
           : Number(row.displayedPriceWithoutVat || 0),
       );
       set(
@@ -492,24 +514,28 @@ function fillFpu26(sheet, data, positions) {
       );
     } else {
       set(sheet, `H${rowNumber}`, formula(`G${rowNumber}`, row.priceWithoutVat));
-      set(
-        sheet,
-        `I${rowNumber}`,
-        formula(`F${rowNumber}*H${rowNumber}`, row.costWithoutVat),
-      );
-      set(
-        sheet,
-        `K${rowNumber}`,
-        formula(`I${rowNumber}*${row.vatRate || 0}/100`, row.vatAmount),
-      );
+      set(sheet, `I${rowNumber}`, formula(`F${rowNumber}*H${rowNumber}`, row.costWithoutVat));
+      set(sheet, `K${rowNumber}`, formula(`I${rowNumber}*${row.vatRate || 0}/100`, row.vatAmount));
       set(sheet, `L${rowNumber}`, formula(`I${rowNumber}+K${rowNumber}`, row.totalWithVat));
     }
   });
 
   const total = positions.footerStart;
-  set(sheet, `I${total}`, formula(`SUM(I${positions.dataStart}:I${positions.dataEnd})`, data.totals.costWithoutVat));
-  set(sheet, `K${total}`, formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.vatAmount));
-  set(sheet, `L${total}`, formula(`SUM(L${positions.dataStart}:L${positions.dataEnd})`, data.totals.totalWithVat));
+  set(
+    sheet,
+    `I${total}`,
+    formula(`SUM(I${positions.dataStart}:I${positions.dataEnd})`, data.totals.costWithoutVat),
+  );
+  set(
+    sheet,
+    `K${total}`,
+    formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.vatAmount),
+  );
+  set(
+    sheet,
+    `L${total}`,
+    formula(`SUM(L${positions.dataStart}:L${positions.dataEnd})`, data.totals.totalWithVat),
+  );
   set(sheet, `I${total + 2}`, formula(`I${total}`, data.totals.costWithoutVat));
   set(sheet, `K${total + 2}`, formula(`K${total}`, data.totals.vatAmount));
   set(sheet, `L${total + 2}`, formula(`L${total}`, data.totals.totalWithVat));
@@ -601,29 +627,25 @@ function fillAppendix15(sheet, data, positions) {
           : Number(row.totalWithVat || 0),
       );
     } else {
-      set(
-        sheet,
-        `H${rowNumber}`,
-        formula(`E${rowNumber}*G${rowNumber}`, row.costWithoutVat),
-      );
+      set(sheet, `H${rowNumber}`, formula(`E${rowNumber}*G${rowNumber}`, row.costWithoutVat));
       set(sheet, `I${rowNumber}`, Number(row.priceWithVat || 0));
-      set(
-        sheet,
-        `J${rowNumber}`,
-        formula(`K${rowNumber}-H${rowNumber}`, row.vatAmount),
-      );
-      set(
-        sheet,
-        `K${rowNumber}`,
-        formula(`E${rowNumber}*I${rowNumber}`, row.totalWithVat),
-      );
+      set(sheet, `J${rowNumber}`, formula(`K${rowNumber}-H${rowNumber}`, row.vatAmount));
+      set(sheet, `K${rowNumber}`, formula(`E${rowNumber}*I${rowNumber}`, row.totalWithVat));
     }
   });
   mergeGroups(sheet, data.rows, positions.dataStart, (row) => row.positionName, [1, 2]);
 
   const total = positions.footerStart;
-  set(sheet, `J${total}`, formula(`SUM(J${positions.dataStart}:J${positions.dataEnd})`, data.totals.vatAmount));
-  set(sheet, `K${total}`, formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.totalWithVat));
+  set(
+    sheet,
+    `J${total}`,
+    formula(`SUM(J${positions.dataStart}:J${positions.dataEnd})`, data.totals.vatAmount),
+  );
+  set(
+    sheet,
+    `K${total}`,
+    formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.totalWithVat),
+  );
   set(sheet, `B${total + 2}`, `Сумма (итого) ${amountInWords(data.totals.totalWithVat)}.`);
   set(
     sheet,
@@ -664,21 +686,9 @@ function fillAppendix17(sheet, data, positions) {
     const quantity = Number(row.quantity || 0);
     const unitVat = quantity > 0 ? Number(row.vatAmount || 0) / quantity : 0;
     const unitTotal = quantity > 0 ? Number(row.totalWithVat || 0) / quantity : 0;
-    set(
-      sheet,
-      `I${rowNumber}`,
-      formula(`G${rowNumber}*H${rowNumber}`, row.subtotalWithoutVat),
-    );
-    set(
-      sheet,
-      `J${rowNumber}`,
-      formula(`G${rowNumber}*${unitVat}`, row.vatAmount),
-    );
-    set(
-      sheet,
-      `K${rowNumber}`,
-      formula(`G${rowNumber}*${unitTotal}`, row.totalWithVat),
-    );
+    set(sheet, `I${rowNumber}`, formula(`G${rowNumber}*H${rowNumber}`, row.subtotalWithoutVat));
+    set(sheet, `J${rowNumber}`, formula(`G${rowNumber}*${unitVat}`, row.vatAmount));
+    set(sheet, `K${rowNumber}`, formula(`G${rowNumber}*${unitTotal}`, row.totalWithVat));
   });
   mergeGroups(
     sheet,
@@ -689,8 +699,16 @@ function fillAppendix17(sheet, data, positions) {
   );
 
   const total = positions.footerStart;
-  set(sheet, `J${total}`, formula(`SUM(J${positions.dataStart}:J${positions.dataEnd})`, data.totals.vatAmount));
-  set(sheet, `K${total}`, formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.totalWithVat));
+  set(
+    sheet,
+    `J${total}`,
+    formula(`SUM(J${positions.dataStart}:J${positions.dataEnd})`, data.totals.vatAmount),
+  );
+  set(
+    sheet,
+    `K${total}`,
+    formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.totalWithVat),
+  );
   set(
     sheet,
     `B${total + 5}`,
@@ -700,10 +718,59 @@ function fillAppendix17(sheet, data, positions) {
   sheet.pageSetup.printArea = `A1:K${total + 8}`;
 }
 
+function fillPersonalCard(sheet, data, positions) {
+  const employee = data.employee;
+  const position = employee.position?.name || 'должность не указана';
+  const personnel = employee.personnelNumber ? ` таб.№ ${employee.personnelNumber}` : '';
+  const clothing = [data.clothingSize, data.heightSize].filter(Boolean).join('/');
+
+  set(sheet, 'A3', `Дата открытия: ${formatDate(data.openedDate)}`);
+  set(
+    sheet,
+    'A4',
+    `Структурное подразделение Центральной дирекции пассажирских обустройств ${unitNominative(data.dpo)}`,
+  );
+  set(sheet, 'A5', `От Исполнителя: ${EXECUTOR.shortName}`);
+  set(sheet, 'A6', `Работник Заказчика: ${employee.fullName}${personnel}   должность: ${position}`);
+  set(sheet, 'A7', `Индивидуальные размеры одежды: ${clothing}`);
+  set(sheet, 'E7', `Индивидуальные размеры перчатки: ${data.glovesSize || ''}`);
+  set(sheet, 'K7', 'приём/заявка');
+  set(
+    sheet,
+    'L7',
+    employee.hireDate || data.openedDate ? formatDate(employee.hireDate || data.openedDate) : null,
+  );
+  set(sheet, 'A8', `Индивидуальные размеры головного убора: ${data.headwearSize || ''}`);
+  set(sheet, 'E8', `Индивидуальные размеры ремень: ${data.beltSize || ''}`);
+  set(sheet, 'K8', 'увольнение');
+  sheet.getCell('L8').value = employee.terminationDate
+    ? formatDate(employee.terminationDate)
+    : null;
+
+  data.rows.forEach((row, index) => {
+    const rowNumber = positions.dataStart + index;
+    set(sheet, `A${rowNumber}`, index + 1);
+    set(sheet, `B${rowNumber}`, row.modelName);
+    set(sheet, `C${rowNumber}`, row.unit || 'шт.');
+    set(sheet, `D${rowNumber}`, Number(row.quantity || 0));
+    set(sheet, `E${rowNumber}`, Number(row.normQuantity || 0));
+    set(sheet, `F${rowNumber}`, Number(row.serviceLifeYears || 0));
+    sheet.getCell(`G${rowNumber}`).value =
+      row.issuedQuantity == null ? null : Number(row.issuedQuantity);
+    sheet.getCell(`H${rowNumber}`).value = row.issuedDate ? formatDate(row.issuedDate) : null;
+    sheet.getCell(`J${rowNumber}`).value =
+      row.returnedQuantity == null ? null : Number(row.returnedQuantity);
+    sheet.getCell(`K${rowNumber}`).value = row.returnedDate ? formatDate(row.returnedDate) : null;
+  });
+
+  sheet.pageSetup.printArea = `A1:L${positions.footerStart + 6}`;
+}
+
 const FILLERS = {
   'fpu-26': fillFpu26,
   'appendix-1-5': fillAppendix15,
   'appendix-1-7': fillAppendix17,
+  'personal-card': fillPersonalCard,
 };
 
 export async function generateExcel(data) {

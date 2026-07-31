@@ -8,6 +8,11 @@ export function definePositionKitItem(sequelize) {
       positionId: { type: DataTypes.UUID, allowNull: false, field: 'position_id' },
       modelId: { type: DataTypes.UUID, allowNull: false, field: 'model_id' },
       quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      serviceLifeYears: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'service_life_years',
+      },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
     { tableName: 'position_kit_items' },
