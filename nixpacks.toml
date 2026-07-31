@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_24"]
+
+[phases.install]
+cmds = ["npm install -g pnpm@11.9.0", "pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm --filter @workwear/client build"]
+
+[start]
+cmd = "pnpm db:migrate && pnpm db:seed && pnpm --filter @workwear/server start"
