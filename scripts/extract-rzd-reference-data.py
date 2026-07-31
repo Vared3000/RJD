@@ -452,6 +452,21 @@ def analyze_sheet(
         unit_idx = column(headers, "ед")
         no_vat_idx = column(headers, "без ндс", exclude=("итого", "сумма"))
         with_vat_idx = column(headers, "с ндс", exclude=("итого", "сумма"))
+        vat_amount_idx = column(headers, "сумма", "ндс")
+        # В приложении 1.7 заголовок «Цена ... без НДС» объединяет две
+        # колонки: слева цена за единицу, справа сумма строки. В выгрузке
+        # merged-cell заголовок остаётся только в правой колонке.
+        unit_price_no_vat_idx = no_vat_idx
+        subtotal_no_vat_idx = None
+        if (
+            fio_idx is not None
+            and personnel_idx is not None
+            and no_vat_idx is not None
+            and no_vat_idx > 0
+            and not clean_text(headers[no_vat_idx - 1])
+        ):
+            unit_price_no_vat_idx = no_vat_idx - 1
+            subtotal_no_vat_idx = no_vat_idx
 
         current_employee: dict[str, Any] | None = None
         current_position: str | None = None
@@ -506,6 +521,7 @@ def analyze_sheet(
                         "sourceKey": source_key(
                             file_hash, f"sheet:{sheet_name}:row:{row['rowNumber']}"
                         ),
+                        "rowNumber": row["rowNumber"],
                         **current_employee,
                     }
                 )
@@ -519,6 +535,7 @@ def analyze_sheet(
                         "sourceKey": source_key(
                             file_hash, f"sheet:{sheet_name}:row:{row['rowNumber']}"
                         ),
+                        "rowNumber": row["rowNumber"],
                         "name": item_name,
                         "unit": clean_text(cell(values, unit_idx)) or "шт.",
                         "sizeType": size_type,
@@ -529,8 +546,11 @@ def analyze_sheet(
                         "employee": current_employee,
                         "dpo": dpo,
                         "effectiveDate": document_date,
-                        "priceWithoutVat": numeric(cell(values, no_vat_idx)),
+                        "priceWithoutVat": numeric(cell(values, unit_price_no_vat_idx)),
+                        "subtotalWithoutVat": numeric(cell(values, subtotal_no_vat_idx)),
+                        "vatAmount": numeric(cell(values, vat_amount_idx)),
                         "priceWithVat": numeric(cell(values, with_vat_idx)),
+                        "totalWithVat": numeric(cell(values, with_vat_idx)),
                     }
                 )
 

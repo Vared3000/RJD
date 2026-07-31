@@ -6,7 +6,10 @@ import { generateExcel } from './excel.generator.js';
 import { generatePdf } from './pdf.generator.js';
 
 const num = (value) => Number(value ?? 0);
-const money = (value) => Number(num(value).toFixed(4));
+// В архивных Excel-актах встречаются цены с пятью знаками после запятой.
+// Не обрезаем их до точности БД: иначе сумма НДС в воспроизведённой форме
+// может отличаться от подписанного оригинала на одну копейку.
+const money = (value) => Number(num(value).toFixed(9));
 
 function sumBy(rows, key) {
   return money(rows.reduce((sum, row) => sum + num(row[key]), 0));
@@ -14,14 +17,18 @@ function sumBy(rows, key) {
 
 function calculateMoney(quantity, priceWithoutVat, vatRate, explicitPriceWithVat) {
   const costWithoutVat = money(quantity * priceWithoutVat);
-  const vatAmount = money(costWithoutVat * (vatRate / 100));
+  const priceWithVat = explicitPriceWithVat
+    ? money(explicitPriceWithVat)
+    : money(priceWithoutVat * (1 + vatRate / 100));
+  const totalWithVat = explicitPriceWithVat
+    ? money(quantity * priceWithVat)
+    : money(costWithoutVat + costWithoutVat * (vatRate / 100));
+  const vatAmount = money(totalWithVat - costWithoutVat);
   return {
     costWithoutVat,
     vatAmount,
-    totalWithVat: money(costWithoutVat + vatAmount),
-    priceWithVat: explicitPriceWithVat
-      ? money(explicitPriceWithVat)
-      : money(priceWithoutVat * (1 + vatRate / 100)),
+    totalWithVat,
+    priceWithVat,
   };
 }
 
@@ -389,6 +396,10 @@ async function buildAppendix17(context) {
         price.vatRate,
         price.priceWithVat,
       );
+      const hasSourceTotals =
+        candidate.subtotalWithoutVat != null &&
+        candidate.vatAmount != null &&
+        candidate.totalWithVat != null;
       rows.push({
         fullName: candidate.employee.fullName ?? '',
         personnelNumber: candidate.employee.personnelNumber ?? '',
@@ -397,14 +408,15 @@ async function buildAppendix17(context) {
         unit: candidate.unit || 'шт.',
         quantity: num(candidate.quantity),
         ...price,
-        subtotalWithoutVat: values.costWithoutVat,
-        vatAmount: values.vatAmount,
-        totalWithVat: values.totalWithVat,
+        subtotalWithoutVat: hasSourceTotals
+          ? money(candidate.subtotalWithoutVat)
+          : values.costWithoutVat,
+        vatAmount: hasSourceTotals ? money(candidate.vatAmount) : values.vatAmount,
+        totalWithVat: hasSourceTotals
+          ? money(candidate.totalWithVat)
+          : values.totalWithVat,
       });
     }
-    rows.sort((a, b) =>
-      `${a.fullName}${a.modelName}`.localeCompare(`${b.fullName}${b.modelName}`, 'ru'),
-    );
     return appendix17Data(context, rows);
   }
   const movements = await printFormsRepository.findIssuanceMovements(
@@ -439,9 +451,6 @@ async function buildAppendix17(context) {
       }
     }
   }
-  rows.sort((a, b) =>
-    `${a.fullName}${a.modelName}`.localeCompare(`${b.fullName}${b.modelName}`, 'ru'),
-  );
   return appendix17Data(context, rows);
 }
 

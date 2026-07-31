@@ -91,9 +91,16 @@ function borderWidth(border) {
 }
 
 function fillColor(cell) {
-  const argb = cell.fill?.fgColor?.argb;
-  if (!argb || argb === '00000000' || argb === 'FFFFFFFF') return null;
-  return `#${argb.slice(-6)}`;
+  const color = cell.fill?.fgColor;
+  const argb = color?.argb;
+  if (argb && argb !== '00000000' && argb !== 'FFFFFFFF') return `#${argb.slice(-6)}`;
+  if (color?.theme !== 4) return null;
+  const base = [0x5b, 0x9b, 0xd5];
+  const tint = Number(color.tint ?? 0);
+  const tinted = base.map((channel) =>
+    Math.round(tint >= 0 ? channel + (255 - channel) * tint : channel * (1 + tint)),
+  );
+  return `#${tinted.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function numberText(cell, value) {

@@ -124,6 +124,7 @@ async function upsertSourceRecords(data, transaction) {
       fileHash,
       recordType: 'normalized_candidate',
       sheetName: candidate.sheetName ?? null,
+      rowNumber: candidate.rowNumber ?? null,
       payload: candidate,
     });
   }

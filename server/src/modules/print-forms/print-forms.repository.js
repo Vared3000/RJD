@@ -91,13 +91,20 @@ export const printFormsRepository = {
 
   findImportedNomenclature({ dpoName, from, to }) {
     return sequelize.query(
-      `SELECT payload, source_file AS "sourceFile", sheet_name AS "sheetName"
-       FROM source_import_records
-       WHERE record_type = 'normalized_candidate'
-         AND payload->>'type' = 'nomenclature'
-         AND payload->>'dpo' = :dpoName
-         AND payload->>'effectiveDate' BETWEEN :from AND :to
-       ORDER BY source_file, sheet_name, source_key`,
+      `SELECT normalized.payload,
+              normalized.source_file AS "sourceFile",
+              normalized.sheet_name AS "sheetName"
+       FROM source_import_records normalized
+       LEFT JOIN source_import_records source_row
+         ON source_row.source_key = normalized.payload->>'sourceKey'
+       WHERE normalized.record_type = 'normalized_candidate'
+         AND normalized.payload->>'type' = 'nomenclature'
+         AND normalized.payload->>'dpo' = :dpoName
+         AND normalized.payload->>'effectiveDate' BETWEEN :from AND :to
+       ORDER BY normalized.source_file,
+                normalized.sheet_name,
+                COALESCE(normalized.row_number, source_row.row_number) NULLS LAST,
+                normalized.source_key`,
       {
         replacements: {
           dpoName,

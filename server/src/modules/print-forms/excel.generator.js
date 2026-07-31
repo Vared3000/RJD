@@ -560,9 +560,10 @@ function fillAppendix15(sheet, data, positions) {
 
 function fillAppendix17(sheet, data, positions) {
   const director = data.dpo.directorFullName || '';
+  sheet.getColumn(8).hidden = false;
   set(sheet, 'B1', 'АКТ\nприема-передачи форменной одежды\n');
   set(sheet, 'A2', 'г. Санкт-Петербург');
-  set(sheet, 'F2', formatQuotedDate(data.from));
+  set(sheet, 'F2', formatQuotedDate(data.from).replace(/ "/, '"'));
   set(
     sheet,
     'A4',
@@ -581,10 +582,13 @@ function fillAppendix17(sheet, data, positions) {
     set(sheet, `B${rowNumber}`, row.fullName);
     set(sheet, `C${rowNumber}`, row.personnelNumber);
     set(sheet, `D${rowNumber}`, row.modelName);
-    set(sheet, `E${rowNumber}`, row.inventoryNumber || '');
+    sheet.getCell(`E${rowNumber}`).value = row.inventoryNumber || null;
     set(sheet, `F${rowNumber}`, row.unit || 'шт.');
     set(sheet, `G${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `H${rowNumber}`, Number(row.priceWithoutVat || 0));
+    const quantity = Number(row.quantity || 0);
+    const unitVat = quantity > 0 ? Number(row.vatAmount || 0) / quantity : 0;
+    const unitTotal = quantity > 0 ? Number(row.totalWithVat || 0) / quantity : 0;
     set(
       sheet,
       `I${rowNumber}`,
@@ -593,9 +597,13 @@ function fillAppendix17(sheet, data, positions) {
     set(
       sheet,
       `J${rowNumber}`,
-      formula(`I${rowNumber}*${row.vatRate || 0}/100`, row.vatAmount),
+      formula(`G${rowNumber}*${unitVat}`, row.vatAmount),
     );
-    set(sheet, `K${rowNumber}`, formula(`I${rowNumber}+J${rowNumber}`, row.totalWithVat));
+    set(
+      sheet,
+      `K${rowNumber}`,
+      formula(`G${rowNumber}*${unitTotal}`, row.totalWithVat),
+    );
   });
   mergeGroups(
     sheet,

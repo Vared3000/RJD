@@ -228,6 +228,11 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     assert.ok(cellValues.some((value) => value.includes(unique)));
     assert.ok(cellValues.some((value) => value.toUpperCase().includes('ИТОГО')));
     assert.ok(hasFormula, `${form}: в расчётных ячейках должны быть формулы`);
+    if (form === 'appendix-1-7') {
+      assert.equal(sheet.getColumn(8).hidden, false, 'колонка цены должна быть видимой');
+      assert.equal(sheet.getCell('H8').fill?.pattern, 'solid');
+      assert.match(sheet.getCell('H8').numFmt, /0\.0000/);
+    }
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.xlsx`), xlsx.body);
 
     const pdf = await auth(agent.get(`/api/v1/print-forms/${form}`))
@@ -268,7 +273,8 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       type: 'nomenclature',
       dpo: unique,
       effectiveDate: '2026-07-31',
-      name: `${unique} архив 1.7`,
+      rowNumber: 20,
+      name: `${unique} архив 1.7 поздняя строка`,
       unit: 'шт.',
       position: null,
       employee: {
@@ -278,15 +284,38 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       quantity: 1,
       priceWithoutVat: 900,
       priceWithVat: 945,
+      subtotalWithoutVat: 900,
+      vatAmount: 45,
+      totalWithVat: 945,
+    },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-31',
+      rowNumber: 10,
+      name: `${unique} архив 1.7 ранняя строка`,
+      unit: 'шт.',
+      position: null,
+      employee: {
+        fullName: 'Архивный Работник Заказчика',
+        personnelNumber: 'АРХ-001',
+      },
+      quantity: 0,
+      priceWithoutVat: 123.45678,
+      priceWithVat: 0,
+      subtotalWithoutVat: 0,
+      vatAmount: 0,
+      totalWithVat: 0,
     },
   ];
   for (const [index, payload] of archiveCandidates.entries()) {
     const record = await models.SourceImportRecord.create({
       sourceKey: `print-form-archive-test-${Date.now()}-${index}`,
-      sourceFile: `archive-${index}.xlsx`,
+      sourceFile: index === 0 ? 'archive-1-5.xlsx' : 'archive-order-1-7.xlsx',
       fileHash: String(index + 1).repeat(64),
       recordType: 'normalized_candidate',
       sheetName: index === 0 ? 'Приложение 1.5' : 'Приложение 1.7',
+      rowNumber: payload.rowNumber ?? null,
       payload,
     });
     state.sourceRecordIds.push(record.id);
@@ -319,5 +348,12 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       values.some((value) => value.includes(expected)),
       `${form}: архивные строки`,
     );
+    if (form === 'appendix-1-7') {
+      assert.match(
+        String(workbook.worksheets[0].getCell('D8').value ?? ''),
+        /ранняя строка/,
+        'строки архивного акта должны сохранять исходный порядок Excel',
+      );
+    }
   }
 });
