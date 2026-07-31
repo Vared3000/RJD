@@ -143,6 +143,7 @@ function importedCandidates(context, withEmployee) {
 
 function buildFpu26(context) {
   const grouped = new Map();
+  let rows = null;
   const addRow = ({ modelId, modelName, unit, quantity, sourcePrice }) => {
     const price = sourcePrice ?? priceValues(context.priceByModel.get(modelId));
     const key = `${modelId ?? modelName}\u0000${price.priceWithoutVat}\u0000${price.vatRate}`;
@@ -167,20 +168,56 @@ function buildFpu26(context) {
       }
     }
   } else {
-    for (const candidate of importedCandidates(context, true)) {
-      if (!candidate.employee || num(candidate.quantity) <= 0) continue;
-      addRow({
-        modelName: candidate.name,
-        unit: candidate.unit,
-        quantity: num(candidate.quantity),
-        sourcePrice: priceValues({
-          priceWithoutVat: candidate.priceWithoutVat,
-          priceWithVat: candidate.priceWithVat,
-        }),
+    const sourceCandidates = importedCandidates(context, false).filter(
+      (candidate) => candidate.formType === 'fpu-26' && num(candidate.quantity) > 0,
+    );
+    if (sourceCandidates.length > 0) {
+      rows = sourceCandidates.map((candidate) => {
+        const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
+        const calculated = calculateMoney(
+          num(candidate.quantity),
+          price.priceWithoutVat,
+          price.vatRate,
+        );
+        return {
+          modelName: candidate.name,
+          unit: candidate.unit || 'шт.',
+          quantity: num(candidate.quantity),
+          ...price,
+          displayedPriceWithoutVat:
+            candidate.displayedPriceWithoutVat != null
+              ? money(candidate.displayedPriceWithoutVat)
+              : price.priceWithoutVat,
+          costWithoutVat:
+            candidate.subtotalWithoutVat != null
+              ? money(candidate.subtotalWithoutVat)
+              : calculated.costWithoutVat,
+          vatAmount:
+            candidate.vatAmount != null ? money(candidate.vatAmount) : calculated.vatAmount,
+          totalWithVat:
+            candidate.totalWithVat != null
+              ? money(candidate.totalWithVat)
+              : calculated.totalWithVat,
+          sourceValues: true,
+          sourceFormulas: candidate.sourceFormulas ?? null,
+        };
       });
+    } else {
+      for (const candidate of importedCandidates(context, true)) {
+        if (!candidate.employee || num(candidate.quantity) <= 0) continue;
+        addRow({
+          modelName: candidate.name,
+          unit: candidate.unit,
+          quantity: num(candidate.quantity),
+          sourcePrice: priceValues({
+            priceWithoutVat: candidate.priceWithoutVat,
+            priceWithVat: candidate.priceWithVat,
+          }),
+        });
+      }
     }
   }
-  const rows = [...grouped.values()]
+  rows ??= [...grouped.values()]
     .map((row) => ({ ...row, ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate) }))
     .sort((a, b) => a.modelName.localeCompare(b.modelName, 'ru'));
   return baseData(
@@ -242,34 +279,42 @@ function buildFpu26(context) {
 
 async function buildAppendix15(context) {
   if (context.documents.length === 0) {
-    const grouped = new Map();
+    const rows = [];
     for (const candidate of importedCandidates(context, false)) {
       if (!candidate.position || candidate.employee || !candidate.name) continue;
       const price = priceValues({
         priceWithoutVat: candidate.priceWithoutVat,
-        priceWithVat: candidate.priceWithVat,
       });
-      const key = `${candidate.position}\u0000${candidate.name}\u0000${price.priceWithoutVat}`;
-      const row = grouped.get(key) ?? {
+      const calculated = calculateMoney(
+        num(candidate.quantity),
+        price.priceWithoutVat,
+        price.vatRate,
+      );
+      rows.push({
         positionName: candidate.position,
         modelName: candidate.name,
         unit: candidate.unit || 'шт.',
-        quantity: 0,
-        coverageDays: 0,
+        quantity: num(candidate.quantity),
+        coverageDays: num(candidate.coverageDays),
         ...price,
-      };
-      row.quantity += num(candidate.quantity);
-      row.coverageDays += num(candidate.coverageDays);
-      grouped.set(key, row);
+        costWithoutVat:
+          candidate.subtotalWithoutVat != null
+            ? money(candidate.subtotalWithoutVat)
+            : calculated.costWithoutVat,
+        priceWithVat:
+          candidate.totalWithoutVat != null
+            ? money(candidate.totalWithoutVat)
+            : calculated.priceWithVat,
+        vatAmount:
+          candidate.vatAmount != null ? money(candidate.vatAmount) : calculated.vatAmount,
+        totalWithVat:
+          candidate.totalWithVat != null
+            ? money(candidate.totalWithVat)
+            : calculated.totalWithVat,
+        sourceValues: true,
+        sourceFormulas: candidate.sourceFormulas ?? null,
+      });
     }
-    const rows = [...grouped.values()]
-      .map((row) => ({
-        ...row,
-        ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate, row.priceWithVat),
-      }))
-      .sort((a, b) =>
-        `${a.positionName}${a.modelName}`.localeCompare(`${b.positionName}${b.modelName}`, 'ru'),
-      );
     return appendix15Data(context, rows);
   }
   const employeeIds = [...new Set(context.documents.map((document) => document.employeeId))];

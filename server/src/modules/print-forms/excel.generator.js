@@ -424,9 +424,10 @@ function mergeGroups(sheet, rows, dataStart, keyBuilder, columns) {
 
 function fillFpu26(sheet, data, positions) {
   const director = data.dpo.directorFullName || '';
-  set(sheet, 'B7', CUSTOMER.fullName);
+  sheet.getColumn(7).hidden = false;
+  set(sheet, 'B7', CUSTOMER.fullName.replaceAll('«', '"').replaceAll('»', '"'));
   set(sheet, 'A9', dpoWithAddress(data.dpo));
-  set(sheet, 'B11', EXECUTOR.name);
+  set(sheet, 'B11', EXECUTOR.name.replaceAll('«', '"').replaceAll('»', '"'));
   set(sheet, 'A13', EXECUTOR.address);
   set(sheet, 'L6', CUSTOMER.okpo);
   set(sheet, 'L8', data.dpo.businessUnitCode || '-');
@@ -434,7 +435,11 @@ function fillFpu26(sheet, data, positions) {
   set(sheet, 'L12', '-');
   set(sheet, 'H16', formatDate(data.to));
   set(sheet, 'A19', contractLine(data.dpo));
-  set(sheet, 'A24', `Генеральный директор ${EXECUTOR.shortName} ${EXECUTOR.directorFullName}`);
+  set(
+    sheet,
+    'A24',
+    `Генеральный директор  ${EXECUTOR.shortName.replaceAll('«', '"').replaceAll('»', '"')} ${EXECUTOR.directorFullName}`,
+  );
   set(sheet, 'C26', EXECUTOR.directorBasis);
   set(sheet, 'C28', `начальник ${unitGenitive(data.dpo)}`);
   set(sheet, 'A29', director);
@@ -444,7 +449,7 @@ function fillFpu26(sheet, data, positions) {
     'A34',
     'составили настоящий акт о том, что работы (услуги), выполненные ИСПОЛНИТЕЛЕМ по обеспечению форменной одеждой',
   );
-  set(sheet, 'A35', 'работников структурных подразделений ЦДПО - филиала ОАО «РЖД»');
+  set(sheet, 'A35', 'работников структурных подразделений ЦДПО - филиала ОАО "РЖД"');
   set(sheet, 'A38', periodDescription(data.from, data.to));
 
   data.rows.forEach((row, index) => {
@@ -453,14 +458,52 @@ function fillFpu26(sheet, data, positions) {
     set(sheet, `E${rowNumber}`, row.unit || 'шт.');
     set(sheet, `F${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `G${rowNumber}`, Number(row.priceWithoutVat || 0));
-    set(sheet, `H${rowNumber}`, formula(`G${rowNumber}`, row.priceWithoutVat));
-    set(
-      sheet,
-      `I${rowNumber}`,
-      formula(`F${rowNumber}*H${rowNumber}`, row.costWithoutVat),
-    );
-    set(sheet, `K${rowNumber}`, formula(`I${rowNumber}*${row.vatRate || 0}/100`, row.vatAmount));
-    set(sheet, `L${rowNumber}`, formula(`I${rowNumber}+K${rowNumber}`, row.totalWithVat));
+    if (row.sourceValues) {
+      set(
+        sheet,
+        `H${rowNumber}`,
+        row.sourceFormulas?.displayedPriceWithoutVat
+          ? formula(
+              row.sourceFormulas.displayedPriceWithoutVat,
+              row.displayedPriceWithoutVat,
+            )
+          : Number(row.displayedPriceWithoutVat || 0),
+      );
+      set(
+        sheet,
+        `I${rowNumber}`,
+        row.sourceFormulas?.costWithoutVat
+          ? formula(row.sourceFormulas.costWithoutVat, row.costWithoutVat)
+          : Number(row.costWithoutVat || 0),
+      );
+      set(
+        sheet,
+        `K${rowNumber}`,
+        row.sourceFormulas?.vatAmount
+          ? formula(row.sourceFormulas.vatAmount, row.vatAmount)
+          : Number(row.vatAmount || 0),
+      );
+      set(
+        sheet,
+        `L${rowNumber}`,
+        row.sourceFormulas?.totalWithVat
+          ? formula(row.sourceFormulas.totalWithVat, row.totalWithVat)
+          : Number(row.totalWithVat || 0),
+      );
+    } else {
+      set(sheet, `H${rowNumber}`, formula(`G${rowNumber}`, row.priceWithoutVat));
+      set(
+        sheet,
+        `I${rowNumber}`,
+        formula(`F${rowNumber}*H${rowNumber}`, row.costWithoutVat),
+      );
+      set(
+        sheet,
+        `K${rowNumber}`,
+        formula(`I${rowNumber}*${row.vatRate || 0}/100`, row.vatAmount),
+      );
+      set(sheet, `L${rowNumber}`, formula(`I${rowNumber}+K${rowNumber}`, row.totalWithVat));
+    }
   });
 
   const total = positions.footerStart;
@@ -492,6 +535,7 @@ function commonNarrative(data, verb) {
 
 function fillAppendix15(sheet, data, positions) {
   const director = data.dpo.directorFullName || '';
+  sheet.getColumn(7).hidden = false;
   set(sheet, 'B1', 'АКТ');
   set(
     sheet,
@@ -527,22 +571,53 @@ function fillAppendix15(sheet, data, positions) {
     set(sheet, `E${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `F${rowNumber}`, Number(row.coverageDays || 0));
     set(sheet, `G${rowNumber}`, Number(row.priceWithoutVat || 0));
-    set(
-      sheet,
-      `H${rowNumber}`,
-      formula(`E${rowNumber}*G${rowNumber}`, row.costWithoutVat),
-    );
-    set(sheet, `I${rowNumber}`, Number(row.priceWithVat || 0));
-    set(
-      sheet,
-      `J${rowNumber}`,
-      formula(`K${rowNumber}-H${rowNumber}`, row.vatAmount),
-    );
-    set(
-      sheet,
-      `K${rowNumber}`,
-      formula(`E${rowNumber}*I${rowNumber}`, row.totalWithVat),
-    );
+    if (row.sourceValues) {
+      set(
+        sheet,
+        `H${rowNumber}`,
+        row.sourceFormulas?.costWithoutVat
+          ? formula(row.sourceFormulas.costWithoutVat, row.costWithoutVat)
+          : Number(row.costWithoutVat || 0),
+      );
+      set(
+        sheet,
+        `I${rowNumber}`,
+        row.sourceFormulas?.totalWithoutVat
+          ? formula(row.sourceFormulas.totalWithoutVat, row.priceWithVat)
+          : Number(row.priceWithVat || 0),
+      );
+      set(
+        sheet,
+        `J${rowNumber}`,
+        row.sourceFormulas?.vatAmount
+          ? formula(row.sourceFormulas.vatAmount, row.vatAmount)
+          : Number(row.vatAmount || 0),
+      );
+      set(
+        sheet,
+        `K${rowNumber}`,
+        row.sourceFormulas?.totalWithVat
+          ? formula(row.sourceFormulas.totalWithVat, row.totalWithVat)
+          : Number(row.totalWithVat || 0),
+      );
+    } else {
+      set(
+        sheet,
+        `H${rowNumber}`,
+        formula(`E${rowNumber}*G${rowNumber}`, row.costWithoutVat),
+      );
+      set(sheet, `I${rowNumber}`, Number(row.priceWithVat || 0));
+      set(
+        sheet,
+        `J${rowNumber}`,
+        formula(`K${rowNumber}-H${rowNumber}`, row.vatAmount),
+      );
+      set(
+        sheet,
+        `K${rowNumber}`,
+        formula(`E${rowNumber}*I${rowNumber}`, row.totalWithVat),
+      );
+    }
   });
   mergeGroups(sheet, data.rows, positions.dataStart, (row) => row.positionName, [1, 2]);
 

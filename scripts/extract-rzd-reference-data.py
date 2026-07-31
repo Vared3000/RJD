@@ -426,12 +426,38 @@ def analyze_sheet(
         if (
             ("фио" in joined or "ф.и.о" in joined or "должность , фио" in joined)
             and ("табель" in joined)
-        ) or ("наименование форменной одежды" in joined and ("должность" in joined or "фио" in joined)):
+        ) or (
+            "наименование форменной одежды" in joined
+            and ("должность" in joined or "фио" in joined)
+        ) or (
+            "наименование видов" in joined
+            and "выполненных работ" in joined
+        ):
             header_positions.append(index)
 
     for header_order, header_index in enumerate(header_positions):
         end_index = header_positions[header_order + 1] if header_order + 1 < len(header_positions) else len(rows)
         headers = [lower(value) for value in row_values[header_index]]
+        data_start_index = header_index + 1
+        if (
+            "наименование видов" in " ".join(headers)
+            and "выполненных работ" in " ".join(headers)
+            and data_start_index < len(row_values)
+        ):
+            secondary_headers = [lower(value) for value in row_values[data_start_index]]
+            width = max(len(headers), len(secondary_headers))
+            headers = [
+                " ".join(
+                    value
+                    for value in (
+                        headers[index] if index < len(headers) else "",
+                        secondary_headers[index] if index < len(secondary_headers) else "",
+                    )
+                    if value
+                )
+                for index in range(width)
+            ]
+            data_start_index += 1
         fio_idx = column(headers, "фио")
         if fio_idx is None:
             fio_idx = column(headers, "должность", "фио")
@@ -439,6 +465,10 @@ def analyze_sheet(
         position_idx = column(headers, "должность", exclude=("фио",))
         combined_position_idx = column(headers, "должность", "фио")
         item_idx = column(headers, "наименование", "форменной")
+        fpu_item_idx = column(headers, "наименование видов", "выполненных работ")
+        if item_idx is None:
+            item_idx = fpu_item_idx
+        form_type = "fpu-26" if fpu_item_idx is not None else None
         quantity_idx = column(headers, "кол-во")
         if quantity_idx is None:
             quantity_idx = column(headers, "количество")
@@ -453,15 +483,33 @@ def analyze_sheet(
         no_vat_idx = column(headers, "без ндс", exclude=("итого", "сумма"))
         with_vat_idx = column(headers, "с ндс", exclude=("итого", "сумма"))
         vat_amount_idx = column(headers, "сумма", "ндс")
+        if vat_amount_idx is None:
+            vat_amount_idx = next(
+                (
+                    index
+                    for index, header in enumerate(headers)
+                    if clean_text(header).startswith("ндс")
+                ),
+                None,
+            )
+        displayed_price_no_vat_idx = column(headers, "цена за единицу")
+        total_without_vat_idx = column(headers, "итого стоимость", "без ндс")
+        row_total_with_vat_idx = column(headers, "сумма с ндс")
+        if row_total_with_vat_idx is None:
+            row_total_with_vat_idx = column(headers, "итого стоимость", "с ндс")
         # В приложении 1.7 заголовок «Цена ... без НДС» объединяет две
         # колонки: слева цена за единицу, справа сумма строки. В выгрузке
         # merged-cell заголовок остаётся только в правой колонке.
         unit_price_no_vat_idx = no_vat_idx
-        subtotal_no_vat_idx = None
+        subtotal_no_vat_idx = no_vat_idx
         if (
-            fio_idx is not None
-            and personnel_idx is not None
-            and no_vat_idx is not None
+            displayed_price_no_vat_idx is not None
+            and displayed_price_no_vat_idx > 0
+            and not clean_text(headers[displayed_price_no_vat_idx - 1])
+        ):
+            unit_price_no_vat_idx = displayed_price_no_vat_idx - 1
+        if (
+            no_vat_idx is not None
             and no_vat_idx > 0
             and not clean_text(headers[no_vat_idx - 1])
         ):
@@ -470,11 +518,17 @@ def analyze_sheet(
 
         current_employee: dict[str, Any] | None = None
         current_position: str | None = None
-        for local_index in range(header_index + 1, end_index):
+        for local_index in range(data_start_index, end_index):
             row = rows[local_index]
             values = row["values"]
             joined = lower(" ".join(clean_text(value) for value in values))
-            if any(token in joined for token in ("всего:", "итого:", "исполнитель:", "заказчик:")):
+            if (
+                "всего:" in joined
+                or "итого:" in joined
+                or joined.strip().startswith("итого")
+            ):
+                break
+            if any(token in joined for token in ("исполнитель:", "заказчик:")):
                 current_employee = None
                 continue
 
@@ -529,6 +583,22 @@ def analyze_sheet(
             item_name = clean_text(cell(values, item_idx))
             if item_name and "наименование" not in lower(item_name) and len(item_name) > 2:
                 size_type, requires_height = classify_size_type(item_name)
+                source_formulas = {}
+                for field, index in (
+                    ("displayedPriceWithoutVat", displayed_price_no_vat_idx),
+                    ("costWithoutVat", subtotal_no_vat_idx),
+                    ("totalWithoutVat", total_without_vat_idx),
+                    ("vatAmount", vat_amount_idx),
+                    (
+                        "totalWithVat",
+                        row_total_with_vat_idx
+                        if row_total_with_vat_idx is not None
+                        else with_vat_idx,
+                    ),
+                ):
+                    formula_value = row["formulas"].get(str(index + 1)) if index is not None else None
+                    if formula_value and len(formula_value) > 1:
+                        source_formulas[field] = formula_value[1:]
                 candidates.append(
                     {
                         "type": "nomenclature",
@@ -546,11 +616,28 @@ def analyze_sheet(
                         "employee": current_employee,
                         "dpo": dpo,
                         "effectiveDate": document_date,
+                        "formType": form_type,
                         "priceWithoutVat": numeric(cell(values, unit_price_no_vat_idx)),
+                        "displayedPriceWithoutVat": numeric(
+                            cell(values, displayed_price_no_vat_idx)
+                        ),
                         "subtotalWithoutVat": numeric(cell(values, subtotal_no_vat_idx)),
+                        "totalWithoutVat": numeric(cell(values, total_without_vat_idx)),
                         "vatAmount": numeric(cell(values, vat_amount_idx)),
-                        "priceWithVat": numeric(cell(values, with_vat_idx)),
-                        "totalWithVat": numeric(cell(values, with_vat_idx)),
+                        "priceWithVat": (
+                            None
+                            if form_type == "fpu-26"
+                            else numeric(cell(values, with_vat_idx))
+                        ),
+                        "totalWithVat": numeric(
+                            cell(
+                                values,
+                                row_total_with_vat_idx
+                                if row_total_with_vat_idx is not None
+                                else with_vat_idx,
+                            )
+                        ),
+                        "sourceFormulas": source_formulas,
                     }
                 )
 

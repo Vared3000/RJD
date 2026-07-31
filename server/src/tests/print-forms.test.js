@@ -260,14 +260,73 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       type: 'nomenclature',
       dpo: unique,
       effectiveDate: '2026-07-31',
-      name: `${unique} архив 1.5`,
+      rowNumber: 20,
+      name: `${unique} архив 1.5 поздняя строка`,
       unit: 'шт.',
       position: 'Архивная должность',
       employee: null,
       quantity: 2,
       coverageDays: 62,
       priceWithoutVat: 800,
-      priceWithVat: 840,
+      subtotalWithoutVat: 800,
+      totalWithoutVat: 840,
+      vatAmount: 80,
+      totalWithVat: 1680,
+      sourceFormulas: {},
+    },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-31',
+      rowNumber: 10,
+      name: `${unique} архив 1.5 ранняя строка`,
+      unit: 'шт.',
+      position: 'Архивная должность',
+      employee: null,
+      quantity: 0,
+      coverageDays: 0,
+      priceWithoutVat: 123.45678,
+      subtotalWithoutVat: 0,
+      totalWithoutVat: 6.172839,
+      vatAmount: 0,
+      totalWithVat: 0,
+      sourceFormulas: {},
+    },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-31',
+      formType: 'fpu-26',
+      rowNumber: 43,
+      name: `${unique} архив ФПУ поздняя строка`,
+      unit: 'шт.',
+      position: null,
+      employee: null,
+      quantity: 5,
+      priceWithoutVat: 2264.79,
+      displayedPriceWithoutVat: 2264.79,
+      subtotalWithoutVat: 11323.95,
+      vatAmount: 566.1975,
+      totalWithVat: 11890.1475,
+      sourceFormulas: {},
+    },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-31',
+      formType: 'fpu-26',
+      rowNumber: 42,
+      name: `${unique} архив ФПУ ранняя строка`,
+      unit: 'шт.',
+      position: null,
+      employee: null,
+      quantity: 1,
+      priceWithoutVat: 2224.85,
+      displayedPriceWithoutVat: 2224.85,
+      subtotalWithoutVat: 2224.85,
+      vatAmount: 111.2425,
+      totalWithVat: 2336.0925,
+      sourceFormulas: {},
     },
     {
       type: 'nomenclature',
@@ -309,12 +368,21 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     },
   ];
   for (const [index, payload] of archiveCandidates.entries()) {
+    const isFpu26 = payload.formType === 'fpu-26';
     const record = await models.SourceImportRecord.create({
       sourceKey: `print-form-archive-test-${Date.now()}-${index}`,
-      sourceFile: index === 0 ? 'archive-1-5.xlsx' : 'archive-order-1-7.xlsx',
+      sourceFile: isFpu26
+        ? 'archive-order-fpu-26.xlsx'
+        : payload.employee
+          ? 'archive-order-1-7.xlsx'
+          : 'archive-order-1-5.xlsx',
       fileHash: String(index + 1).repeat(64),
       recordType: 'normalized_candidate',
-      sheetName: index === 0 ? 'Приложение 1.5' : 'Приложение 1.7',
+      sheetName: isFpu26
+        ? 'Акт выполненных работ'
+        : payload.employee
+          ? 'Приложение 1.7'
+          : 'Приложение 1.5',
       rowNumber: payload.rowNumber ?? null,
       payload,
     });
@@ -343,17 +411,48 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
         ? 'Архивная должность'
         : form === 'appendix-1-7'
           ? 'Архивный Работник Заказчика'
-          : `${unique} архив 1.7`;
+          : `${unique} архив ФПУ`;
     assert.ok(
       values.some((value) => value.includes(expected)),
       `${form}: архивные строки`,
     );
+    if (form === 'appendix-1-5') {
+      const sheet = workbook.worksheets[0];
+      assert.equal(sheet.getColumn(7).hidden, false, 'исходная цена должна быть видимой');
+      assert.match(
+        String(sheet.getCell('C7').value ?? ''),
+        /ранняя строка/,
+        'строки архивного приложения 1.5 должны сохранять исходный порядок Excel',
+      );
+      assert.match(String(sheet.getCell('C8').value ?? ''), /поздняя строка/);
+      assert.equal(sheet.getCell('G7').value, 123.45678);
+      assert.equal(sheet.getCell('H7').value, 0);
+      assert.equal(sheet.getCell('I7').value, 6.172839);
+      assert.equal(sheet.getCell('J8').value, 80);
+      assert.equal(sheet.getCell('K8').value, 1680);
+    }
     if (form === 'appendix-1-7') {
       assert.match(
         String(workbook.worksheets[0].getCell('D8').value ?? ''),
         /ранняя строка/,
         'строки архивного акта должны сохранять исходный порядок Excel',
       );
+    }
+    if (form === 'fpu-26') {
+      const sheet = workbook.worksheets[0];
+      assert.equal(sheet.getColumn(7).hidden, false, 'исходная цена ФПУ должна быть видимой');
+      assert.match(
+        String(sheet.getCell('A42').value ?? ''),
+        /ранняя строка/,
+        'строки архивного ФПУ-26 должны сохранять исходный порядок Excel',
+      );
+      assert.match(String(sheet.getCell('A43').value ?? ''), /поздняя строка/);
+      assert.equal(sheet.getCell('F42').value, 1);
+      assert.equal(sheet.getCell('G42').value, 2224.85);
+      assert.equal(sheet.getCell('H42').value, 2224.85);
+      assert.equal(sheet.getCell('I43').value, 11323.95);
+      assert.equal(sheet.getCell('K43').value, 566.1975);
+      assert.equal(sheet.getCell('L43').value, 11890.1475);
     }
   }
 });
