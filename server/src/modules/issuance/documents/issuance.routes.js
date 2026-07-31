@@ -134,10 +134,37 @@ export function createIssuanceRouter() {
    *       Позиции без подходящего размера у работника пропускаются (см. meta.skipped).
    *     parameters:
    *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               season: { type: string, enum: [summer, winter] }
+   *             required: [season]
    *     responses:
    *       200: { description: Строки добавлены }
    */
   router.post('/:id/apply-kit', asyncHandler(issuanceController.applyKit));
+
+  /**
+   * @openapi
+   * /issuance/documents/{id}/kit-preview:
+   *   get:
+   *     tags: [Выдача/Возврат: Выдача]
+   *     summary: >
+   *       Предпросмотр комплекта (раздел 9 ТЗ) — позиции комплекта должности
+   *       работника строго по его размерам, с остатком на складе документа под
+   *       каждую позицию. Ничего не создаёт — добавление строки отдельным
+   *       вызовом POST .../lines.
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *       - { name: season, in: query, required: true, schema: { type: string, enum: [summer, winter] } }
+   *     responses:
+   *       200: { description: Список позиций комплекта с остатками }
+   */
+  router.get('/:id/kit-preview', asyncHandler(issuanceController.previewKit));
 
   /**
    * @openapi

@@ -7,10 +7,24 @@ import {
 import { useIssuanceList } from '../../features/issuance/documents/model/use-issuance-queries.js';
 import { useReturnList } from '../../features/issuance/returns/model/use-return-queries.js';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
+import {
+  employeeFormSchema,
+  employeeFormFields,
+} from '../../features/employees/model/employee-form.js';
+import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './EmployeeCardPage.module.css';
+
+const { useCatalogMutations } = createCatalogHooks('employees');
+
+function errorMessage(mutation) {
+  if (!mutation?.isError) return null;
+  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
+}
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const DOCUMENT_TYPE_LABELS = { issuance: 'Выдача', return: 'Возврат' };
@@ -32,13 +46,23 @@ export function EmployeeCardPage() {
   const navigate = useNavigate();
   const [printPending, setPrintPending] = useState('');
   const [printError, setPrintError] = useState('');
+  const [editing, setEditing] = useState(false);
   const { data: employee, isLoading: isLoadingEmployee } = useEmployee(id);
   const { data: property, isLoading: isLoadingProperty } = useEmployeeProperty(id);
   const { data: issuanceDocuments } = useIssuanceList(id);
   const { data: returnDocuments } = useReturnList(id);
+  const { update } = useCatalogMutations();
+  const canManage = useSessionStore((state) =>
+    state.user?.permissions?.includes('employees.manage'),
+  );
 
   if (isLoadingEmployee || !employee) {
     return <p className={catalogStyles.hint}>Загрузка…</p>;
+  }
+
+  async function handleEditSubmit(values) {
+    await update.mutateAsync({ id, payload: values });
+    setEditing(false);
   }
 
   const history = [
@@ -86,6 +110,11 @@ export function EmployeeCardPage() {
           </p>
         </div>
         <div className={catalogStyles.actions}>
+          {canManage && (
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Изменить
+            </Button>
+          )}
           <Button onClick={() => downloadPersonalCard('xlsx')} disabled={Boolean(printPending)}>
             {printPending === 'xlsx' ? 'Формирование…' : 'Личная карточка Excel'}
           </Button>
@@ -254,6 +283,19 @@ export function EmployeeCardPage() {
           </tbody>
         </table>
       </div>
+
+      {editing && (
+        <EntityFormModal
+          title="Изменить работника"
+          fields={employeeFormFields}
+          schema={employeeFormSchema}
+          defaultValues={employee}
+          onSubmit={handleEditSubmit}
+          onClose={() => setEditing(false)}
+          isSaving={update.isPending}
+          error={errorMessage(update)}
+        />
+      )}
     </div>
   );
 }

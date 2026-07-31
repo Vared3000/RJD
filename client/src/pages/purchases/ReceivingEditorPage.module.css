@@ -51,3 +51,18 @@
   color: var(--color-text);
   line-height: 1.5;
 }
+
+.kitPreview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.error {
+  color: var(--color-danger);
+  font-weight: 600;
+}

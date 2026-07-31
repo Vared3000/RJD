@@ -94,6 +94,7 @@ export function createEmployeesRouter() {
     createSchema: createEmployeeSchema,
     updateSchema: updateEmployeeSchema,
     validateRelations,
+    searchFields: ['fullName', 'personnelNumber'],
     include: [
       { model: models.Organization, as: 'organization', attributes: ['id', 'name'] },
       { model: models.Subdivision, as: 'subdivision', attributes: ['id', 'name'] },

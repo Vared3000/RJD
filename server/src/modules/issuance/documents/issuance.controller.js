@@ -47,8 +47,17 @@ export const issuanceController = {
   },
 
   async applyKit(req, res) {
-    const { document, skipped } = await issuanceService.applyKit(req.params.id);
+    const { document, skipped } = await issuanceService.applyKit(req.params.id, {
+      season: req.body?.season,
+    });
     return success(res, document, 200, { skipped });
+  },
+
+  async previewKit(req, res) {
+    const result = await issuanceService.previewKit(req.params.id, {
+      season: req.query.season,
+    });
+    return success(res, result);
   },
 
   async post(req, res) {

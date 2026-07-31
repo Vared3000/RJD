@@ -45,10 +45,13 @@ export function useIssuanceMutations(id) {
     onSuccess: invalidate,
   });
   const applyKit = useMutation({
-    mutationFn: () => issuanceApi.applyKit(id),
+    mutationFn: (season) => issuanceApi.applyKit(id, season),
     onSuccess: invalidate,
+  });
+  const previewKit = useMutation({
+    mutationFn: (season) => issuanceApi.previewKit(id, season),
   });
   const post = useMutation({ mutationFn: () => issuanceApi.post(id), onSuccess: invalidate });
 
-  return { create, update, remove, addLine, updateLine, removeLine, applyKit, post };
+  return { create, update, remove, addLine, updateLine, removeLine, applyKit, previewKit, post };
 }

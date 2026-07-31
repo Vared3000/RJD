@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { KIT_SEASONS } from '../../database/models/position-kit-item.model.js';
 
 export const createKitItemSchema = z.object({
   positionId: z.string().uuid('Выберите должность'),
   modelId: z.string().uuid('Выберите модель'),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля').default(1),
+  season: z.enum(KIT_SEASONS, { errorMap: () => ({ message: 'Выберите сезон' }) }),
   serviceLifeYears: z.coerce
     .number()
     .int()

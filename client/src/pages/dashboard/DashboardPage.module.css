@@ -1,7 +1,7 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .title {
@@ -14,4 +14,131 @@
   margin: 0;
   color: var(--color-text-muted);
   font-size: 14px;
+}
+
+.kpiRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.kpiTile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  min-width: 220px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  text-decoration: none;
+  color: inherit;
+}
+
+.kpiTile:hover {
+  border-color: var(--color-primary);
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.kpiValue {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.kpiSub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.lifecycle {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.lifecycleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lifecycleItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lifecycleArrow {
+  color: var(--color-text-muted);
+}
+
+.lifecycleStage,
+.lifecycleStagePlain {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lifecycleStage {
+  background: var(--color-bg);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.lifecycleStage:hover {
+  outline: 1px solid var(--color-primary);
+}
+
+.lifecycleStagePlain {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.card {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cardLink {
+  display: block;
+  padding: var(--space-1) 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  color: var(--color-primary);
 }

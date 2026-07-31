@@ -35,12 +35,12 @@ export function IssuanceEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: document, isLoading } = useIssuanceDocument(id);
-  const { update, remove, addLine, updateLine, removeLine, applyKit, post } =
+  const { update, remove, addLine, updateLine, removeLine, previewKit, post } =
     useIssuanceMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [editingLine, setEditingLine] = useState(null);
   const [confirmingPost, setConfirmingPost] = useState(false);
-  const [kitSkipped, setKitSkipped] = useState(null);
+  const [kitPreview, setKitPreview] = useState(null);
   const canManage = useSessionStore((state) =>
     state.user?.permissions?.includes('issuance.manage'),
   );
@@ -66,9 +66,33 @@ export function IssuanceEditorPage() {
     setEditingLine(null);
   }
 
-  async function handleApplyKit() {
-    const { skipped } = await applyKit.mutateAsync();
-    setKitSkipped(skipped);
+  async function handlePreviewKit(season) {
+    const result = await previewKit.mutateAsync(season);
+    setKitPreview({ ...result, season });
+  }
+
+  function lineKey(modelId, sizeId, heightSizeId) {
+    return `${modelId}:${sizeId ?? ''}:${heightSizeId ?? ''}`;
+  }
+
+  const existingLineKeys = new Set(
+    lines.map((line) => lineKey(line.modelId, line.sizeId, line.heightSizeId)),
+  );
+
+  async function handleAddKitItem(item) {
+    await addLine.mutateAsync({
+      modelId: item.modelId,
+      sizeId: item.sizeId,
+      heightSizeId: item.heightSizeId,
+      quantity: item.quantity,
+    });
+  }
+
+  function handleRemovePreviewItem(index) {
+    setKitPreview((current) => ({
+      ...current,
+      items: current.items.filter((_, itemIndex) => itemIndex !== index),
+    }));
   }
 
   async function handlePost() {
@@ -98,8 +122,19 @@ export function IssuanceEditorPage() {
             <Button variant="secondary" onClick={() => setEditingHeader(true)}>
               Изменить шапку
             </Button>
-            <Button variant="secondary" onClick={handleApplyKit} disabled={applyKit.isPending}>
-              Подобрать комплект
+            <Button
+              variant="secondary"
+              onClick={() => handlePreviewKit('summer')}
+              disabled={previewKit.isPending}
+            >
+              Летний комплект
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handlePreviewKit('winter')}
+              disabled={previewKit.isPending}
+            >
+              Зимний комплект
             </Button>
             <Button variant="danger" onClick={handleDeleteDocument} disabled={remove.isPending}>
               Удалить черновик
@@ -132,12 +167,93 @@ export function IssuanceEditorPage() {
         )}
       </div>
 
-      {applyKit.isError && <p className={catalogStyles.formError}>{errorMessage(applyKit)}</p>}
-      {kitSkipped && kitSkipped.length > 0 && (
-        <p className={catalogStyles.formError}>
-          Не подобраны (у работника не указан размер):{' '}
-          {kitSkipped.map((s) => s.modelName ?? s.modelId).join(', ')}
-        </p>
+      {previewKit.isError && <p className={catalogStyles.formError}>{errorMessage(previewKit)}</p>}
+      {kitPreview && (
+        <div className={styles.kitPreview}>
+          <div className={catalogStyles.header}>
+            <h2 className={styles.linesTitle}>
+              Комплект должности ({kitPreview.season === 'summer' ? 'летний' : 'зимний'})
+            </h2>
+            <button
+              type="button"
+              className={catalogStyles.linkButton}
+              onClick={() => setKitPreview(null)}
+            >
+              Скрыть
+            </button>
+          </div>
+          {kitPreview.noPosition && (
+            <p className={catalogStyles.hint}>
+              У работника не указана должность — комплект недоступен.
+            </p>
+          )}
+          {!kitPreview.noPosition && kitPreview.items.length === 0 && (
+            <p className={catalogStyles.hint}>Для этого сезона в комплекте должности нет позиций.</p>
+          )}
+          {!kitPreview.noPosition && kitPreview.items.length > 0 && (
+            <div className={catalogStyles.tableWrap}>
+              <table className={catalogStyles.table}>
+                <thead>
+                  <tr>
+                    <th>Модель</th>
+                    <th>Размер</th>
+                    <th>Рост</th>
+                    <th>Нужно</th>
+                    <th>В наличии</th>
+                    {isDraft && canManage && <th aria-label="Действия" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {kitPreview.items.map((item, index) => {
+                    const alreadyAdded = existingLineKeys.has(
+                      lineKey(item.modelId, item.sizeId, item.heightSizeId),
+                    );
+                    return (
+                      <tr key={`${item.modelId}-${index}`}>
+                        <td>{item.modelName}</td>
+                        <td>{item.sizeLabel ?? '—'}</td>
+                        <td>{item.heightLabel ?? '—'}</td>
+                        <td>{item.quantity}</td>
+                        <td>
+                          {item.missingSize ? (
+                            <span className={styles.error}>нет размера у работника</span>
+                          ) : (
+                            <span className={item.availableQuantity > 0 ? '' : styles.error}>
+                              {item.availableQuantity}
+                            </span>
+                          )}
+                        </td>
+                        {isDraft && canManage && (
+                          <td className={catalogStyles.actions}>
+                            {alreadyAdded ? (
+                              <span className={catalogStyles.hint}>Добавлено</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className={catalogStyles.linkButton}
+                                disabled={item.missingSize || addLine.isPending}
+                                onClick={() => handleAddKitItem(item)}
+                              >
+                                Добавить
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className={catalogStyles.linkButton}
+                              onClick={() => handleRemovePreviewItem(index)}
+                            >
+                              Убрать
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       <div className={catalogStyles.header}>

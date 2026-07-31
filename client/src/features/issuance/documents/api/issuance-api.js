@@ -36,9 +36,13 @@ export const issuanceApi = {
     const { data } = await httpClient.delete(`${BASE}/${id}/lines/${lineId}`);
     return data.data;
   },
-  async applyKit(id) {
-    const { data } = await httpClient.post(`${BASE}/${id}/apply-kit`);
+  async applyKit(id, season) {
+    const { data } = await httpClient.post(`${BASE}/${id}/apply-kit`, { season });
     return { document: data.data, skipped: data.meta?.skipped ?? [] };
+  },
+  async previewKit(id, season) {
+    const { data } = await httpClient.get(`${BASE}/${id}/kit-preview`, { params: { season } });
+    return data.data;
   },
   async post(id) {
     const { data } = await httpClient.post(`${BASE}/${id}/post`);

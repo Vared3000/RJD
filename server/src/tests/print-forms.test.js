@@ -143,6 +143,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     modelId: state.modelId,
     quantity: 1,
     serviceLifeYears: 4,
+    season: 'summer',
   });
   assert.equal(kit.status, 201);
   state.kitId = kit.body.data.id;

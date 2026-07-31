@@ -2,6 +2,7 @@ import { sequelize } from '../../../database/models/index.js';
 import { issuanceRepository } from './issuance.repository.js';
 import { ApiError } from '../../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
+import { KIT_SEASONS } from '../../../database/models/position-kit-item.model.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -10,6 +11,15 @@ const SIZE_FIELD_BY_TYPE = {
   headwear: 'headwearSizeId',
   belt: 'beltSizeId',
   gloves: 'glovesSizeId',
+};
+
+const SIZE_ALIAS_BY_TYPE = {
+  clothing: 'clothingSize',
+  height: 'heightSize',
+  shoe: 'shoeSize',
+  headwear: 'headwearSize',
+  belt: 'beltSize',
+  gloves: 'glovesSize',
 };
 
 function assertDraft(document) {
@@ -153,13 +163,24 @@ export const issuanceService = {
   // же моделью/размером уже есть в документе — пропускаются, а не падают с
   // ошибкой (пользователь может добавить их вручную); список пропущенных
   // возвращается вызывающей стороне для отображения предупреждения.
-  async applyKit(documentId) {
+  //
+  // season ('summer'|'winter') — обязателен: комплект делится на летний и
+  // зимний (см. PositionKitItem.season), выбор сезона отдельным действием на
+  // экране. Позиции без сезона (season === null) — унаследованные из архивного
+  // импорта, ещё не размеченные администратором — считаются нужными в любом
+  // сезоне и попадают в оба варианта подбора.
+  async applyKit(documentId, { season } = {}) {
+    if (!KIT_SEASONS.includes(season)) {
+      throw ApiError.badRequest('Укажите сезон комплекта (летний или зимний)');
+    }
+
     const document = await issuanceRepository.findById(documentId);
     assertDraft(document);
 
-    const { employee, kitItems } = await issuanceRepository.findEmployeeWithKit(
+    const { employee, kitItems: allKitItems } = await issuanceRepository.findEmployeeWithKit(
       document.employeeId,
     );
+    const kitItems = allKitItems.filter((item) => !item.season || item.season === season);
 
     const existingKeys = new Set(
       document.lines.map((line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`),
@@ -191,6 +212,63 @@ export const issuanceService = {
     }
 
     return { document: await issuanceRepository.findById(documentId), skipped };
+  },
+
+  // Предпросмотр комплекта (строго по размерам работника — раздел 9 ТЗ):
+  // для каждой позиции комплекта его должности показывает, какой размер
+  // работника подошёл бы, и сколько реально есть на складе документа под
+  // этот конкретный размер — прежде чем что-либо добавлять в документ.
+  // Ничего не создаёт и не изменяет; сама позиция добавляется отдельным
+  // вызовом addLine, когда пользователь выбирает конкретную позицию из списка.
+  async previewKit(documentId, { season } = {}) {
+    if (!KIT_SEASONS.includes(season)) {
+      throw ApiError.badRequest('Укажите сезон комплекта (летний или зимний)');
+    }
+
+    const document = await issuanceRepository.findById(documentId);
+    assertDraft(document);
+
+    const { employee, kitItems: allKitItems } = await issuanceRepository.findEmployeeWithKit(
+      document.employeeId,
+    );
+    if (!employee?.positionId) {
+      return { items: [], noPosition: true };
+    }
+    const kitItems = allKitItems.filter((item) => !item.season || item.season === season);
+
+    const items = [];
+    for (const kitItem of kitItems) {
+      const sizeType = kitItem.model?.sizeType;
+      const sizeAlias = sizeType ? SIZE_ALIAS_BY_TYPE[sizeType] : null;
+      const size = sizeAlias ? employee[sizeAlias] : null;
+      const hasRequiredSize = !sizeType || Boolean(size);
+      const requiresHeight = Boolean(kitItem.model?.requiresHeightSize);
+      const hasHeight = !requiresHeight || Boolean(employee.heightSize);
+      const missingSize = !hasRequiredSize || !hasHeight;
+
+      const availableQuantity = missingSize
+        ? null
+        : await issuanceRepository.countAvailableInstances({
+            modelId: kitItem.modelId,
+            sizeId: size?.id ?? null,
+            heightSizeId: requiresHeight ? employee.heightSize.id : null,
+            warehouseId: document.warehouseId,
+          });
+
+      items.push({
+        modelId: kitItem.modelId,
+        modelName: kitItem.model?.name,
+        sizeId: size?.id ?? null,
+        sizeLabel: size?.value ?? null,
+        heightSizeId: requiresHeight ? employee.heightSize.id : null,
+        heightLabel: requiresHeight ? (employee.heightSize?.value ?? null) : null,
+        quantity: kitItem.quantity,
+        missingSize,
+        availableQuantity,
+      });
+    }
+
+    return { items, noPosition: false };
   },
 
   // Проведение — необратимо: подбирает под каждую строку доступные экземпляры

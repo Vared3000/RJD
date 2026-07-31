@@ -95,6 +95,7 @@ test('выдача: автоподбор комплекта -> проведен�
     positionId,
     modelId,
     quantity: 2,
+    season: 'summer',
   });
   assert.equal(kitItem.status, 201);
 
@@ -106,6 +107,7 @@ test('выдача: автоподбор комплекта -> проведен�
   const sizeLessKitItem = await auth(agent.post('/api/v1/kits')).send({
     positionId,
     modelId: modelNoType.body.data.id,
+    season: 'summer',
   });
   assert.equal(sizeLessKitItem.status, 201);
   const archivedSizeLessKitItem = await auth(
@@ -144,7 +146,9 @@ test('выдача: автоподбор комплекта -> проведен�
   const issuanceId = issuanceDraft.body.data.id;
   state.issuanceDocIds.push(issuanceId);
 
-  const applied = await auth(agent.post(`/api/v1/issuance/documents/${issuanceId}/apply-kit`));
+  const applied = await auth(
+    agent.post(`/api/v1/issuance/documents/${issuanceId}/apply-kit`),
+  ).send({ season: 'summer' });
   assert.equal(applied.status, 200);
   assert.equal(applied.body.data.lines.length, 1);
   assert.equal(applied.body.data.lines[0].quantity, 2);
@@ -454,7 +458,7 @@ test('выдача: составной размер одежды подбира�
   state.issuanceIds.push(issuance.body.data.id);
   const applied = await auth(
     agent.post(`/api/v1/issuance/documents/${issuance.body.data.id}/apply-kit`),
-  );
+  ).send({ season: 'summer' });
   assert.equal(applied.status, 200);
   assert.equal(applied.body.data.lines[0].sizeId, clothingSize.id);
   assert.equal(applied.body.data.lines[0].heightSizeId, height170.id);
@@ -481,7 +485,7 @@ test('выдача: составной размер одежды подбира�
   state.issuanceIds.push(skippedIssuance.body.data.id);
   const skipped = await auth(
     agent.post(`/api/v1/issuance/documents/${skippedIssuance.body.data.id}/apply-kit`),
-  );
+  ).send({ season: 'summer' });
   assert.equal(skipped.status, 200);
   assert.equal(skipped.body.data.lines.length, 0);
   assert.equal(skipped.body.meta.skipped.length, 1);
@@ -599,7 +603,7 @@ test('безразмерная позиция проходит поступле�
   state.issuanceId = issuance.body.data.id;
   const applied = await auth(
     agent.post(`/api/v1/issuance/documents/${state.issuanceId}/apply-kit`),
-  );
+  ).send({ season: 'summer' });
   assert.equal(applied.status, 200);
   assert.equal(applied.body.data.lines.length, 1);
   assert.equal(applied.body.data.lines[0].sizeId, null);

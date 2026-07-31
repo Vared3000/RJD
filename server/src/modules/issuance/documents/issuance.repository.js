@@ -150,10 +150,20 @@ export const issuanceRepository = {
     );
   },
 
-  // Для автоподбора комплекта: работник (с должностью и размерами) +
-  // активные позиции комплекта его должности.
+  // Для автоподбора/предпросмотра комплекта: работник (с должностью,
+  // размерами — включая связанные Size-записи с их value для отображения — и
+  // активными позициями комплекта его должности.
   async findEmployeeWithKit(employeeId) {
-    const employee = await Employee.findByPk(employeeId);
+    const employee = await Employee.findByPk(employeeId, {
+      include: [
+        { model: models.Size, as: 'clothingSize', attributes: ['id', 'value'] },
+        { model: models.Size, as: 'heightSize', attributes: ['id', 'value'] },
+        { model: models.Size, as: 'shoeSize', attributes: ['id', 'value'] },
+        { model: models.Size, as: 'headwearSize', attributes: ['id', 'value'] },
+        { model: models.Size, as: 'beltSize', attributes: ['id', 'value'] },
+        { model: models.Size, as: 'glovesSize', attributes: ['id', 'value'] },
+      ],
+    });
     if (!employee || !employee.positionId) return { employee, kitItems: [] };
     const kitItems = await PositionKitItem.findAll({
       where: { positionId: employee.positionId, archivedAt: null },
@@ -166,5 +176,21 @@ export const issuanceRepository = {
       ],
     });
     return { employee, kitItems };
+  },
+
+  // Остаток на конкретном складе под конкретные модель/размер/рост — для
+  // предпросмотра комплекта (сколько реально есть под позицию, прежде чем
+  // добавлять строку в документ).
+  countAvailableInstances({ modelId, sizeId, heightSizeId, warehouseId }) {
+    return Instance.count({
+      where: {
+        modelId,
+        sizeId: sizeId ?? null,
+        heightSizeId: heightSizeId ?? null,
+        warehouseId,
+        status: 'in_stock',
+        archivedAt: null,
+      },
+    });
   },
 };

@@ -11,11 +11,17 @@ import { requirePermission } from '../../middlewares/permission.middleware.js';
 // Используется для простых сущностей (Организации, Подразделения, Должности,
 // Склады, Поставщики, Размеры и т.п.) — см. docs/architecture.md.
 
-export function createReferenceRepository(Model, { include } = {}) {
+export function createReferenceRepository(Model, { include, searchFields } = {}) {
   return {
-    list({ includeArchived = false } = {}) {
+    list({ includeArchived = false, search } = {}) {
+      const where = includeArchived ? {} : { archivedAt: null };
+      if (search && searchFields?.length) {
+        where[Op.or] = searchFields.map((field) => ({
+          [field]: { [Op.iLike]: `%${search}%` },
+        }));
+      }
       return Model.findAll({
-        where: includeArchived ? {} : { archivedAt: null },
+        where,
         include,
         order: [['createdAt', 'ASC']],
       });
@@ -98,7 +104,10 @@ export function createReferenceService(
 export function createReferenceController(service) {
   return {
     async list(req, res) {
-      const items = await service.list({ includeArchived: req.query.includeArchived === 'true' });
+      const items = await service.list({
+        includeArchived: req.query.includeArchived === 'true',
+        search: req.query.search,
+      });
       return success(res, items);
     },
     async getOne(req, res) {
@@ -184,9 +193,10 @@ export function createReferenceModule(
     validateRelations,
     beforeCreate,
     include,
+    searchFields,
   },
 ) {
-  const repository = createReferenceRepository(Model, { include });
+  const repository = createReferenceRepository(Model, { include, searchFields });
   const service = createReferenceService(repository, {
     entityName,
     validateRelations,
