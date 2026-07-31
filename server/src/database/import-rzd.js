@@ -440,7 +440,12 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       ? positionByName.get(asText(candidate.position, 255))
       : null;
     const quantity = Math.trunc(Number(candidate.quantity));
-    if (position && Number.isFinite(quantity) && quantity > 0) {
+    // ФПУ-26 — акт с суммарным количеством по позиции за период по всей ДПО
+    // (сколько единиц реально отгружено/оплачено), а не норма на одного
+    // работника — отсюда бывали дикие "quantity" вида 98 на позицию комплекта.
+    // Норму на одного работника даёт только Прил. 1.7/личная карточка
+    // (per-employee строки, formType !== 'fpu-26').
+    if (position && candidate.formType !== 'fpu-26' && Number.isFinite(quantity) && quantity > 0) {
       const key = `${position.id}\u0000${model.id}`;
       const importedServiceLife = Math.trunc(Number(candidate.serviceLifeYears));
       kitQuantityByKey.set(key, {

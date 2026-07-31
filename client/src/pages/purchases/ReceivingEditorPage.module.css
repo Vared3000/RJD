@@ -62,6 +62,12 @@
   border-radius: var(--radius);
 }
 
+.kitPreviewActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .error {
   color: var(--color-danger);
   font-weight: 600;

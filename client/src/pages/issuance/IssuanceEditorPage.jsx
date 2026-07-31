@@ -95,6 +95,17 @@ export function IssuanceEditorPage() {
     }));
   }
 
+  async function handleAddAllKitItems() {
+    const addable = kitPreview.items.filter(
+      (item) =>
+        !item.missingSize &&
+        !existingLineKeys.has(lineKey(item.modelId, item.sizeId, item.heightSizeId)),
+    );
+    for (const item of addable) {
+      await handleAddKitItem(item);
+    }
+  }
+
   async function handlePost() {
     await post.mutateAsync();
     setConfirmingPost(false);
@@ -174,13 +185,24 @@ export function IssuanceEditorPage() {
             <h2 className={styles.linesTitle}>
               Комплект должности ({kitPreview.season === 'summer' ? 'летний' : 'зимний'})
             </h2>
-            <button
-              type="button"
-              className={catalogStyles.linkButton}
-              onClick={() => setKitPreview(null)}
-            >
-              Скрыть
-            </button>
+            <div className={styles.kitPreviewActions}>
+              {!kitPreview.noPosition && kitPreview.items.length > 0 && isDraft && canManage && (
+                <Button
+                  variant="secondary"
+                  onClick={handleAddAllKitItems}
+                  disabled={addLine.isPending}
+                >
+                  Добавить всё
+                </Button>
+              )}
+              <button
+                type="button"
+                className={catalogStyles.linkButton}
+                onClick={() => setKitPreview(null)}
+              >
+                Скрыть
+              </button>
+            </div>
           </div>
           {kitPreview.noPosition && (
             <p className={catalogStyles.hint}>
