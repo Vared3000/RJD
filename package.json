@@ -14,6 +14,7 @@
     "dev:client": "pnpm --filter @workwear/client dev",
     "dev:server": "pnpm --filter @workwear/server dev",
     "db:migrate": "pnpm --filter @workwear/server db:migrate",
+    "db:verify-clean": "pnpm --filter @workwear/server db:verify-clean",
     "db:seed": "pnpm --filter @workwear/server db:seed",
     "lint": "eslint .",
     "format": "prettier --write .",

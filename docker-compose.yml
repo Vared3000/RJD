@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-workwear_erp}
       POSTGRES_USER: ${POSTGRES_USER:-workwear_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-workwear_app_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажите POSTGRES_PASSWORD в .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
@@ -34,28 +34,46 @@ services:
       NODE_ENV: production
       PORT: 4000
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost}
-      DATABASE_URL: postgres://${POSTGRES_USER:-workwear_app}:${POSTGRES_PASSWORD:-workwear_app_password}@postgres:5432/${POSTGRES_DB:-workwear_erp}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DATABASE_URL: postgres://${POSTGRES_USER:-workwear_app}:${POSTGRES_PASSWORD:?Укажите POSTGRES_PASSWORD в .env}@postgres:5432/${POSTGRES_DB:-workwear_erp}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Укажите JWT_ACCESS_SECRET в .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Укажите JWT_REFRESH_SECRET в .env}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
       BOOTSTRAP_ADMIN_LOGIN: ${BOOTSTRAP_ADMIN_LOGIN:-admin}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Укажите BOOTSTRAP_ADMIN_PASSWORD в .env}
     ports:
       - '4000:4000'
     volumes:
       - server_uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4000/health').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   client:
     build:
       context: ./client
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     ports:
       - '80:80'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost/ >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

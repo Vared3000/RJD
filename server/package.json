@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=../.env src/server.js",
     "db:migrate": "node --env-file-if-exists=../.env src/database/migrate.js up",
     "db:migrate:undo": "node --env-file-if-exists=../.env src/database/migrate.js down",
+    "db:verify-clean": "node --env-file-if-exists=../.env src/database/verify-clean.js",
     "db:seed": "node --env-file-if-exists=../.env src/database/seed.js",
     "import:rzd": "node --env-file-if-exists=../.env src/database/import-rzd.js",
     "test": "cross-env NODE_ENV=test node --env-file-if-exists=../.env --test \"src/tests/*.test.js\""

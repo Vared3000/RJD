@@ -52,13 +52,13 @@ Swagger UI: http://localhost:4000/api-docs
 ## Запуск через Docker Compose (для сервера предприятия)
 
 ```bash
-cp .env.example .env      # заполнить реальными значениями, включая секреты JWT
+cp .env.example .env      # заменить все пароли и секреты
 docker compose up -d --build
-docker compose exec server node src/database/migrate.js up
-docker compose exec server node src/database/seed.js
 ```
 
-Frontend будет доступен на порту 80, backend — на 4000.
+Миграции и начальные роли применяются автоматически при старте backend.
+Frontend доступен на порту 80, backend — на 4000. Полная инструкция:
+[docs/operations.md](docs/operations.md).
 
 ## Резервное копирование БД
 
@@ -66,6 +66,9 @@ Frontend будет доступен на порту 80, backend — на 4000.
 ./scripts/backup.sh [каталог]     # pg_dump -> backups/*.dump
 ./scripts/restore.sh файл.dump    # восстановление (перезаписывает БД!)
 ```
+
+Для показа заказчику используйте готовый
+[демонстрационный сценарий](docs/demo-scenario.md).
 
 ## Импорт реальных актов РЖД
 
@@ -103,6 +106,7 @@ pnpm --filter @workwear/server import:rzd -- .\tmp\rzd-reference-import.json
 |---|---|
 | `pnpm dev` | backend + frontend одновременно |
 | `pnpm db:migrate` / `db:seed` | миграции и сид БД |
+| `pnpm db:verify-clean` | безопасная проверка всех миграций и сидов во временной схеме |
 | `pnpm --filter @workwear/server import:rzd -- <json>` | импорт извлечённых актов РЖД |
 | `pnpm lint` / `format` | ESLint / Prettier по всему репозиторию |
 | `pnpm test` | тесты backend (node:test + supertest) |
@@ -298,7 +302,10 @@ service-document.factory.js`, а не продублированы: в отли�
 - [x] Этап 12 — Печатные формы: ФПУ-26, приложение 1.5, приложение 1.7 и
       личная карточка работника в Excel/PDF, УПД в PDF, а также Excel/PDF
       для всех девяти отчётов
-- [ ] Этап 13–14 — см. PROJECT_SPECIFICATION.md, раздел 17
+- [x] Этап 13 — Тестирование: 17 интеграционных сценариев, проверка чистой
+      базы, линтер и production-сборка
+- [x] Этап 14 — Подготовка к эксплуатации: Docker healthcheck, автоматические
+      миграции/сиды, Nginx reverse proxy, резервное копирование и инструкции
 
 ## Печатные формы (Этап 12, первая очередь)
 

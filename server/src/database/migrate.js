@@ -2,6 +2,7 @@ import { Umzug, SequelizeStorage } from 'umzug';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sequelize } from './sequelize.js';
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,7 +12,11 @@ const umzug = new Umzug({
     glob: path.join(__dirname, 'migrations', '*.js').replace(/\\/g, '/'),
   },
   context: sequelize,
-  storage: new SequelizeStorage({ sequelize, tableName: 'schema_migrations' }),
+  storage: new SequelizeStorage({
+    sequelize,
+    tableName: 'schema_migrations',
+    schema: env.DATABASE_SCHEMA,
+  }),
   logger: console,
 });
 

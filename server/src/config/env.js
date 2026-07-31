@@ -5,6 +5,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL обязателен'),
+  DATABASE_SCHEMA: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]*$/)
+    .optional(),
   JWT_ACCESS_SECRET: z.string().min(16, 'JWT_ACCESS_SECRET слишком короткий'),
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET слишком короткий'),
   JWT_ACCESS_TTL: z.string().default('15m'),
