@@ -186,6 +186,16 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     },
     transaction,
   );
+  await organization.update(
+    {
+      fullName: 'Открытое акционерное общество «Российские железные дороги»',
+      inn: '7708503727',
+      kpp: '997650001',
+      address:
+        '107174, г. Москва, вн.тер. г. муниципальный округ Басманный, ул. Новая Басманная, д. 2/1, стр. 1',
+    },
+    { transaction },
+  );
 
   const dpoByName = new Map();
   for (const name of data.knownDpos) {
@@ -258,6 +268,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       where: { name },
       defaults: {
         name,
+        article: asText(candidate.article, 64),
         unit: asText(candidate.unit, 16) ?? 'шт.',
         sizeType: candidate.sizeType ?? null,
         requiresHeightSize: Boolean(candidate.requiresHeightSize),
@@ -266,6 +277,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     });
     if (!created) {
       const patch = { archivedAt: null };
+      if (!model.article && candidate.article) patch.article = asText(candidate.article, 64);
       if (!model.sizeType && candidate.sizeType) patch.sizeType = candidate.sizeType;
       if (!model.requiresHeightSize && candidate.requiresHeightSize)
         patch.requiresHeightSize = true;

@@ -161,6 +161,15 @@ async function loadPersonalCardContext(query) {
   };
 }
 
+async function loadUpdContext(query) {
+  const context = await loadContext(query);
+  context.importedUpd = await printFormsRepository.findImportedUpd({
+    from: context.from,
+    to: context.to,
+  });
+  return context;
+}
+
 function baseData(context, title, sheetName, columns, rows, formulas) {
   const totalKeys = columns.filter((column) => column.total).map((column) => column.key);
   return {
@@ -200,11 +209,12 @@ function importedCandidates(context, withEmployee) {
 function buildFpu26(context) {
   const grouped = new Map();
   let rows = null;
-  const addRow = ({ modelId, modelName, unit, quantity, sourcePrice }) => {
+  const addRow = ({ modelId, modelName, article, unit, quantity, sourcePrice }) => {
     const price = sourcePrice ?? priceValues(context.priceByModel.get(modelId));
     const key = `${modelId ?? modelName}\u0000${price.priceWithoutVat}\u0000${price.vatRate}`;
     const row = grouped.get(key) ?? {
       modelName,
+      article: article || '',
       unit: unit || 'шт.',
       quantity: 0,
       ...price,
@@ -218,6 +228,7 @@ function buildFpu26(context) {
         addRow({
           modelId: line.modelId,
           modelName: line.model?.name ?? '',
+          article: line.model?.article,
           unit: line.model?.unit,
           quantity: line.quantity,
         });
@@ -734,11 +745,80 @@ function buildPersonalCard(context) {
   };
 }
 
+function buildUpd(context) {
+  let rows;
+  let documentNumber = null;
+  let paymentDocumentNumber = null;
+  let paymentDocumentDate = null;
+  let documentDate = context.toText;
+  if (context.importedUpd.length > 0) {
+    const groups = new Map();
+    for (const source of context.importedUpd) {
+      const candidate = source.payload;
+      const key = candidate.documentNumber || candidate.effectiveDate || 'archive';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(candidate);
+    }
+    const selected = [...groups.values()].sort(
+      (left, right) =>
+        String(right[0]?.effectiveDate ?? '').localeCompare(String(left[0]?.effectiveDate ?? '')) ||
+        right.length - left.length,
+    )[0];
+    const first = selected[0];
+    documentNumber = first.documentNumber;
+    paymentDocumentNumber = first.paymentDocumentNumber;
+    paymentDocumentDate = first.paymentDocumentDate;
+    documentDate = first.effectiveDate || documentDate;
+    rows = selected.map((candidate) => ({
+      article: candidate.article || '',
+      modelName: candidate.name,
+      unitCode: candidate.unitCode || '796',
+      unit: candidate.unit || 'шт',
+      quantity: num(candidate.quantity),
+      priceWithoutVat: money(candidate.priceWithoutVat),
+      costWithoutVat: money(candidate.subtotalWithoutVat),
+      vatRate: num(candidate.vatRate) || 5,
+      vatAmount: money(candidate.vatAmount),
+      totalWithVat: money(candidate.totalWithVat),
+    }));
+  } else {
+    const fpu = buildFpu26(context);
+    rows = fpu.rows.map((row) => ({
+      article: row.article || '',
+      modelName: row.modelName,
+      unitCode: '796',
+      unit: row.unit || 'шт',
+      quantity: row.quantity,
+      priceWithoutVat: row.priceWithoutVat,
+      costWithoutVat: row.costWithoutVat,
+      vatRate: row.vatRate,
+      vatAmount: row.vatAmount,
+      totalWithVat: row.totalWithVat,
+    }));
+  }
+  return {
+    title: 'Универсальный передаточный документ',
+    sheetName: 'УПД',
+    dpo: context.dpo,
+    documentNumber: documentNumber || 'Б/Н',
+    documentDate,
+    paymentDocumentNumber,
+    paymentDocumentDate,
+    rows,
+    totals: {
+      costWithoutVat: sumBy(rows, 'costWithoutVat'),
+      vatAmount: sumBy(rows, 'vatAmount'),
+      totalWithVat: sumBy(rows, 'totalWithVat'),
+    },
+  };
+}
+
 const BUILDERS = {
   'fpu-26': buildFpu26,
   'appendix-1-5': buildAppendix15,
   'appendix-1-7': buildAppendix17,
   'personal-card': buildPersonalCard,
+  upd: buildUpd,
 };
 
 export const printFormsService = {
@@ -748,8 +828,15 @@ export const printFormsService = {
     if (form !== 'personal-card' && (!query.dpoId || !query.from || !query.to)) {
       throw ApiError.badRequest('Выберите ДПО и период');
     }
+    if (form === 'upd' && query.format !== 'pdf') {
+      throw ApiError.badRequest('УПД формируется только в PDF');
+    }
     const context =
-      form === 'personal-card' ? await loadPersonalCardContext(query) : await loadContext(query);
+      form === 'personal-card'
+        ? await loadPersonalCardContext(query)
+        : form === 'upd'
+          ? await loadUpdContext(query)
+          : await loadContext(query);
     const data = await builder(context);
     data.form = form;
     const extension = query.format;
@@ -763,7 +850,9 @@ export const printFormsService = {
       fileName:
         form === 'personal-card'
           ? `${form}_${context.employee.personnelNumber || context.employee.id}.${extension}`
-          : `${form}_${context.fromText}_${context.toText}.${extension}`,
+          : form === 'upd'
+            ? `${form}_${data.documentNumber}_${data.documentDate}.${extension}`
+            : `${form}_${context.fromText}_${context.toText}.${extension}`,
     };
   },
 };

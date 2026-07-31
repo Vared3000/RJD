@@ -57,7 +57,7 @@ export const printFormsRepository = {
             {
               model: models.NomenclatureModel,
               as: 'model',
-              attributes: ['id', 'name', 'unit'],
+              attributes: ['id', 'name', 'article', 'unit'],
             },
             { model: models.Size, as: 'size', attributes: ['value'] },
             { model: models.Size, as: 'heightSize', attributes: ['value'] },
@@ -224,6 +224,29 @@ export const printFormsRepository = {
       {
         replacements: {
           dpoName,
+          from: toDateOnly(from),
+          to: toDateOnly(to),
+        },
+        type: QueryTypes.SELECT,
+      },
+    );
+  },
+
+  findImportedUpd({ from, to }) {
+    return sequelize.query(
+      `SELECT normalized.payload,
+              normalized.source_file AS "sourceFile",
+              normalized.sheet_name AS "sheetName"
+       FROM source_import_records normalized
+       WHERE normalized.record_type = 'normalized_candidate'
+         AND normalized.payload->>'type' = 'nomenclature'
+         AND normalized.payload->>'formType' = 'upd'
+         AND normalized.payload->>'effectiveDate' BETWEEN :from AND :to
+       ORDER BY normalized.payload->>'documentNumber',
+                COALESCE(normalized.row_number, 0),
+                normalized.source_key`,
+      {
+        replacements: {
           from: toDateOnly(from),
           to: toDateOnly(to),
         },

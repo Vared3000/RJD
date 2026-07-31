@@ -14,7 +14,7 @@ export function createPrintFormsRouter() {
     '/print-forms/{form}': {
       get: {
         tags: ['Печатные формы'],
-        summary: 'Сформировать ФПУ-26, Приложение 1.5, Приложение 1.7 или личную карточку',
+        summary: 'Сформировать ФПУ-26, Приложение 1.5, Приложение 1.7, личную карточку или УПД',
         parameters: [
           {
             name: 'form',
@@ -22,7 +22,7 @@ export function createPrintFormsRouter() {
             required: true,
             schema: {
               type: 'string',
-              enum: ['fpu-26', 'appendix-1-5', 'appendix-1-7', 'personal-card'],
+              enum: ['fpu-26', 'appendix-1-5', 'appendix-1-7', 'personal-card', 'upd'],
             },
           },
           {

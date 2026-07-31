@@ -453,33 +453,80 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
       returnedQuantity: 1,
       returnedDate: '2024-06-01',
     },
+    {
+      type: 'nomenclature',
+      formType: 'upd',
+      effectiveDate: '2026-07-31',
+      documentNumber: '172-ТЕСТ',
+      paymentDocumentNumber: '224027',
+      paymentDocumentDate: '2026-07-07',
+      rowNumber: 1,
+      article: 'ТЕСТ-УПД-01',
+      name: `${unique} архив УПД`,
+      unitCode: '796',
+      unit: 'шт.',
+      quantity: 2,
+      priceWithoutVat: 1000,
+      subtotalWithoutVat: 2000,
+      vatRate: 5,
+      vatAmount: 100,
+      totalWithVat: 2100,
+    },
   ];
   for (const [index, payload] of archiveCandidates.entries()) {
     const isFpu26 = payload.formType === 'fpu-26';
     const isPersonalCard = payload.formType === 'personal-card';
+    const isUpd = payload.formType === 'upd';
     const record = await models.SourceImportRecord.create({
       sourceKey: `print-form-archive-test-${Date.now()}-${index}`,
       sourceFile: isPersonalCard
         ? 'archive-personal-card.xlsx'
-        : isFpu26
-          ? 'archive-order-fpu-26.xlsx'
-          : payload.employee
-            ? 'archive-order-1-7.xlsx'
-            : 'archive-order-1-5.xlsx',
+        : isUpd
+          ? 'archive-upd.pdf'
+          : isFpu26
+            ? 'archive-order-fpu-26.xlsx'
+            : payload.employee
+              ? 'archive-order-1-7.xlsx'
+              : 'archive-order-1-5.xlsx',
       fileHash: String(index + 1).repeat(64),
       recordType: 'normalized_candidate',
       sheetName: isPersonalCard
         ? 'Личная карточка'
-        : isFpu26
-          ? 'Акт выполненных работ'
-          : payload.employee
-            ? 'Приложение 1.7'
-            : 'Приложение 1.5',
+        : isUpd
+          ? 'УПД'
+          : isFpu26
+            ? 'Акт выполненных работ'
+            : payload.employee
+              ? 'Приложение 1.7'
+              : 'Приложение 1.5',
       rowNumber: payload.rowNumber ?? null,
       payload,
     });
     state.sourceRecordIds.push(record.id);
   }
+
+  const updPdf = await auth(agent.get('/api/v1/print-forms/upd'))
+    .query({
+      dpoId: state.dpoId,
+      from: '2026-07-01',
+      to: '2026-07-31',
+      format: 'pdf',
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(updPdf.status, 200);
+  assert.match(updPdf.headers['content-type'], /application\/pdf/);
+  assert.equal(updPdf.body.subarray(0, 4).toString(), '%PDF');
+  assert.ok(updPdf.body.length > 5000);
+  if (qaDirectory) await writeFile(path.join(qaDirectory, 'upd.pdf'), updPdf.body);
+
+  const updXlsx = await auth(agent.get('/api/v1/print-forms/upd')).query({
+    dpoId: state.dpoId,
+    from: '2026-07-01',
+    to: '2026-07-31',
+    format: 'xlsx',
+  });
+  assert.equal(updXlsx.status, 400);
 
   const archivedPersonalCard = await auth(agent.get('/api/v1/print-forms/personal-card'))
     .query({ employeeId: state.employeeId, format: 'xlsx' })

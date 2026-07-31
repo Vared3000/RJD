@@ -29,6 +29,12 @@ const FORMS = [
     title: 'Личная карточка работника',
     description: 'Размеры, нормы, сроки использования, история выдачи и возврата одежды.',
   },
+  {
+    code: 'upd',
+    title: 'УПД (статус 1)',
+    description: 'Счёт-фактура и передаточный документ с товарами, ценами и НДС.',
+    pdfOnly: true,
+  },
 ];
 
 export function PrintFormsPage() {
@@ -110,9 +116,11 @@ export function PrintFormsPage() {
               <p>{form.description}</p>
             </div>
             <div className={styles.actions}>
-              <Button onClick={() => download(form.code, 'xlsx')} disabled={Boolean(pending)}>
-                {pending === `${form.code}:xlsx` ? 'Формирование…' : 'Скачать Excel'}
-              </Button>
+              {!form.pdfOnly && (
+                <Button onClick={() => download(form.code, 'xlsx')} disabled={Boolean(pending)}>
+                  {pending === `${form.code}:xlsx` ? 'Формирование…' : 'Скачать Excel'}
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => download(form.code, 'pdf')}

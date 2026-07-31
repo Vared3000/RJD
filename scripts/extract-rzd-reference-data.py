@@ -2,7 +2,7 @@
 
 The JSON output is intentionally written to server/tmp (gitignored).  It contains
 personal data and must never be committed.  Run with Python 3.11+ and:
-  pip install openpyxl xlrd pypdf
+  pip install openpyxl xlrd pypdf pdfplumber
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ else:
         sys.path.insert(0, str(Path(local_app_data) / "Temp" / "rzd-xlrd"))
 
 import openpyxl
+import pdfplumber
 import xlrd
 from pypdf import PdfReader
 
@@ -848,6 +849,87 @@ def analyze_sheet(
     return candidates
 
 
+def analyze_upd_pdf(
+    path: Path,
+    relative_file: str,
+    file_hash: str,
+    pages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    full_text = "\n".join(page["text"] for page in pages)
+    if "Универсальный передаточный документ" not in full_text:
+        return []
+    document_number_match = re.search(r"Счет-фактура\s*№\s*([^\s]+)", full_text, re.I)
+    payment_match = re.search(
+        r"К платежно-расчетному документу\s*№\s*([^\s]+)\s+от\s+(\d{2}\.\d{2}\.\d{4})",
+        full_text,
+        re.I,
+    )
+    document_number = document_number_match.group(1) if document_number_match else None
+    document_date = parse_date(full_text)
+    candidates: list[dict[str, Any]] = []
+    with pdfplumber.open(path) as pdf:
+        for page_number, page in enumerate(pdf.pages, start=1):
+            for table in page.extract_tables():
+                for row in table:
+                    article_index = next(
+                        (
+                            index
+                            for index, value in enumerate(row)
+                            if re.fullmatch(r"БП-\d+", clean_text(value))
+                        ),
+                        None,
+                    )
+                    if article_index is None or len(row) < article_index + 13:
+                        continue
+                    values = row[article_index:]
+                    article = clean_text(values[0])
+                    item_name = clean_text(values[2])
+                    if not item_name:
+                        continue
+                    size_type, requires_height = classify_size_type(item_name)
+                    candidates.append(
+                        {
+                            "type": "nomenclature",
+                            "sourceKey": source_key(
+                                file_hash,
+                                f"pdf:{page_number}:upd:{article}",
+                            ),
+                            "sourceFile": relative_file,
+                            "sheetName": f"УПД, лист {page_number}",
+                            "rowNumber": int(numeric(values[1]) or 0),
+                            "name": item_name,
+                            "article": article,
+                            "unit": clean_text(values[5]) or "шт",
+                            "sizeType": size_type,
+                            "requiresHeightSize": requires_height,
+                            "position": None,
+                            "quantity": numeric(values[6]),
+                            "employee": None,
+                            "dpo": None,
+                            "effectiveDate": document_date,
+                            "formType": "upd",
+                            "documentNumber": document_number,
+                            "paymentDocumentNumber": (
+                                payment_match.group(1) if payment_match else None
+                            ),
+                            "paymentDocumentDate": (
+                                parse_date(payment_match.group(2)) if payment_match else None
+                            ),
+                            "unitCode": clean_text(values[4]) or "796",
+                            "priceWithoutVat": numeric(values[7]),
+                            "subtotalWithoutVat": numeric(values[8]),
+                            "vatRate": numeric(clean_text(values[10]).replace("%", "")),
+                            "vatAmount": numeric(values[11]),
+                            "totalWithVat": numeric(values[12]),
+                            "priceWithVat": None,
+                            "displayedPriceWithoutVat": numeric(values[7]),
+                            "totalWithoutVat": numeric(values[8]),
+                            "sourceFormulas": {},
+                        }
+                    )
+    return candidates
+
+
 def extract(source_root: Path) -> dict[str, Any]:
     files: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
@@ -877,6 +959,14 @@ def extract(source_root: Path) -> dict[str, Any]:
                     {"pageNumber": index, "text": page.extract_text() or ""}
                     for index, page in enumerate(pdf.pages, start=1)
                 ]
+                candidates.extend(
+                    analyze_upd_pdf(
+                        path,
+                        relative,
+                        file_hash,
+                        file_record["pages"],
+                    )
+                )
             else:
                 file_record["metadataOnly"] = True
         except Exception as error:  # preserve file metadata even when a parser fails

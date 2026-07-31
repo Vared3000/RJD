@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { createRequire } from 'node:module';
 import { generateExcel } from './excel.generator.js';
+import { generateUpdPdf } from './upd.generator.js';
 
 const require = createRequire(import.meta.url);
 const fonts = {
@@ -390,6 +391,7 @@ function drawPage({
 }
 
 export async function generatePdf(data) {
+  if (data.form === 'upd') return generateUpdPdf(data);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await generateExcel(data));
   const sheet = workbook.worksheets[0];
