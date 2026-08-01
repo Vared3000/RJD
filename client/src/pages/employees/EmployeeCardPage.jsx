@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   useEmployee,
   useEmployeeProperty,
@@ -13,6 +13,8 @@ import {
 } from '../../features/employees/model/employee-form.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import { EmployeePropertyTable } from '../../features/employees/ui/EmployeePropertyTable.jsx';
+import { EmployeeHistoryTable } from '../../features/employees/ui/EmployeeHistoryTable.jsx';
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { useSessionStore } from '../../shared/session/session-store.js';
@@ -26,8 +28,6 @@ function errorMessage(mutation) {
   return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
 }
 
-const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-const DOCUMENT_TYPE_LABELS = { issuance: 'Выдача', return: 'Возврат' };
 const SIZE_TYPE_LABELS = {
   clothing: 'одежда',
   height: 'рост',
@@ -37,13 +37,8 @@ const SIZE_TYPE_LABELS = {
   gloves: 'перчатки',
 };
 
-function formatMoney(value) {
-  return value == null ? '—' : `${Number(value).toFixed(2)} ₽`;
-}
-
 export function EmployeeCardPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [printPending, setPrintPending] = useState('');
   const [printError, setPrintError] = useState('');
   const [editing, setEditing] = useState(false);
@@ -181,108 +176,10 @@ export function EmployeeCardPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Стоимость имущества</h2>
-      <div className={catalogStyles.tableWrap}>
-        <table className={catalogStyles.table}>
-          <thead>
-            <tr>
-              <th>Инв. номер</th>
-              <th>Модель</th>
-              <th>Размер</th>
-              <th>Рост</th>
-              <th>Стоимость</th>
-              <th>Для работника</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoadingProperty && (
-              <tr>
-                <td className={catalogStyles.hint} colSpan={6}>
-                  Загрузка…
-                </td>
-              </tr>
-            )}
-            {!isLoadingProperty && instances.length === 0 && (
-              <tr>
-                <td className={catalogStyles.hint} colSpan={6}>
-                  Сейчас на руках у работника ничего нет
-                </td>
-              </tr>
-            )}
-            {instances.map((instance) => (
-              <tr key={instance.id}>
-                <td>{instance.inventoryNumber}</td>
-                <td>{instance.model?.name ?? '—'}</td>
-                <td>{instance.size?.value ?? '—'}</td>
-                <td>{instance.heightSize?.value ?? '—'}</td>
-                <td>{formatMoney(instance.cost)}</td>
-                <td>{formatMoney(instance.employeeCost)}</td>
-              </tr>
-            ))}
-          </tbody>
-          {instances.length > 0 && (
-            <tfoot>
-              <tr>
-                <td colSpan={4} className={styles.totalLabel}>
-                  Итого
-                </td>
-                <td>{formatMoney(property.totalCost)}</td>
-                <td>{formatMoney(property.totalEmployeeCost)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+      <EmployeePropertyTable instances={instances} totals={property} isLoading={isLoadingProperty} />
 
       <h2 className={styles.sectionTitle}>История выдач и возвратов</h2>
-      <div className={catalogStyles.tableWrap}>
-        <table className={catalogStyles.table}>
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th>Тип</th>
-              <th>Номер</th>
-              <th>Склад</th>
-              <th>Статус</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.length === 0 && (
-              <tr>
-                <td className={catalogStyles.hint} colSpan={5}>
-                  Документов пока нет
-                </td>
-              </tr>
-            )}
-            {history.map((document) => (
-              <tr
-                key={document.id}
-                className={catalogStyles.linkRow}
-                onClick={() =>
-                  navigate(
-                    document.documentType === 'issuance'
-                      ? `/issuance/documents/${document.id}`
-                      : `/issuance/returns/${document.id}`,
-                  )
-                }
-              >
-                <td>{document.documentDate}</td>
-                <td>{DOCUMENT_TYPE_LABELS[document.documentType]}</td>
-                <td>{document.number}</td>
-                <td>{document.warehouse?.name ?? '—'}</td>
-                <td>
-                  <span
-                    className={
-                      document.status === 'posted' ? catalogStyles.active : catalogStyles.archived
-                    }
-                  >
-                    {STATUS_LABELS[document.status] ?? document.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <EmployeeHistoryTable history={history} />
 
       {editing && (
         <EntityFormModal

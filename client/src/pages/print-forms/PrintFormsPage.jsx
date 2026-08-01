@@ -60,7 +60,7 @@ export function PrintFormsPage() {
     setPending(key);
     setError('');
     try {
-      await downloadPrintForm(form, { dpoId: dpoId || undefined, employeeId, ...range, format });
+      await downloadPrintForm(form, { dpoId, employeeId, ...range, format });
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ??

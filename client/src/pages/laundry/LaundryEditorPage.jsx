@@ -5,120 +5,20 @@ import {
   useLaundryMutations,
 } from '../../features/laundry/model/use-laundry-queries.js';
 import { headerFields, headerSchema } from '../../features/laundry/model/header-schema.js';
-import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
+import { LaundryLinesTable } from '../../features/laundry/ui/LaundryLinesTable.jsx';
+import { LaundryCompleteModal } from '../../features/laundry/ui/LaundryCompleteModal.jsx';
+import { AddInstanceLineModal } from '../../features/service-documents/ui/AddInstanceLineModal.jsx';
+import { SERVICE_DOCUMENT_STATUS_LABELS } from '../../features/service-documents/model/labels.js';
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
-import { Select } from '../../shared/ui/Select.jsx';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
-const STATUS_LABELS = { draft: 'Черновик', sent: 'Отправлен', completed: 'Завершён' };
-const CONDITION_LABELS = { new: 'Новое', good: 'Хорошее', worn: 'Изношено', damaged: 'Повреждено' };
-
-const { useList: useInstancesList } = createCatalogHooks('instances');
-
 function errorMessage(mutation) {
   if (!mutation?.isError) return null;
   return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
-
-// Строка — не EntityFormModal: список ограничен экземплярами, реально
-// в наличии (in_stock) на складе документа, поэтому опции зависят от
-// документа, а не от статичного справочника (см. AddLineModal в
-// ReturnEditorPage.jsx — тот же приём).
-function AddLineModal({ warehouseId, existingInstanceIds, onSubmit, onClose, isSaving, error }) {
-  const { data: instances, isLoading } = useInstancesList();
-  const [instanceId, setInstanceId] = useState('');
-
-  const options = (instances ?? [])
-    .filter(
-      (instance) =>
-        instance.status === 'in_stock' &&
-        instance.warehouseId === warehouseId &&
-        !existingInstanceIds.includes(instance.id),
-    )
-    .map((instance) => ({
-      value: instance.id,
-      label: `${instance.inventoryNumber} — ${instance.model?.name ?? ''}`,
-    }));
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    onSubmit({ instanceId });
-  }
-
-  return (
-    <Modal title="Добавить позицию" onClose={onClose}>
-      <form className={catalogStyles.form} onSubmit={handleSubmit}>
-        {isLoading && <p className={catalogStyles.hint}>Загрузка экземпляров…</p>}
-        {!isLoading && options.length === 0 && (
-          <p className={catalogStyles.hint}>На складе документа нет доступных экземпляров.</p>
-        )}
-        <Select
-          id="instanceId"
-          label="Экземпляр"
-          value={instanceId}
-          onChange={(event) => setInstanceId(event.target.value)}
-          options={options}
-        />
-        {error && <p className={catalogStyles.formError}>{error}</p>}
-        <div className={catalogStyles.formActions}>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button type="submit" disabled={isSaving || !instanceId}>
-            {isSaving ? 'Сохранение…' : 'Добавить'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function CompleteModal({ lines, onSubmit, onClose, isSaving, error }) {
-  const [conditions, setConditions] = useState(
-    Object.fromEntries(lines.map((line) => [line.id, 'good'])),
-  );
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    onSubmit({
-      lines: lines.map((line) => ({ lineId: line.id, conditionAfter: conditions[line.id] })),
-    });
-  }
-
-  return (
-    <Modal title="Завершить документ" onClose={onClose}>
-      <form className={catalogStyles.form} onSubmit={handleSubmit}>
-        <p className={catalogStyles.hint}>
-          Укажите итоговое состояние по каждому экземпляру — они вернутся в наличие на склад.
-        </p>
-        {lines.map((line) => (
-          <Select
-            key={line.id}
-            id={`condition-${line.id}`}
-            label={`${line.instance?.inventoryNumber ?? ''} — ${line.instance?.model?.name ?? ''}`}
-            value={conditions[line.id]}
-            onChange={(event) =>
-              setConditions((prev) => ({ ...prev, [line.id]: event.target.value }))
-            }
-            options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label }))}
-          />
-        ))}
-        {error && <p className={catalogStyles.formError}>{error}</p>}
-        <div className={catalogStyles.formActions}>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button type="submit" disabled={isSaving}>
-            {isSaving ? 'Завершение…' : 'Завершить'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
 }
 
 export function LaundryEditorPage() {
@@ -170,7 +70,9 @@ export function LaundryEditorPage() {
       <div className={catalogStyles.header}>
         <div>
           <h1 className={catalogStyles.title}>Стирка {document.number}</h1>
-          <p className={styles.subtitle}>{STATUS_LABELS[document.status] ?? document.status}</p>
+          <p className={styles.subtitle}>
+            {SERVICE_DOCUMENT_STATUS_LABELS[document.status] ?? document.status}
+          </p>
         </div>
         <div className={styles.headerActions}>
           {isDraft && canManage && (
@@ -214,55 +116,12 @@ export function LaundryEditorPage() {
         )}
       </div>
 
-      <div className={catalogStyles.tableWrap}>
-        <table className={catalogStyles.table}>
-          <thead>
-            <tr>
-              <th>Экземпляр</th>
-              <th>Модель</th>
-              <th>Размер</th>
-              <th>Состояние до</th>
-              <th>Состояние после</th>
-              {isDraft && canManage && <th aria-label="Действия" />}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.length === 0 && (
-              <tr>
-                <td className={catalogStyles.hint} colSpan={6}>
-                  Позиций пока нет
-                </td>
-              </tr>
-            )}
-            {lines.map((line) => (
-              <tr key={line.id}>
-                <td>{line.instance?.inventoryNumber}</td>
-                <td>{line.instance?.model?.name ?? '—'}</td>
-                <td>
-                  {line.instance?.size
-                    ? line.instance.size
-                      ? `${line.instance.size.value}${line.instance.heightSize ? `/${line.instance.heightSize.value}` : ''}`
-                      : 'Без размера'
-                    : '—'}
-                </td>
-                <td>{CONDITION_LABELS[line.conditionBefore] ?? line.conditionBefore ?? '—'}</td>
-                <td>{CONDITION_LABELS[line.conditionAfter] ?? line.conditionAfter ?? '—'}</td>
-                {isDraft && canManage && (
-                  <td className={catalogStyles.actions}>
-                    <button
-                      type="button"
-                      className={catalogStyles.linkButton}
-                      onClick={() => removeLine.mutate(line.id)}
-                    >
-                      Удалить
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <LaundryLinesTable
+        lines={lines}
+        isDraft={isDraft}
+        canManage={canManage}
+        onRemoveLine={(lineId) => removeLine.mutate(lineId)}
+      />
 
       {editingHeader && (
         <EntityFormModal
@@ -278,7 +137,7 @@ export function LaundryEditorPage() {
       )}
 
       {addingLine && (
-        <AddLineModal
+        <AddInstanceLineModal
           warehouseId={document.warehouseId}
           existingInstanceIds={lines.map((line) => line.instanceId)}
           onSubmit={handleAddLine}
@@ -307,7 +166,7 @@ export function LaundryEditorPage() {
       )}
 
       {completing && (
-        <CompleteModal
+        <LaundryCompleteModal
           lines={lines}
           onSubmit={handleComplete}
           onClose={() => setCompleting(false)}

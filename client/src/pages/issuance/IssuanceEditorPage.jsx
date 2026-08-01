@@ -9,6 +9,8 @@ import {
   headerSchema,
 } from '../../features/issuance/documents/model/header-schema.js';
 import { lineFields, lineSchema } from '../../features/issuance/documents/model/line-schema.js';
+import { KitPreviewPanel } from '../../features/issuance/documents/ui/KitPreviewPanel.jsx';
+import { IssuanceLinesTable } from '../../features/issuance/documents/ui/IssuanceLinesTable.jsx';
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
@@ -17,18 +19,14 @@ import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-const SIZE_TYPE_LABELS = {
-  clothing: 'Размер',
-  height: 'Рост',
-  shoe: 'Обувь',
-  headwear: 'Головной убор',
-  belt: 'Ремень',
-  gloves: 'Перчатки',
-};
 
 function errorMessage(mutation) {
   if (!mutation?.isError) return null;
   return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
+}
+
+function lineKey(modelId, sizeId, heightSizeId) {
+  return `${modelId}:${sizeId ?? ''}:${heightSizeId ?? ''}`;
 }
 
 export function IssuanceEditorPage() {
@@ -51,6 +49,9 @@ export function IssuanceEditorPage() {
 
   const isDraft = document.status === 'draft';
   const lines = document.lines ?? [];
+  const existingLineKeys = new Set(
+    lines.map((line) => lineKey(line.modelId, line.sizeId, line.heightSizeId)),
+  );
 
   async function handleHeaderSubmit(values) {
     await update.mutateAsync(values);
@@ -70,14 +71,6 @@ export function IssuanceEditorPage() {
     const result = await previewKit.mutateAsync(season);
     setKitPreview({ ...result, season });
   }
-
-  function lineKey(modelId, sizeId, heightSizeId) {
-    return `${modelId}:${sizeId ?? ''}:${heightSizeId ?? ''}`;
-  }
-
-  const existingLineKeys = new Set(
-    lines.map((line) => lineKey(line.modelId, line.sizeId, line.heightSizeId)),
-  );
 
   async function handleAddKitItem(item) {
     await addLine.mutateAsync({
@@ -180,102 +173,18 @@ export function IssuanceEditorPage() {
 
       {previewKit.isError && <p className={catalogStyles.formError}>{errorMessage(previewKit)}</p>}
       {kitPreview && (
-        <div className={styles.kitPreview}>
-          <div className={catalogStyles.header}>
-            <h2 className={styles.linesTitle}>
-              Комплект должности ({kitPreview.season === 'summer' ? 'летний' : 'зимний'})
-            </h2>
-            <div className={styles.kitPreviewActions}>
-              {!kitPreview.noPosition && kitPreview.items.length > 0 && isDraft && canManage && (
-                <Button
-                  variant="secondary"
-                  onClick={handleAddAllKitItems}
-                  disabled={addLine.isPending}
-                >
-                  Добавить всё
-                </Button>
-              )}
-              <button
-                type="button"
-                className={catalogStyles.linkButton}
-                onClick={() => setKitPreview(null)}
-              >
-                Скрыть
-              </button>
-            </div>
-          </div>
-          {kitPreview.noPosition && (
-            <p className={catalogStyles.hint}>
-              У работника не указана должность — комплект недоступен.
-            </p>
-          )}
-          {!kitPreview.noPosition && kitPreview.items.length === 0 && (
-            <p className={catalogStyles.hint}>Для этого сезона в комплекте должности нет позиций.</p>
-          )}
-          {!kitPreview.noPosition && kitPreview.items.length > 0 && (
-            <div className={catalogStyles.tableWrap}>
-              <table className={catalogStyles.table}>
-                <thead>
-                  <tr>
-                    <th>Модель</th>
-                    <th>Размер</th>
-                    <th>Рост</th>
-                    <th>Нужно</th>
-                    <th>В наличии</th>
-                    {isDraft && canManage && <th aria-label="Действия" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {kitPreview.items.map((item, index) => {
-                    const alreadyAdded = existingLineKeys.has(
-                      lineKey(item.modelId, item.sizeId, item.heightSizeId),
-                    );
-                    return (
-                      <tr key={`${item.modelId}-${index}`}>
-                        <td>{item.modelName}</td>
-                        <td>{item.sizeLabel ?? '—'}</td>
-                        <td>{item.heightLabel ?? '—'}</td>
-                        <td>{item.quantity}</td>
-                        <td>
-                          {item.missingSize ? (
-                            <span className={styles.error}>нет размера у работника</span>
-                          ) : (
-                            <span className={item.availableQuantity > 0 ? '' : styles.error}>
-                              {item.availableQuantity}
-                            </span>
-                          )}
-                        </td>
-                        {isDraft && canManage && (
-                          <td className={catalogStyles.actions}>
-                            {alreadyAdded ? (
-                              <span className={catalogStyles.hint}>Добавлено</span>
-                            ) : (
-                              <button
-                                type="button"
-                                className={catalogStyles.linkButton}
-                                disabled={item.missingSize || addLine.isPending}
-                                onClick={() => handleAddKitItem(item)}
-                              >
-                                Добавить
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className={catalogStyles.linkButton}
-                              onClick={() => handleRemovePreviewItem(index)}
-                            >
-                              Убрать
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <KitPreviewPanel
+          kitPreview={kitPreview}
+          isDraft={isDraft}
+          canManage={canManage}
+          existingLineKeys={existingLineKeys}
+          lineKey={lineKey}
+          isAddingLine={addLine.isPending}
+          onAddItem={handleAddKitItem}
+          onAddAllItems={handleAddAllKitItems}
+          onRemoveItem={handleRemovePreviewItem}
+          onHide={() => setKitPreview(null)}
+        />
       )}
 
       <div className={catalogStyles.header}>
@@ -285,58 +194,13 @@ export function IssuanceEditorPage() {
         )}
       </div>
 
-      <div className={catalogStyles.tableWrap}>
-        <table className={catalogStyles.table}>
-          <thead>
-            <tr>
-              <th>Модель</th>
-              <th>Размер</th>
-              <th>Рост</th>
-              <th>Кол-во</th>
-              {isDraft && canManage && <th aria-label="Действия" />}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.length === 0 && (
-              <tr>
-                <td className={catalogStyles.hint} colSpan={5}>
-                  Позиций пока нет
-                </td>
-              </tr>
-            )}
-            {lines.map((line) => (
-              <tr key={line.id}>
-                <td>{line.model?.name}</td>
-                <td>
-                  {line.size
-                    ? `${SIZE_TYPE_LABELS[line.size.type] ?? line.size.type}: ${line.size.value}`
-                    : '—'}
-                </td>
-                <td>{line.heightSize?.value ?? '—'}</td>
-                <td>{line.quantity}</td>
-                {isDraft && canManage && (
-                  <td className={catalogStyles.actions}>
-                    <button
-                      type="button"
-                      className={catalogStyles.linkButton}
-                      onClick={() => setEditingLine(line)}
-                    >
-                      Изменить
-                    </button>
-                    <button
-                      type="button"
-                      className={catalogStyles.linkButton}
-                      onClick={() => removeLine.mutate(line.id)}
-                    >
-                      Удалить
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <IssuanceLinesTable
+        lines={lines}
+        isDraft={isDraft}
+        canManage={canManage}
+        onEditLine={setEditingLine}
+        onRemoveLine={(lineId) => removeLine.mutate(lineId)}
+      />
 
       {editingHeader && (
         <EntityFormModal

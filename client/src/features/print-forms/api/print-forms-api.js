@@ -1,8 +1,12 @@
 import { httpClient } from '../../../shared/api/http-client.js';
 
+function pruneParams(params) {
+  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''));
+}
+
 export async function downloadPrintForm(form, params) {
   const response = await httpClient.get(`/print-forms/${form}`, {
-    params,
+    params: pruneParams(params ?? {}),
     responseType: 'blob',
   });
   const disposition = response.headers['content-disposition'] ?? '';
