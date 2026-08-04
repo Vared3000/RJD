@@ -1,7 +1,12 @@
 import { useEffect, useId } from 'react';
 import styles from './Modal.module.css';
 
-export function Modal({ title, onClose, children }) {
+// closeOnOverlayClick=false для модалок с вводом данных (формы) — случайный
+// клик по фону не должен молча стирать то, что пользователь уже заполнил;
+// закрыть такую модалку можно кнопкой ×/"Отмена" или Escape. Для модалок
+// подтверждения действия (без полей ввода) поведение по умолчанию (true)
+// безопасно и ожидаемо.
+export function Modal({ title, onClose, children, closeOnOverlayClick = true }) {
   const titleId = useId();
 
   useEffect(() => {
@@ -13,7 +18,7 @@ export function Modal({ title, onClose, children }) {
   }, [onClose]);
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={closeOnOverlayClick ? onClose : undefined}>
       <div
         className={styles.card}
         role="dialog"

@@ -47,7 +47,7 @@ function AddLineModal({ warehouseId, existingInstanceIds, onSubmit, onClose, isS
   }
 
   return (
-    <Modal title="Добавить позицию" onClose={onClose}>
+    <Modal title="Добавить позицию" onClose={onClose} closeOnOverlayClick={false}>
       <form className={catalogStyles.form} onSubmit={handleSubmit}>
         {isLoading && <p className={catalogStyles.hint}>Загрузка экземпляров…</p>}
         {!isLoading && options.length === 0 && (

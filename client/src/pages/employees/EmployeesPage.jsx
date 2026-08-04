@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
-import { employeeFormSchema, employeeFormFields } from '../../features/employees/model/employee-form.js';
+import {
+  employeeFormSchema,
+  employeeFormFields,
+  GENDER_LABELS,
+} from '../../features/employees/model/employee-form.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 
 const columns = [
@@ -14,6 +18,7 @@ const columns = [
       </Link>
     ),
   },
+  { key: 'gender', label: 'Пол', render: (item) => GENDER_LABELS[item.gender] ?? '—' },
   { key: 'organization', label: 'Организация', render: (item) => item.organization?.name ?? '—' },
   { key: 'subdivision', label: 'Подразделение', render: (item) => item.subdivision?.name ?? '—' },
   { key: 'position', label: 'Должность', render: (item) => item.position?.name ?? '—' },

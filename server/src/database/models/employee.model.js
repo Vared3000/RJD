@@ -1,5 +1,12 @@
 import { DataTypes } from 'sequelize';
 
+// Пол работника — назначается вручную в карточке (раздел 9 ТЗ: используется
+// для фильтрации и подбора гендерных вариантов комплекта, см. "мужской/женский
+// комплект" в PositionKitItem). Существующие работники (импорт из архива) пол
+// не имеют (gender = null), пока не будет уточнён через форму — не гадать по
+// имени.
+export const GENDERS = ['male', 'female'];
+
 export function defineEmployee(sequelize) {
   return sequelize.define(
     'Employee',
@@ -12,6 +19,7 @@ export function defineEmployee(sequelize) {
       // ТЗ) и будущими печатными формами (Этап 12).
       dpoId: { type: DataTypes.UUID, allowNull: true, field: 'dpo_id' },
       fullName: { type: DataTypes.STRING(255), allowNull: false, field: 'full_name' },
+      gender: { type: DataTypes.STRING(16), allowNull: true },
       personnelNumber: {
         type: DataTypes.STRING(64),
         allowNull: true,

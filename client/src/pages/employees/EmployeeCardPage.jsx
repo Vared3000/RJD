@@ -10,6 +10,7 @@ import { formatTenure } from '../../features/employees/model/format-tenure.js';
 import {
   employeeFormSchema,
   employeeFormFields,
+  GENDER_LABELS,
 } from '../../features/employees/model/employee-form.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
@@ -125,6 +126,10 @@ export function EmployeeCardPage() {
       {printError && <p className={styles.error}>{printError}</p>}
 
       <div className={styles.summary}>
+        <div>
+          <span className={styles.label}>Пол</span>
+          <span>{GENDER_LABELS[employee.gender] ?? '—'}</span>
+        </div>
         <div>
           <span className={styles.label}>Табельный номер</span>
           <span>{employee.personnelNumber ?? '—'}</span>

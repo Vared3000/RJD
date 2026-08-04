@@ -41,7 +41,7 @@ export function EntityFormModal({
   });
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} closeOnOverlayClick={false}>
       <form className={styles.form} onSubmit={form.handleSubmit(onSubmit)} noValidate>
         {fields.map((field) => (
           <CatalogFormField key={field.name} field={field} form={form} />

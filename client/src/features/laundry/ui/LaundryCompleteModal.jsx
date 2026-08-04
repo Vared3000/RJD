@@ -18,7 +18,7 @@ export function LaundryCompleteModal({ lines, onSubmit, onClose, isSaving, error
   }
 
   return (
-    <Modal title="Завершить документ" onClose={onClose}>
+    <Modal title="Завершить документ" onClose={onClose} closeOnOverlayClick={false}>
       <form className={catalogStyles.form} onSubmit={handleSubmit}>
         <p className={catalogStyles.hint}>
           Укажите итоговое состояние по каждому экземпляру — они вернутся в наличие на склад.

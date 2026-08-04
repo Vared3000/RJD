@@ -6,12 +6,15 @@ const optionalUuid = z.preprocess(emptyToUndefined, z.string().uuid().optional()
 const optionalDate = z.preprocess(emptyToUndefined, z.string().date().optional());
 const optionalString = (max) => z.preprocess(emptyToUndefined, z.string().max(max).optional());
 
+export const GENDER_LABELS = { male: 'Мужской', female: 'Женский' };
+
 export const employeeFormSchema = z.object({
   organizationId: z.string().uuid('Выберите организацию'),
   subdivisionId: optionalUuid,
   positionId: optionalUuid,
   dpoId: optionalUuid,
   fullName: z.string().min(1, 'Укажите ФИО').max(255),
+  gender: z.preprocess(emptyToUndefined, z.enum(['male', 'female']).optional()),
   personnelNumber: optionalString(64),
   birthDate: optionalDate,
   hireDate: optionalDate,
@@ -59,6 +62,12 @@ export const employeeFormFields = [
     optionLabel: 'name',
   },
   { name: 'fullName', label: 'ФИО', type: 'text' },
+  {
+    name: 'gender',
+    label: 'Пол',
+    type: 'select',
+    options: Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label })),
+  },
   { name: 'personnelNumber', label: 'Табельный номер', type: 'text' },
   { name: 'birthDate', label: 'Дата рождения', type: 'date' },
   { name: 'hireDate', label: 'Дата приёма', type: 'date' },
