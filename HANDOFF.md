@@ -5,6 +5,39 @@
 > постоянный: обновляй секцию "Текущий статус" и "Следующая задача" по мере
 > продвижения, не удаляй файл.
 
+## Актуальное обновление (09.08.2026, задача 10 — штрихкоды, QR и этикетки)
+
+- Задача 10 из [docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) завершена.
+- Создан новый модуль `server/src/modules/barcodes/`:
+  - `barcode.controller.js` — контроллер для работы с штрихкодами
+  - `barcode.service.js` — сервис: `findByBarcode`, `findByInventoryNumber`, `printLabels`
+  - `barcode.routes.js` — роуты: поиск по штрихкоду, печать этикеток в PDF
+  - `barcode-pdf.js` — генерация PDF с этикетками (QR и Code128)
+- Эндпоинты:
+  - `GET /barcodes/:barcode` — поиск экземпляра по штрихкоду
+  - `GET /barcodes/inventory-number/:inventoryNumber` — поиск по инвентарному номеру
+  - `POST /barcodes/print` — печать этикеток по ID экземпляров
+  - `POST /barcodes/print-by-inventory` — печать по инвентарным номерам
+- PDF-этикетки содержат: инвентарный номер, модель, размер, QR-код, статус, состояние
+- Все проверки пройдены: eslint — OK, тесты — 20/20, сборка — OK.
+
+## Актуальное обновление (09.08.2026, задача 9 — серверная пагинация и поиск)
+
+- Задача 9 из [docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) завершена.
+- Обновлен `reference-crud.factory.js`: добавлена поддержка `page`, `limit`, `sort`, `order`,
+  `searchFields` и `sortFields` для справочников.
+- Обновлены все модули документов для поддержки пагинации:
+  - `issuance/documents` (выдача), `issuance/returns` (возврат), `transfers` (перемещение),
+    `writeoff` (списание), `inventory` (инвентаризация), `purchases/receiving` (поступление),
+    `service-documents` (стирка/ремонт через фабрику).
+- Обновлены справочники с `searchFields` и `sortFields`:
+  - Организации, Подразделения, Должности, Склады, Поставщики, Размеры, Комплекты (PositionKitItem),
+    Модели номенклатуры, ДПО, Работники.
+- Обновлены специальные эндпоинты:
+  - `stock/movements` — движение склада с пагинацией.
+- Добавлена функция `paginatedSuccess()` в `utils/respond.js`.
+- Все проверки пройдены: eslint — OK, тесты — 20/20, сборка — OK.
+
 ## Актуальное обновление (08.08.2026, задача 6 — администрирование пользователей)
 
 - Задача 6 из [docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) завершена

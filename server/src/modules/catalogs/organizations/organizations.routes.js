@@ -11,6 +11,8 @@ export function createOrganizationsRouter() {
     managePermission: 'catalogs.manage',
     createSchema: createOrganizationSchema,
     updateSchema: updateOrganizationSchema,
+    searchFields: ['name', 'fullName', 'inn', 'kpp'],
+    sortFields: ['name', 'fullName', 'inn', 'kpp', 'createdAt'],
   });
 
   extendSwaggerPaths(

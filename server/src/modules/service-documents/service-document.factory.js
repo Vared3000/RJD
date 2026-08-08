@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { Op } from 'sequelize';
 import { sequelize, models } from '../../database/models/index.js';
 import { ApiError } from '../../utils/api-error.js';
-import { success } from '../../utils/respond.js';
+import { success, paginatedSuccess } from '../../utils/respond.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requirePermission } from '../../middlewares/permission.middleware.js';
@@ -84,11 +85,38 @@ export function createServiceDocumentModule({
   ];
 
   const repository = {
-    list({ warehouseId } = {}) {
-      return DocumentModel.findAll({
-        where: warehouseId ? { warehouseId } : {},
+    list({
+      warehouseId,
+      status,
+      search,
+      page = 1,
+      limit = 50,
+      sort = 'createdAt',
+      order = 'DESC',
+    } = {}) {
+      const where = {};
+      if (warehouseId) where.warehouseId = warehouseId;
+      if (status) where.status = status;
+      if (search) {
+        where[Op.or] = [
+          { number: { [Op.iLike]: `%${search}%` } },
+          { 'warehouse.name': { [Op.iLike]: `%${search}%` } },
+        ];
+      }
+
+      const effectiveSort = ['createdAt', 'documentDate', 'number'].includes(sort)
+        ? sort
+        : 'createdAt';
+      const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+      const offset = (Number(page) - 1) * Number(limit);
+
+      return DocumentModel.findAndCountAll({
+        where,
         include: listInclude,
-        order: [['createdAt', 'DESC']],
+        order: [[effectiveSort, effectiveOrder]],
+        limit: Number(limit),
+        offset,
       });
     },
 
@@ -392,8 +420,22 @@ export function createServiceDocumentModule({
 
   const controller = {
     async list(req, res) {
-      const items = await service.list({ warehouseId: req.query.warehouseId });
-      return success(res, items);
+      const { rows, count } = await service.list({
+        warehouseId: req.query.warehouseId,
+        status: req.query.status,
+        search: req.query.search,
+        page: req.query.page,
+        limit: req.query.limit,
+        sort: req.query.sort,
+        order: req.query.order,
+      });
+      return paginatedSuccess(
+        res,
+        rows,
+        count,
+        Number(req.query.limit) || 50,
+        Number(req.query.page) || 1,
+      );
     },
     async getOne(req, res) {
       const item = await service.getById(req.params.id);

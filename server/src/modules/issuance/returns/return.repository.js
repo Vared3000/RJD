@@ -1,4 +1,5 @@
 import { models } from '../../../database/models/index.js';
+import { Op } from 'sequelize';
 
 const { ReturnDocument, ReturnLine, Instance, StockMovement } = models;
 
@@ -32,11 +33,41 @@ const detailInclude = [
 ];
 
 export const returnRepository = {
-  list({ employeeId } = {}) {
-    return ReturnDocument.findAll({
-      where: employeeId ? { employeeId } : {},
+  list({
+    employeeId,
+    warehouseId,
+    status,
+    search,
+    page = 1,
+    limit = 50,
+    sort = 'createdAt',
+    order = 'DESC',
+  } = {}) {
+    const where = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (warehouseId) where.warehouseId = warehouseId;
+    if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { number: { [Op.iLike]: `%${search}%` } },
+        { 'employee.fullName': { [Op.iLike]: `%${search}%` } },
+        { 'warehouse.name': { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const effectiveSort = ['createdAt', 'documentDate', 'number'].includes(sort)
+      ? sort
+      : 'createdAt';
+    const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    return ReturnDocument.findAndCountAll({
+      where,
       include: listInclude,
-      order: [['createdAt', 'DESC']],
+      order: [[effectiveSort, effectiveOrder]],
+      limit: Number(limit),
+      offset,
     });
   },
 

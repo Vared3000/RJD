@@ -23,6 +23,8 @@ export function createSubdivisionsRouter() {
     createSchema: createSubdivisionSchema,
     updateSchema: updateSubdivisionSchema,
     validateRelations,
+    searchFields: ['name', 'code'],
+    sortFields: ['name', 'code', 'createdAt'],
     include: [{ model: models.Organization, as: 'organization', attributes: ['id', 'name'] }],
   });
 

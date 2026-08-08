@@ -11,6 +11,8 @@ export function createSizesRouter() {
     managePermission: 'catalogs.manage',
     createSchema: createSizeSchema,
     updateSchema: updateSizeSchema,
+    searchFields: ['value'],
+    sortFields: ['value', 'type', 'sortOrder', 'createdAt'],
   });
 
   extendSwaggerPaths(

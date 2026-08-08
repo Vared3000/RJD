@@ -43,7 +43,15 @@ export const stockRepository = {
     return Size.findAll({ where: { id: ids }, attributes: ['id', 'type', 'value'] });
   },
 
-  listMovements({ warehouseId, instanceId, documentType, limit } = {}) {
+  listMovements({
+    warehouseId,
+    instanceId,
+    documentType,
+    page = 1,
+    limit = 50,
+    sort = 'occurredAt',
+    order = 'DESC',
+  } = {}) {
     const where = {};
     if (instanceId) where.instanceId = instanceId;
     if (documentType) where.documentType = documentType;
@@ -51,7 +59,12 @@ export const stockRepository = {
       where[Op.or] = [{ fromWarehouseId: warehouseId }, { toWarehouseId: warehouseId }];
     }
 
-    return StockMovement.findAll({
+    const effectiveSort = ['occurredAt', 'id'].includes(sort) ? sort : 'occurredAt';
+    const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    return StockMovement.findAndCountAll({
       where,
       include: [
         {
@@ -67,8 +80,9 @@ export const stockRepository = {
         { model: Warehouse, as: 'fromWarehouse', attributes: ['id', 'name'] },
         { model: Warehouse, as: 'toWarehouse', attributes: ['id', 'name'] },
       ],
-      order: [['occurredAt', 'DESC']],
-      limit: limit ?? 200,
+      order: [[effectiveSort, effectiveOrder]],
+      limit: Number(limit),
+      offset,
     });
   },
 };

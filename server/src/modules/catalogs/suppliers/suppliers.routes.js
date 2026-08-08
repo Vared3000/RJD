@@ -11,6 +11,8 @@ export function createSuppliersRouter() {
     managePermission: 'catalogs.manage',
     createSchema: createSupplierSchema,
     updateSchema: updateSupplierSchema,
+    searchFields: ['name', 'fullName', 'inn', 'kpp'],
+    sortFields: ['name', 'fullName', 'inn', 'kpp', 'createdAt'],
   });
 
   extendSwaggerPaths(

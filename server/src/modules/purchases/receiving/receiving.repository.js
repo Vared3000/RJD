@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { models } from '../../../database/models/index.js';
 
 const { ReceivingDocument, ReceivingLine, Batch, Instance, StockMovement } = models;
@@ -28,8 +29,42 @@ const detailInclude = [
 ];
 
 export const receivingRepository = {
-  list() {
-    return ReceivingDocument.findAll({ include: listInclude, order: [['createdAt', 'DESC']] });
+  list({
+    supplierId,
+    warehouseId,
+    status,
+    search,
+    page = 1,
+    limit = 50,
+    sort = 'createdAt',
+    order = 'DESC',
+  } = {}) {
+    const where = {};
+    if (supplierId) where.supplierId = supplierId;
+    if (warehouseId) where.warehouseId = warehouseId;
+    if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { number: { [Op.iLike]: `%${search}%` } },
+        { 'supplier.name': { [Op.iLike]: `%${search}%` } },
+        { 'warehouse.name': { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const effectiveSort = ['createdAt', 'documentDate', 'number'].includes(sort)
+      ? sort
+      : 'createdAt';
+    const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    return ReceivingDocument.findAndCountAll({
+      where,
+      include: listInclude,
+      order: [[effectiveSort, effectiveOrder]],
+      limit: Number(limit),
+      offset,
+    });
   },
 
   findById(id) {

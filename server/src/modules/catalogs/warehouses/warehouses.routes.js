@@ -23,6 +23,8 @@ export function createWarehousesRouter() {
     createSchema: createWarehouseSchema,
     updateSchema: updateWarehouseSchema,
     validateRelations,
+    searchFields: ['name', 'code'],
+    sortFields: ['name', 'code', 'createdAt'],
     include: [{ model: models.Organization, as: 'organization', attributes: ['id', 'name'] }],
   });
 

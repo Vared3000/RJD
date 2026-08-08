@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { ApiError } from '../../utils/api-error.js';
-import { success } from '../../utils/respond.js';
+import { success, paginatedSuccess } from '../../utils/respond.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { validateBody } from '../../middlewares/validate.middleware.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
@@ -11,19 +11,34 @@ import { requirePermission } from '../../middlewares/permission.middleware.js';
 // Используется для простых сущностей (Организации, Подразделения, Должности,
 // Склады, Поставщики, Размеры и т.п.) — см. docs/architecture.md.
 
-export function createReferenceRepository(Model, { include, searchFields } = {}) {
+export function createReferenceRepository(Model, { include, searchFields, sortFields } = {}) {
   return {
-    list({ includeArchived = false, search } = {}) {
+    list({
+      includeArchived = false,
+      search,
+      page = 1,
+      limit = 50,
+      sort = 'createdAt',
+      order = 'ASC',
+    } = {}) {
       const where = includeArchived ? {} : { archivedAt: null };
       if (search && searchFields?.length) {
         where[Op.or] = searchFields.map((field) => ({
           [field]: { [Op.iLike]: `%${search}%` },
         }));
       }
-      return Model.findAll({
+
+      const effectiveSort = sortFields?.includes(sort) ? sort : 'createdAt';
+      const effectiveOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+      const offset = (Number(page) - 1) * Number(limit);
+
+      return Model.findAndCountAll({
         where,
         include,
-        order: [['createdAt', 'ASC']],
+        order: [[effectiveSort, effectiveOrder]],
+        limit: Number(limit),
+        offset,
       });
     },
 
@@ -143,11 +158,21 @@ export function createReferenceService(
 export function createReferenceController(service) {
   return {
     async list(req, res) {
-      const items = await service.list({
+      const { rows, count } = await service.list({
         includeArchived: req.query.includeArchived === 'true',
         search: req.query.search,
+        page: req.query.page,
+        limit: req.query.limit,
+        sort: req.query.sort,
+        order: req.query.order,
       });
-      return success(res, items);
+      return paginatedSuccess(
+        res,
+        rows,
+        count,
+        Number(req.query.limit) || 50,
+        Number(req.query.page) || 1,
+      );
     },
     async getOne(req, res) {
       const item = await service.getById(req.params.id);
@@ -225,6 +250,7 @@ function createReferenceRouter({
 // что organizationId существует и не архивирован) перед create/update.
 // beforeCreate(data) — необязательное async-преобразование данных перед созданием
 // (например, автогенерация инвентарного номера, если он не передан).
+// sortFields — массив полей, по которым разрешена сортировка.
 export function createReferenceModule(
   Model,
   {
@@ -237,10 +263,11 @@ export function createReferenceModule(
     beforeCreate,
     include,
     searchFields,
+    sortFields = ['createdAt', 'name'],
     mutationHooks,
   },
 ) {
-  const repository = createReferenceRepository(Model, { include, searchFields });
+  const repository = createReferenceRepository(Model, { include, searchFields, sortFields });
   const service = createReferenceService(repository, {
     entityName,
     validateRelations,

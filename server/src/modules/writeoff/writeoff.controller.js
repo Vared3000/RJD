@@ -1,10 +1,24 @@
 import { writeoffService } from './writeoff.service.js';
-import { success } from '../../utils/respond.js';
+import { success, paginatedSuccess } from '../../utils/respond.js';
 
 export const writeoffController = {
   async list(req, res) {
-    const items = await writeoffService.list({ warehouseId: req.query.warehouseId });
-    return success(res, items);
+    const { rows, count } = await writeoffService.list({
+      warehouseId: req.query.warehouseId,
+      status: req.query.status,
+      search: req.query.search,
+      page: req.query.page,
+      limit: req.query.limit,
+      sort: req.query.sort,
+      order: req.query.order,
+    });
+    return paginatedSuccess(
+      res,
+      rows,
+      count,
+      Number(req.query.limit) || 50,
+      Number(req.query.page) || 1,
+    );
   },
 
   async getOne(req, res) {

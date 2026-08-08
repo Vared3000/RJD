@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { models } from '../../database/models/index.js';
 
 const { WriteoffDocument, WriteoffLine, Instance, StockMovement } = models;
@@ -29,11 +30,38 @@ const detailInclude = [
 ];
 
 export const writeoffRepository = {
-  list({ warehouseId } = {}) {
-    return WriteoffDocument.findAll({
-      where: warehouseId ? { warehouseId } : {},
+  list({
+    warehouseId,
+    status,
+    search,
+    page = 1,
+    limit = 50,
+    sort = 'createdAt',
+    order = 'DESC',
+  } = {}) {
+    const where = {};
+    if (warehouseId) where.warehouseId = warehouseId;
+    if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { number: { [Op.iLike]: `%${search}%` } },
+        { 'warehouse.name': { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const effectiveSort = ['createdAt', 'documentDate', 'number'].includes(sort)
+      ? sort
+      : 'createdAt';
+    const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    return WriteoffDocument.findAndCountAll({
+      where,
       include: listInclude,
-      order: [['createdAt', 'DESC']],
+      order: [[effectiveSort, effectiveOrder]],
+      limit: Number(limit),
+      offset,
     });
   },
 

@@ -33,13 +33,45 @@ const detailInclude = [
 ];
 
 export const transferRepository = {
-  list({ warehouseId } = {}) {
-    return TransferDocument.findAll({
-      where: warehouseId
-        ? { [Op.or]: [{ fromWarehouseId: warehouseId }, { toWarehouseId: warehouseId }] }
-        : {},
+  list({
+    warehouseId,
+    fromWarehouseId,
+    toWarehouseId,
+    status,
+    search,
+    page = 1,
+    limit = 50,
+    sort = 'createdAt',
+    order = 'DESC',
+  } = {}) {
+    const where = {};
+    if (warehouseId) {
+      where[Op.or] = [{ fromWarehouseId: warehouseId }, { toWarehouseId: warehouseId }];
+    }
+    if (fromWarehouseId) where.fromWarehouseId = fromWarehouseId;
+    if (toWarehouseId) where.toWarehouseId = toWarehouseId;
+    if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { number: { [Op.iLike]: `%${search}%` } },
+        { 'fromWarehouse.name': { [Op.iLike]: `%${search}%` } },
+        { 'toWarehouse.name': { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const effectiveSort = ['createdAt', 'documentDate', 'number'].includes(sort)
+      ? sort
+      : 'createdAt';
+    const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    return TransferDocument.findAndCountAll({
+      where,
       include: listInclude,
-      order: [['createdAt', 'DESC']],
+      order: [[effectiveSort, effectiveOrder]],
+      limit: Number(limit),
+      offset,
     });
   },
 

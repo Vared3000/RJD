@@ -11,6 +11,8 @@ export function createPositionsRouter() {
     managePermission: 'catalogs.manage',
     createSchema: createPositionSchema,
     updateSchema: updatePositionSchema,
+    searchFields: ['name', 'code'],
+    sortFields: ['name', 'code', 'createdAt'],
   });
 
   extendSwaggerPaths(

@@ -1,11 +1,26 @@
 import { returnService } from './return.service.js';
-import { success } from '../../../utils/respond.js';
+import { success, paginatedSuccess } from '../../../utils/respond.js';
 import { ApiError } from '../../../utils/api-error.js';
 
 export const returnController = {
   async list(req, res) {
-    const items = await returnService.list({ employeeId: req.query.employeeId });
-    return success(res, items);
+    const { rows, count } = await returnService.list({
+      employeeId: req.query.employeeId,
+      warehouseId: req.query.warehouseId,
+      status: req.query.status,
+      search: req.query.search,
+      page: req.query.page,
+      limit: req.query.limit,
+      sort: req.query.sort,
+      order: req.query.order,
+    });
+    return paginatedSuccess(
+      res,
+      rows,
+      count,
+      Number(req.query.limit) || 50,
+      Number(req.query.page) || 1,
+    );
   },
 
   async availableInstances(req, res) {

@@ -1,5 +1,5 @@
 import { stockService } from './stock.service.js';
-import { success } from '../../../utils/respond.js';
+import { success, paginatedSuccess } from '../../../utils/respond.js';
 
 export const stockController = {
   async getBalances(req, res) {
@@ -9,13 +9,16 @@ export const stockController = {
   },
 
   async listMovements(req, res) {
-    const { warehouseId, instanceId, documentType, limit } = req.query;
-    const data = await stockService.listMovements({
+    const { warehouseId, instanceId, documentType, page, limit, sort, order } = req.query;
+    const { rows, count } = await stockService.listMovements({
       warehouseId,
       instanceId,
       documentType,
-      limit: limit ? Number(limit) : undefined,
+      page: page ?? 1,
+      limit: limit ?? 50,
+      sort,
+      order,
     });
-    return success(res, data);
+    return paginatedSuccess(res, rows, count, Number(limit) || 50, Number(page) || 1);
   },
 };
