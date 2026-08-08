@@ -37,7 +37,10 @@ export function KitPreviewPanel({
         </p>
       )}
       {!kitPreview.noPosition && kitPreview.items.length === 0 && (
-        <p className={catalogStyles.hint}>Для этого сезона в комплекте должности нет позиций.</p>
+        <p className={catalogStyles.hint}>
+          Для этого сезона комплект должности не настроен. Назначьте позициям сезон в разделе
+          «Работники → Комплекты».
+        </p>
       )}
       {!kitPreview.noPosition && kitPreview.items.length > 0 && (
         <div className={catalogStyles.tableWrap}>

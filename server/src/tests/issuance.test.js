@@ -399,6 +399,7 @@ test('выдача: составной размер одежды подбира�
   await models.PositionKitItem.create({
     positionId: position.id,
     modelId: model.id,
+    season: 'summer',
     quantity: 1,
   });
   const employeeWithHeight = await models.Employee.create({
@@ -567,6 +568,7 @@ test('безразмерная позиция проходит поступле�
   await models.PositionKitItem.create({
     positionId: position.id,
     modelId: model.id,
+    season: 'summer',
     quantity: 1,
   });
 
@@ -802,7 +804,6 @@ test('комплект учитывает пол и сезон, выбирает
   const maleWinter = await createDraftAndPreview(maleEmployee.id, 'winter');
   assertPreview(maleWinter.preview, [
     [variantModel.id, 8],
-    [legacyModel.id, 4],
     [winterOnlyModel.id, 7],
   ]);
 
