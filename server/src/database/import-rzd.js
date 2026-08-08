@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import { Op } from 'sequelize';
 import { models, sequelize } from './models/index.js';
+import { normalizePositionName } from '../modules/catalogs/positions/normalize-position-name.js';
 
 const inputPath = process.argv.slice(2).find((argument) => argument !== '--');
 if (!inputPath) {
@@ -270,7 +271,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
 
   const positions = new Set();
   for (const candidate of data.candidates) {
-    const position = asText(candidate.position, 255);
+    const position = normalizePositionName(asText(candidate.position, 255));
     if (position && !/^(должность|итого|всего)/i.test(position)) positions.add(position);
   }
   const positionByName = new Map();
@@ -362,7 +363,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       if (size) primarySizes[field] = size.id;
     }
     const position = candidate.position
-      ? positionByName.get(asText(candidate.position, 255))
+      ? positionByName.get(normalizePositionName(asText(candidate.position, 255)))
       : null;
     const incoming = {
       organizationId: organization.id,
@@ -437,7 +438,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     const model = modelByName.get(asText(candidate.name, 255));
     if (!model) continue;
     const position = candidate.position
-      ? positionByName.get(asText(candidate.position, 255))
+      ? positionByName.get(normalizePositionName(asText(candidate.position, 255)))
       : null;
     const quantity = Math.trunc(Number(candidate.quantity));
     // ФПУ-26 — акт с суммарным количеством по позиции за период по всей ДПО
