@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: workwear_ci
+          POSTGRES_USER: workwear_ci
+          POSTGRES_PASSWORD: workwear_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U workwear_ci -d workwear_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://workwear_ci:workwear_ci_password@localhost:5432/workwear_ci
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+      BOOTSTRAP_ADMIN_LOGIN: ci-admin
+      BOOTSTRAP_ADMIN_PASSWORD: ci-admin-password
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate, seed and test in an isolated schema
+        run: pnpm --filter @workwear/server test
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
+      - name: Frontend production build
+        run: pnpm --filter @workwear/client build

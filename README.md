@@ -16,6 +16,11 @@
 проверки форматирования, ESLint, 18 интеграционных тестов, production build и
 воспроизведение 55 миграций на чистой схеме проходят успешно.
 
+Третий релиз изолировал интеграционные тесты от рабочей БД: каждый прогон
+создаёт случайную схему PostgreSQL, применяет в неё миграции и сиды, а затем
+гарантированно удаляет. В репозитории также настроен GitHub Actions с
+PostgreSQL, ESLint, Prettier и production-сборкой клиента.
+
 Инструкция для пользователей: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 Практический сценарий одного работника от создания до печатных форм:
@@ -68,6 +73,19 @@ pnpm dev                   # backend :4000, frontend :5173
 Вход: логин/пароль из `BOOTSTRAP_ADMIN_LOGIN` / `BOOTSTRAP_ADMIN_PASSWORD` в `.env`.
 
 Swagger UI: http://localhost:4000/api-docs
+
+### Проверки
+
+```bash
+pnpm --filter @workwear/server test  # миграции, сиды и тесты во временной схеме
+pnpm lint
+pnpm format:check
+pnpm --filter @workwear/client build
+```
+
+Для тестов нужен доступ к PostgreSQL из `DATABASE_URL`, но рабочая схема и её
+данные не изменяются. Низкоуровневую команду `test:raw` не следует запускать
+против рабочей БД.
 
 ## Запуск через Docker Compose (для сервера предприятия)
 

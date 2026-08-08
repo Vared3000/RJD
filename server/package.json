@@ -14,7 +14,8 @@
     "db:verify-clean": "node --env-file-if-exists=../.env src/database/verify-clean.js",
     "db:seed": "node --env-file-if-exists=../.env src/database/seed.js",
     "import:rzd": "node --env-file-if-exists=../.env src/database/import-rzd.js",
-    "test": "cross-env NODE_ENV=test node --env-file-if-exists=../.env --test \"src/tests/*.test.js\""
+    "test": "node --env-file-if-exists=../.env src/tests/run-isolated.js",
+    "test:raw": "cross-env NODE_ENV=test node --env-file-if-exists=../.env --test \"src/tests/*.test.js\""
   },
   "dependencies": {
     "bcryptjs": "3.0.2",
