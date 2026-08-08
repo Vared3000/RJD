@@ -33,7 +33,11 @@ export const reportsRepository = {
       include: [
         { model: Supplier, as: 'supplier', attributes: ['id', 'name'] },
         { model: Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
-        { model: ReceivingLine, as: 'lines', attributes: ['quantity', 'purchasePrice', 'employeeCost'] },
+        {
+          model: ReceivingLine,
+          as: 'lines',
+          attributes: ['quantity', 'purchasePrice', 'employeeCost'],
+        },
       ],
       order: [['documentDate', 'ASC']],
     });

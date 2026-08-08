@@ -191,7 +191,14 @@ export const reportsService = {
     const byWarehouse = new Map();
     const ensure = (id, name) => {
       if (!byWarehouse.has(id)) {
-        byWarehouse.set(id, { warehouseId: id, warehouseName: name ?? null, incoming: 0, outgoing: 0, balanceQuantity: 0, balanceCost: 0 });
+        byWarehouse.set(id, {
+          warehouseId: id,
+          warehouseName: name ?? null,
+          incoming: 0,
+          outgoing: 0,
+          balanceQuantity: 0,
+          balanceCost: 0,
+        });
       }
       return byWarehouse.get(id);
     };
@@ -210,7 +217,9 @@ export const reportsService = {
       ensure(warehouse.id, warehouse.name);
     }
 
-    const rows = [...byWarehouse.values()].sort((a, b) => (a.warehouseName ?? '').localeCompare(b.warehouseName ?? ''));
+    const rows = [...byWarehouse.values()].sort((a, b) =>
+      (a.warehouseName ?? '').localeCompare(b.warehouseName ?? ''),
+    );
     const totals = {
       incoming: sumBy(rows, (r) => r.incoming),
       outgoing: sumBy(rows, (r) => r.outgoing),
@@ -246,7 +255,11 @@ export const reportsService = {
     }
 
     const rows = employees.map((employee) => {
-      const property = propertyByEmployee.get(employee.id) ?? { cost: 0, employeeCost: 0, itemsCount: 0 };
+      const property = propertyByEmployee.get(employee.id) ?? {
+        cost: 0,
+        employeeCost: 0,
+        itemsCount: 0,
+      };
       return {
         employeeId: employee.id,
         fullName: employee.fullName,

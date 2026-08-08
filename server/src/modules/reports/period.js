@@ -35,7 +35,9 @@ export function resolvePeriod({ period, date, from, to } = {}) {
   }
   if (resolvedPeriod === 'month') {
     const fromDate = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
-    const toDate = endOfDay(new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0)));
+    const toDate = endOfDay(
+      new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0)),
+    );
     return { from: fromDate, to: toDate };
   }
   if (resolvedPeriod === 'quarter') {

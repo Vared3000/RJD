@@ -82,10 +82,7 @@ export function createApp() {
   // Nginx/статик-сервера (см. HANDOFF.md, раздел "Деплой"). В dev фронтенд
   // обслуживает отдельный процесс Vite (pnpm dev).
   if (isProduction) {
-    const clientDist = path.join(
-      path.dirname(fileURLToPath(import.meta.url)),
-      '../../client/dist',
-    );
+    const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
     app.use(express.static(clientDist));
     app.get(/^(?!\/api|\/api-docs|\/health).*/, (req, res) => {
       res.sendFile(path.join(clientDist, 'index.html'));

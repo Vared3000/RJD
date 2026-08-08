@@ -16,6 +16,7 @@ export const usePurchasesReport = (params) => useReport('purchases', reportsApi.
 export const useSuppliersReport = (params) => useReport('suppliers', reportsApi.suppliers, params);
 export const useWriteoffsReport = (params) => useReport('writeoffs', reportsApi.writeoffs, params);
 export const useRepairsReport = (params) => useReport('repairs', reportsApi.repairs, params);
-export const useWarehousesReport = (params) => useReport('warehouses', reportsApi.warehouses, params);
+export const useWarehousesReport = (params) =>
+  useReport('warehouses', reportsApi.warehouses, params);
 export const useEmployeesReport = (params) => useReport('employees', reportsApi.employees, params);
 export const useDpoReport = (params) => useReport('dpo', reportsApi.dpo, params);

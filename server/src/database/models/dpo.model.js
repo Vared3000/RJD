@@ -10,7 +10,11 @@ export function defineDpo(sequelize) {
       code: { type: DataTypes.STRING(32), allowNull: true, unique: true },
       address: { type: DataTypes.STRING(500), allowNull: true },
       okpo: { type: DataTypes.STRING(16), allowNull: true },
-      businessUnitCode: { type: DataTypes.STRING(32), allowNull: true, field: 'business_unit_code' },
+      businessUnitCode: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        field: 'business_unit_code',
+      },
       directorFullName: {
         type: DataTypes.STRING(255),
         allowNull: true,

@@ -18,9 +18,7 @@ async function validateRelations(data, { current } = {}) {
       ? data.requiresHeightSize
       : (current?.requiresHeightSize ?? false);
   if (requiresHeightSize && sizeType !== 'clothing') {
-    throw ApiError.badRequest(
-      'Рост можно требовать только для моделей с типом размера «Одежда»',
-    );
+    throw ApiError.badRequest('Рост можно требовать только для моделей с типом размера «Одежда»');
   }
 }
 

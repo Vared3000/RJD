@@ -181,7 +181,11 @@ export function EmployeeCardPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Стоимость имущества</h2>
-      <EmployeePropertyTable instances={instances} totals={property} isLoading={isLoadingProperty} />
+      <EmployeePropertyTable
+        instances={instances}
+        totals={property}
+        isLoading={isLoadingProperty}
+      />
 
       <h2 className={styles.sectionTitle}>История выдач и возвратов</h2>
       <EmployeeHistoryTable history={history} />

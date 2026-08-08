@@ -84,7 +84,10 @@ export async function computeCoverageDays({ from, to, employeeIds } = {}) {
     if (intervalTo <= intervalFrom) return;
 
     const days = Math.ceil((intervalTo.getTime() - intervalFrom.getTime()) / MS_PER_DAY);
-    daysByEmployee.set(openInterval.employeeId, (daysByEmployee.get(openInterval.employeeId) ?? 0) + days);
+    daysByEmployee.set(
+      openInterval.employeeId,
+      (daysByEmployee.get(openInterval.employeeId) ?? 0) + days,
+    );
   }
 
   for (const events of byInstance.values()) {

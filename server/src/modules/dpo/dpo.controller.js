@@ -26,12 +26,16 @@ export const dpoController = {
   },
 
   async replace(req, res) {
-    const item = await dpoService.update(req.params.id, req.validatedBody, { userId: req.user.sub });
+    const item = await dpoService.update(req.params.id, req.validatedBody, {
+      userId: req.user.sub,
+    });
     return success(res, item);
   },
 
   async update(req, res) {
-    const item = await dpoService.update(req.params.id, req.validatedBody, { userId: req.user.sub });
+    const item = await dpoService.update(req.params.id, req.validatedBody, {
+      userId: req.user.sub,
+    });
     return success(res, item);
   },
 

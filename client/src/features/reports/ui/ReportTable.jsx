@@ -45,7 +45,9 @@ export function ReportTable({ columns, rows, isLoading, totalColumns, totals }) 
             <tr>
               {totalColumns.map((column) => (
                 <td key={column.key}>
-                  <strong>{column.render ? column.render(totals) : (totals[column.key] ?? '—')}</strong>
+                  <strong>
+                    {column.render ? column.render(totals) : (totals[column.key] ?? '—')}
+                  </strong>
                 </td>
               ))}
             </tr>
