@@ -156,6 +156,10 @@ export function IssuanceEditorPage() {
           <span>{document.employee?.fullName ?? '—'}</span>
         </div>
         <div>
+          <span className={styles.label}>Должность</span>
+          <span>{document.employee?.position?.name ?? 'Не указана'}</span>
+        </div>
+        <div>
           <span className={styles.label}>Склад</span>
           <span>{document.warehouse?.name ?? '—'}</span>
         </div>

@@ -18,7 +18,9 @@ export function KitPreviewPanel({
     <div className={styles.kitPreview}>
       <div className={catalogStyles.header}>
         <h2 className={styles.linesTitle}>
-          Комплект должности ({kitPreview.season === 'summer' ? 'летний' : 'зимний'})
+          Комплект должности
+          {kitPreview.positionName ? ` «${kitPreview.positionName}»` : ''} (
+          {kitPreview.season === 'summer' ? 'летний' : 'зимний'})
         </h2>
         <div className={styles.kitPreviewActions}>
           {!kitPreview.noPosition && kitPreview.items.length > 0 && isDraft && canManage && (
@@ -38,8 +40,8 @@ export function KitPreviewPanel({
       )}
       {!kitPreview.noPosition && kitPreview.items.length === 0 && (
         <p className={catalogStyles.hint}>
-          Для этого сезона комплект должности не настроен. Назначьте позициям сезон в разделе
-          «Работники → Комплекты».
+          Для должности «{kitPreview.positionName ?? 'Без названия'}» комплект на этот сезон не
+          настроен. Назначьте позициям сезон в разделе «Работники → Комплекты».
         </p>
       )}
       {!kitPreview.noPosition && kitPreview.items.length > 0 && (

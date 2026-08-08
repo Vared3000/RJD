@@ -306,7 +306,7 @@ export const issuanceService = {
       document.employeeId,
     );
     if (!employee?.positionId) {
-      return { items: [], noPosition: true };
+      return { items: [], noPosition: true, positionName: null };
     }
     const kitItems = selectKitItems(allKitItems, season, employee.gender);
 
@@ -342,7 +342,11 @@ export const issuanceService = {
       });
     }
 
-    return { items, noPosition: false };
+    return {
+      items,
+      noPosition: false,
+      positionName: employee.position?.name ?? null,
+    };
   },
 
   // Проведение — необратимо: подбирает под каждую строку доступные экземпляры

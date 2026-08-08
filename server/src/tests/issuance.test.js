@@ -773,6 +773,8 @@ test('комплект учитывает пол и сезон, выбирает
       agent.get(`/api/v1/issuance/documents/${draft.body.data.id}/kit-preview?season=${season}`),
     );
     assert.equal(preview.status, 200);
+    assert.equal(draft.body.data.employee.position.name, position.name);
+    assert.equal(preview.body.data.positionName, position.name);
     return { draftId: draft.body.data.id, preview: preview.body.data.items };
   }
 

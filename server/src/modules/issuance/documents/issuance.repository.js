@@ -5,7 +5,12 @@ const { IssuanceDocument, IssuanceLine, Instance, StockMovement, PositionKitItem
   models;
 
 const listInclude = [
-  { model: models.Employee, as: 'employee', attributes: ['id', 'fullName'] },
+  {
+    model: models.Employee,
+    as: 'employee',
+    attributes: ['id', 'fullName'],
+    include: [{ model: models.Position, as: 'position', attributes: ['id', 'name'] }],
+  },
   { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
 ];
 
@@ -198,6 +203,7 @@ export const issuanceRepository = {
   async findEmployeeWithKit(employeeId, { transaction } = {}) {
     const employee = await Employee.findByPk(employeeId, {
       include: [
+        { model: models.Position, as: 'position', attributes: ['id', 'name'] },
         { model: models.Size, as: 'clothingSize', attributes: ['id', 'value'] },
         { model: models.Size, as: 'heightSize', attributes: ['id', 'value'] },
         { model: models.Size, as: 'shoeSize', attributes: ['id', 'value'] },
