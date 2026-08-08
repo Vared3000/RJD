@@ -73,6 +73,10 @@ export const inventoryRepository = {
     });
   },
 
+  findInstancesByIds(instanceIds, { transaction } = {}) {
+    return Instance.findAll({ where: { id: instanceIds }, transaction });
+  },
+
   bulkCreateLines(rows, { transaction } = {}) {
     return InventoryLine.bulkCreate(rows, { transaction });
   },

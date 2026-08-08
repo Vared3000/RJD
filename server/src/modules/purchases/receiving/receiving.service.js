@@ -3,6 +3,10 @@ import { receivingRepository } from './receiving.repository.js';
 import { ApiError } from '../../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
 import { generateInventoryNumbers } from '../../nomenclature/instances/generate-inventory-number.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -181,6 +185,26 @@ export const receivingService = {
         note: `Поступление ${document.number}`,
       }));
       await receivingRepository.bulkCreateMovements(movementRows, { transaction });
+      await instanceEventsRepository.bulkCreate(
+        createdInstances.map((instance) =>
+          buildInstanceEvent({
+            instance: { id: instance.id },
+            eventType: 'receiving',
+            to: {
+              status: 'in_stock',
+              condition: 'new',
+              warehouseId: document.warehouseId,
+              employeeId: null,
+            },
+            documentType: 'receiving',
+            documentId: document.id,
+            occurredAt: document.documentDate,
+            userId,
+            details: { documentNumber: document.number, batchId: batch.id },
+          }),
+        ),
+        { transaction },
+      );
 
       await receivingRepository.markPosted(
         documentId,

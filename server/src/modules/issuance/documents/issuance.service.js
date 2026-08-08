@@ -3,6 +3,10 @@ import { issuanceRepository } from './issuance.repository.js';
 import { ApiError } from '../../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
 import { KIT_SEASONS } from '../../../database/models/position-kit-item.model.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../../nomenclature/instances/instance-events.repository.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -344,6 +348,7 @@ export const issuanceService = {
 
       const allInstanceIds = [];
       const movementRows = [];
+      const eventRows = [];
 
       for (const line of document.lines) {
         const instances = await issuanceRepository.findAvailableInstances(
@@ -370,6 +375,18 @@ export const issuanceService = {
 
         for (const instance of instances) {
           allInstanceIds.push(instance.id);
+          eventRows.push(
+            buildInstanceEvent({
+              instance,
+              eventType: 'issuance',
+              to: { status: 'issued', warehouseId: null, employeeId: document.employeeId },
+              documentType: 'issuance',
+              documentId: document.id,
+              occurredAt: document.documentDate,
+              userId,
+              details: { documentNumber: document.number },
+            }),
+          );
           movementRows.push({
             instanceId: instance.id,
             fromWarehouseId: document.warehouseId,
@@ -386,6 +403,7 @@ export const issuanceService = {
         transaction,
       });
       await issuanceRepository.bulkCreateMovements(movementRows, { transaction });
+      await instanceEventsRepository.bulkCreate(eventRows, { transaction });
       await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
     });
 

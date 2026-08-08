@@ -2,6 +2,10 @@ import { sequelize } from '../../database/models/index.js';
 import { writeoffRepository } from './writeoff.repository.js';
 import { ApiError } from '../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -105,6 +109,7 @@ export const writeoffService = {
       }
 
       const movementRows = [];
+      const eventRows = [];
 
       for (const line of document.lines) {
         const instance = await writeoffRepository.findInstanceForWriteoff(line.instanceId, {
@@ -120,6 +125,19 @@ export const writeoffService = {
 
         await writeoffRepository.markInstanceWrittenOff(instance.id, { transaction });
 
+        eventRows.push(
+          buildInstanceEvent({
+            instance,
+            eventType: 'writeoff',
+            to: { status: 'write_off', warehouseId: null, employeeId: null },
+            documentType: 'writeoff',
+            documentId: document.id,
+            occurredAt: document.documentDate,
+            userId,
+            details: { documentNumber: document.number, reason: line.reason },
+          }),
+        );
+
         movementRows.push({
           instanceId: instance.id,
           fromWarehouseId: document.warehouseId,
@@ -132,6 +150,7 @@ export const writeoffService = {
       }
 
       await writeoffRepository.bulkCreateMovements(movementRows, { transaction });
+      await instanceEventsRepository.bulkCreate(eventRows, { transaction });
       await writeoffRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
     });
 

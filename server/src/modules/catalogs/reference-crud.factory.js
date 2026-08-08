@@ -31,13 +31,20 @@ export function createReferenceRepository(Model, { include, searchFields } = {})
       return Model.findByPk(id, { include });
     },
 
-    create(data) {
-      return Model.create(data);
+    findLocked(id, { transaction }) {
+      return Model.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
     },
 
-    async updateById(id, data) {
-      const [count] = await Model.update(data, { where: { id, archivedAt: null } });
-      return count > 0 ? Model.findByPk(id, { include }) : null;
+    create(data, { transaction } = {}) {
+      return Model.create(data, { transaction });
+    },
+
+    async updateById(id, data, { transaction } = {}) {
+      const [count] = await Model.update(data, {
+        where: { id, archivedAt: null },
+        transaction,
+      });
+      return count > 0 ? Model.findByPk(id, { transaction }) : null;
     },
 
     async archive(id) {
@@ -60,7 +67,7 @@ export function createReferenceRepository(Model, { include, searchFields } = {})
 
 export function createReferenceService(
   repository,
-  { entityName, validateRelations, beforeCreate } = {},
+  { entityName, validateRelations, beforeCreate, mutationHooks } = {},
 ) {
   return {
     list(options) {
@@ -73,13 +80,45 @@ export function createReferenceService(
       return item;
     },
 
-    async create(data) {
+    async create(data, context = {}) {
+      if (mutationHooks) {
+        let createdId;
+        await mutationHooks.sequelize.transaction(async (transaction) => {
+          const validatedData = validateRelations
+            ? ((await validateRelations(data, { transaction })) ?? data)
+            : data;
+          const finalData = beforeCreate
+            ? await beforeCreate(validatedData, { transaction })
+            : validatedData;
+          const item = await repository.create(finalData, { transaction });
+          createdId = item.id;
+          await mutationHooks.afterCreate?.(item, { ...context, transaction });
+        });
+        return repository.findById(createdId);
+      }
       const validatedData = validateRelations ? ((await validateRelations(data)) ?? data) : data;
       const finalData = beforeCreate ? await beforeCreate(validatedData) : validatedData;
       return repository.create(finalData);
     },
 
-    async update(id, data) {
+    async update(id, data, context = {}) {
+      if (mutationHooks) {
+        await mutationHooks.sequelize.transaction(async (transaction) => {
+          const current = await repository.findLocked(id, { transaction });
+          if (!current || current.archivedAt) {
+            throw ApiError.notFound(`${entityName} не найден(а) или архивирован(а)`);
+          }
+          const validatedData = validateRelations
+            ? ((await validateRelations(data, { id, current, transaction })) ?? data)
+            : data;
+          const item = await repository.updateById(id, validatedData, { transaction });
+          await mutationHooks.afterUpdate?.(current, item, validatedData, {
+            ...context,
+            transaction,
+          });
+        });
+        return repository.findById(id);
+      }
       const current = validateRelations ? await repository.findById(id) : null;
       const validatedData = validateRelations
         ? ((await validateRelations(data, { id, current })) ?? data)
@@ -115,15 +154,19 @@ export function createReferenceController(service) {
       return success(res, item);
     },
     async create(req, res) {
-      const item = await service.create(req.validatedBody);
+      const item = await service.create(req.validatedBody, { userId: req.user.sub });
       return success(res, item, 201);
     },
     async replace(req, res) {
-      const item = await service.update(req.params.id, req.validatedBody);
+      const item = await service.update(req.params.id, req.validatedBody, {
+        userId: req.user.sub,
+      });
       return success(res, item);
     },
     async update(req, res) {
-      const item = await service.update(req.params.id, req.validatedBody);
+      const item = await service.update(req.params.id, req.validatedBody, {
+        userId: req.user.sub,
+      });
       return success(res, item);
     },
     async archive(req, res) {
@@ -194,6 +237,7 @@ export function createReferenceModule(
     beforeCreate,
     include,
     searchFields,
+    mutationHooks,
   },
 ) {
   const repository = createReferenceRepository(Model, { include, searchFields });
@@ -201,6 +245,7 @@ export function createReferenceModule(
     entityName,
     validateRelations,
     beforeCreate,
+    mutationHooks,
   });
   const controller = createReferenceController(service);
   const router = createReferenceRouter({

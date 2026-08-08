@@ -2,6 +2,10 @@ import { sequelize } from '../../../database/models/index.js';
 import { returnRepository } from './return.repository.js';
 import { ApiError } from '../../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -117,6 +121,7 @@ export const returnService = {
       }
 
       const movementRows = [];
+      const eventRows = [];
 
       for (const line of document.lines) {
         const instance = await returnRepository.findInstanceForReturn(line.instanceId, {
@@ -136,6 +141,24 @@ export const returnService = {
           { transaction },
         );
 
+        eventRows.push(
+          buildInstanceEvent({
+            instance,
+            eventType: 'return',
+            to: {
+              status: line.routeTo ?? 'in_stock',
+              condition: line.condition,
+              warehouseId: document.warehouseId,
+              employeeId: null,
+            },
+            documentType: 'return',
+            documentId: document.id,
+            occurredAt: document.documentDate,
+            userId,
+            details: { documentNumber: document.number, routeTo: line.routeTo ?? 'in_stock' },
+          }),
+        );
+
         const routeSuffix =
           line.routeTo && line.routeTo !== 'in_stock' ? ` (направлено: ${line.routeTo})` : '';
         movementRows.push({
@@ -150,6 +173,7 @@ export const returnService = {
       }
 
       await returnRepository.bulkCreateMovements(movementRows, { transaction });
+      await instanceEventsRepository.bulkCreate(eventRows, { transaction });
       await returnRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
     });
 

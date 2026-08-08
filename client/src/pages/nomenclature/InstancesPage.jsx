@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
 import { compareSizes, isPlausibleAtomicSize } from '../../features/catalogs/model/size-options.js';
 
@@ -46,7 +47,11 @@ const schema = z.object({
 });
 
 const columns = [
-  { key: 'inventoryNumber', label: 'Инв. номер' },
+  {
+    key: 'inventoryNumber',
+    label: 'Инв. номер',
+    render: (item) => <Link to={`/nomenclature/instances/${item.id}`}>{item.inventoryNumber}</Link>,
+  },
   { key: 'model', label: 'Модель', render: (item) => item.model?.name ?? '—' },
   {
     key: 'size',

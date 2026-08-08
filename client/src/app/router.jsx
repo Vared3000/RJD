@@ -10,6 +10,7 @@ import { SuppliersPage } from '../pages/catalogs/SuppliersPage.jsx';
 import { SizesPage } from '../pages/catalogs/SizesPage.jsx';
 import { NomenclatureModelsPage } from '../pages/nomenclature/NomenclatureModelsPage.jsx';
 import { InstancesPage } from '../pages/nomenclature/InstancesPage.jsx';
+import { InstanceCardPage } from '../pages/nomenclature/InstanceCardPage.jsx';
 import { ReceivingListPage } from '../pages/purchases/ReceivingListPage.jsx';
 import { ReceivingEditorPage } from '../pages/purchases/ReceivingEditorPage.jsx';
 import { StockBalancesPage } from '../pages/warehouses/StockBalancesPage.jsx';
@@ -75,6 +76,7 @@ export function AppRouter() {
         <Route path="catalogs/sizes" element={<SizesPage />} />
         <Route path="nomenclature/models" element={<NomenclatureModelsPage />} />
         <Route path="nomenclature/instances" element={<InstancesPage />} />
+        <Route path="nomenclature/instances/:id" element={<InstanceCardPage />} />
         <Route path="purchases/receiving" element={<ReceivingListPage />} />
         <Route path="purchases/receiving/:id" element={<ReceivingEditorPage />} />
         <Route path="warehouses/balances" element={<StockBalancesPage />} />

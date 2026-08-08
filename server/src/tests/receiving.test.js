@@ -124,6 +124,21 @@ test('поступление: черновик -> строки -> проведе
     assert.equal(instance.batchId, posted.body.data.batchId);
   }
 
+  const historyResponse = await auth(agent.get(`/api/v1/instances/${instances[0].id}/history`));
+  assert.equal(historyResponse.status, 200);
+  assert.equal(historyResponse.body.data.length, 1);
+  assert.equal(historyResponse.body.data[0].eventType, 'receiving');
+  assert.equal(historyResponse.body.data[0].fromStatus, null);
+  assert.equal(historyResponse.body.data[0].toStatus, 'in_stock');
+  assert.equal(historyResponse.body.data[0].toWarehouseId, warehouse.body.data.id);
+  assert.equal(historyResponse.body.data[0].documentId, documentId);
+  assert.equal(historyResponse.body.data[0].details.documentNumber, posted.body.data.number);
+
+  const events = await models.InstanceEvent.findAll({
+    where: { documentId, documentType: 'receiving' },
+  });
+  assert.equal(events.length, 3, 'на каждый созданный экземпляр записывается событие истории');
+
   const movements = await models.StockMovement.findAll({
     where: { documentId, documentType: 'receiving' },
   });

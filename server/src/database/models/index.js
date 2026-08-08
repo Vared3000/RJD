@@ -13,6 +13,7 @@ import { defineSize } from './size.model.js';
 import { defineNomenclatureModel } from './nomenclature-model.model.js';
 import { defineBatch } from './batch.model.js';
 import { defineInstance } from './instance.model.js';
+import { defineInstanceEvent } from './instance-event.model.js';
 import { defineReceivingDocument } from './receiving-document.model.js';
 import { defineReceivingLine } from './receiving-line.model.js';
 import { defineStockMovement } from './stock-movement.model.js';
@@ -52,6 +53,7 @@ const Size = defineSize(sequelize);
 const NomenclatureModel = defineNomenclatureModel(sequelize);
 const Batch = defineBatch(sequelize);
 const Instance = defineInstance(sequelize);
+const InstanceEvent = defineInstanceEvent(sequelize);
 const ReceivingDocument = defineReceivingDocument(sequelize);
 const ReceivingLine = defineReceivingLine(sequelize);
 const StockMovement = defineStockMovement(sequelize);
@@ -124,6 +126,14 @@ Instance.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
 
 Warehouse.hasMany(Instance, { foreignKey: 'warehouseId', as: 'instances' });
 Instance.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+
+Instance.hasMany(InstanceEvent, { foreignKey: 'instanceId', as: 'events' });
+InstanceEvent.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+InstanceEvent.belongsTo(Warehouse, { foreignKey: 'fromWarehouseId', as: 'fromWarehouse' });
+InstanceEvent.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
+InstanceEvent.belongsTo(Employee, { foreignKey: 'fromEmployeeId', as: 'fromEmployee' });
+InstanceEvent.belongsTo(Employee, { foreignKey: 'toEmployeeId', as: 'toEmployee' });
+InstanceEvent.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Документ "Поступление": шапка -> строки, ссылки на справочники и партию
 ReceivingDocument.belongsTo(Supplier, { foreignKey: 'supplierId', as: 'supplier' });
@@ -297,6 +307,7 @@ export const models = {
   NomenclatureModel,
   Batch,
   Instance,
+  InstanceEvent,
   ReceivingDocument,
   ReceivingLine,
   StockMovement,

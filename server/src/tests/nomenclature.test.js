@@ -81,4 +81,13 @@ test('номенклатура: модель -> размер -> экземпля
   });
   assert.equal(updated.status, 200);
   assert.equal(updated.body.data.status, 'repair');
+
+  const history = await auth(agent.get(`/api/v1/instances/${instance1.body.data.id}/history`));
+  assert.equal(history.status, 200);
+  assert.equal(history.body.data.length, 2);
+  assert.equal(history.body.data[0].eventType, 'adjustment');
+  assert.equal(history.body.data[0].details.action, 'manual_create');
+  assert.equal(history.body.data[1].fromStatus, 'in_stock');
+  assert.equal(history.body.data[1].toStatus, 'repair');
+  assert.deepEqual(history.body.data[1].details.changedFields, ['status']);
 });

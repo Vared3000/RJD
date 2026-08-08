@@ -2,6 +2,10 @@ import { sequelize } from '../../database/models/index.js';
 import { transferRepository } from './transfer.repository.js';
 import { ApiError } from '../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -112,6 +116,7 @@ export const transferService = {
       }
 
       const movementRows = [];
+      const eventRows = [];
 
       for (const line of document.lines) {
         const instance = await transferRepository.findInstanceForTransfer(line.instanceId, {
@@ -131,6 +136,19 @@ export const transferService = {
           { transaction },
         );
 
+        eventRows.push(
+          buildInstanceEvent({
+            instance,
+            eventType: 'transfer',
+            to: { warehouseId: document.toWarehouseId },
+            documentType: 'transfer',
+            documentId: document.id,
+            occurredAt: document.documentDate,
+            userId,
+            details: { documentNumber: document.number },
+          }),
+        );
+
         movementRows.push({
           instanceId: instance.id,
           fromWarehouseId: document.fromWarehouseId,
@@ -143,6 +161,7 @@ export const transferService = {
       }
 
       await transferRepository.bulkCreateMovements(movementRows, { transaction });
+      await instanceEventsRepository.bulkCreate(eventRows, { transaction });
       await transferRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
     });
 

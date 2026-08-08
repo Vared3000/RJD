@@ -9,6 +9,10 @@ import { validateBody } from '../../middlewares/validate.middleware.js';
 import { extendSwaggerPaths } from '../../config/swagger.js';
 import { buildServiceDocumentSchemas } from './service-document.validation.js';
 import { serviceDocumentOpenApiPaths } from './service-document-openapi.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -249,6 +253,7 @@ export function createServiceDocumentModule({
         }
 
         const movementRows = [];
+        const eventRows = [];
         for (const line of document.lines) {
           const instance = await repository.findInstanceForTransition(line.instanceId, {
             transaction,
@@ -270,7 +275,23 @@ export function createServiceDocumentModule({
             { conditionBefore: instance.condition },
             { transaction },
           );
-          await repository.updateInstance(instance.id, { status: targetStatus }, { transaction });
+          await repository.updateInstance(
+            instance.id,
+            { status: targetStatus, warehouseId: null },
+            { transaction },
+          );
+          eventRows.push(
+            buildInstanceEvent({
+              instance,
+              eventType: `${documentType}_sent`,
+              to: { status: targetStatus, warehouseId: null },
+              documentType,
+              documentId: document.id,
+              occurredAt: document.documentDate,
+              userId,
+              details: { documentNumber: document.number },
+            }),
+          );
           movementRows.push({
             instanceId: instance.id,
             fromWarehouseId: document.warehouseId,
@@ -283,6 +304,7 @@ export function createServiceDocumentModule({
         }
 
         await repository.bulkCreateMovements(movementRows, { transaction });
+        await instanceEventsRepository.bulkCreate(eventRows, { transaction });
         await repository.markSent(documentId, { userId }, { transaction });
       });
 
@@ -306,6 +328,7 @@ export function createServiceDocumentModule({
 
         const linesById = new Map(document.lines.map((line) => [line.id, line]));
         const movementRows = [];
+        const eventRows = [];
         for (const completion of completionLines) {
           const line = linesById.get(completion.lineId);
           if (!line) {
@@ -328,8 +351,24 @@ export function createServiceDocumentModule({
           await repository.updateLine(line.id, lineUpdate, { transaction });
           await repository.updateInstance(
             instance.id,
-            { status: 'in_stock', condition: conditionAfter },
+            { status: 'in_stock', condition: conditionAfter, warehouseId: document.warehouseId },
             { transaction },
+          );
+          eventRows.push(
+            buildInstanceEvent({
+              instance,
+              eventType: `${documentType}_completed`,
+              to: {
+                status: 'in_stock',
+                condition: conditionAfter,
+                warehouseId: document.warehouseId,
+              },
+              documentType,
+              documentId: document.id,
+              occurredAt: new Date(),
+              userId,
+              details: { documentNumber: document.number, ...lineUpdate },
+            }),
           );
           movementRows.push({
             instanceId: instance.id,
@@ -343,6 +382,7 @@ export function createServiceDocumentModule({
         }
 
         await repository.bulkCreateMovements(movementRows, { transaction });
+        await instanceEventsRepository.bulkCreate(eventRows, { transaction });
         await repository.markCompleted(documentId, { userId }, { transaction });
       });
 

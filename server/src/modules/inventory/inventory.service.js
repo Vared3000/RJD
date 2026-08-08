@@ -2,6 +2,10 @@ import { sequelize } from '../../database/models/index.js';
 import { inventoryRepository } from './inventory.repository.js';
 import { ApiError } from '../../utils/api-error.js';
 import { generateDocumentNumber } from './generate-document-number.js';
+import {
+  buildInstanceEvent,
+  instanceEventsRepository,
+} from '../nomenclature/instances/instance-events.repository.js';
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -113,6 +117,33 @@ export const inventoryService = {
       const document = await inventoryRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
       if (document.status !== 'draft') throw ApiError.conflict('Документ уже завершён');
+
+      const discrepancyLines = document.lines.filter((line) => !line.confirmed);
+      if (discrepancyLines.length > 0) {
+        const instances = await inventoryRepository.findInstancesByIds(
+          discrepancyLines.map((line) => line.instanceId),
+          { transaction },
+        );
+        const instancesById = new Map(instances.map((instance) => [instance.id, instance]));
+        const events = discrepancyLines.flatMap((line) => {
+          const instance = instancesById.get(line.instanceId);
+          return instance
+            ? [
+                buildInstanceEvent({
+                  instance,
+                  eventType: 'inventory_discrepancy',
+                  to: {},
+                  documentType: 'inventory',
+                  documentId: document.id,
+                  occurredAt: document.documentDate,
+                  userId,
+                  details: { documentNumber: document.number, note: line.note ?? null },
+                }),
+              ]
+            : [];
+        });
+        await instanceEventsRepository.bulkCreate(events, { transaction });
+      }
 
       await inventoryRepository.markCompleted(
         documentId,

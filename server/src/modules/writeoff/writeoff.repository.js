@@ -97,7 +97,7 @@ export const writeoffRepository = {
 
   markInstanceWrittenOff(instanceId, { transaction }) {
     return Instance.update(
-      { status: 'write_off', employeeId: null },
+      { status: 'write_off', warehouseId: null, employeeId: null },
       { where: { id: instanceId }, transaction },
     );
   },
