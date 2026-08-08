@@ -445,6 +445,16 @@ export async function generatePdf(data) {
       columnWidths: positions.columnWidths,
       columnX: positions.columnX,
     });
+    doc
+      .font('Sans')
+      .fontSize(5)
+      .fillColor('#555')
+      .text(
+        `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
+        margins.left,
+        pageHeight - 14,
+        { width: pageWidth - margins.left - margins.right, align: 'right', lineBreak: false },
+      );
   }
 
   doc.end();

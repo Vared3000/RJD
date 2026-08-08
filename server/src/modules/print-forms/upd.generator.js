@@ -5,21 +5,6 @@ const require = createRequire(import.meta.url);
 const FONT = require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf');
 const FONT_BOLD = require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf');
 
-const SELLER = {
-  name: 'ООО "ЛАЗУРИТ"',
-  address:
-    '188309, Ленинградская область, р-н Гатчинский, г. Гатчина, ул. Новоселов, д. 7а, помещ. 52',
-  innKpp: '7820046397/470501001',
-  director: 'Просовикова Н. С.',
-};
-
-const BUYER = {
-  name: 'ОАО "РЖД"',
-  address:
-    '107174, г. Москва, вн.тер. г. муниципальный округ Басманный, ул. Новая Басманная, д. 2/1, стр. 1',
-  innKpp: '7708503727/997650001',
-};
-
 const MONTHS = [
   'января',
   'февраля',
@@ -90,6 +75,22 @@ function quantity(value) {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   });
+}
+
+function innKpp(party) {
+  return [party.inn, party.kpp].filter(Boolean).join('/');
+}
+
+function directorShortName(party) {
+  const parts = String(party.directorFullName ?? '')
+    .trim()
+    .split(/\s+/);
+  return parts.length > 1
+    ? `${parts[0]} ${parts
+        .slice(1)
+        .map((part) => `${part[0]}.`)
+        .join(' ')}`
+    : party.directorFullName;
 }
 
 function fittedText(doc, text, x, y, width, height, options = {}) {
@@ -202,6 +203,8 @@ function lineField(doc, label, value, x, y, width, labelWidth = 118) {
 }
 
 function drawFirstPageHeader(doc, data, x, width) {
+  const seller = data.parties.executor;
+  const buyer = data.parties.customer;
   doc.font('Regular').fontSize(6).text('Универсальный\nпередаточный\nдокумент', x, 26, {
     width: 58,
   });
@@ -235,9 +238,9 @@ function drawFirstPageHeader(doc, data, x, width) {
   const half = (width - 70) / 2;
   const leftX = mainX;
   const rightX = mainX + half + 8;
-  lineField(doc, 'Продавец:', SELLER.name, leftX, 53, half, 105);
-  lineField(doc, 'Адрес:', SELLER.address, leftX, 65, half, 105);
-  lineField(doc, 'ИНН/КПП продавца:', SELLER.innKpp, leftX, 83, half, 105);
+  lineField(doc, 'Продавец:', seller.fullName, leftX, 53, half, 105);
+  lineField(doc, 'Адрес:', seller.address, leftX, 65, half, 105);
+  lineField(doc, 'ИНН/КПП продавца:', innKpp(seller), leftX, 83, half, 105);
   lineField(doc, 'Грузоотправитель и его адрес:', '--', leftX, 95, half, 105);
   lineField(doc, 'Грузополучатель и его адрес:', '--', leftX, 107, half, 105);
   lineField(
@@ -261,9 +264,9 @@ function drawFirstPageHeader(doc, data, x, width) {
     105,
   );
 
-  lineField(doc, 'Покупатель:', BUYER.name, rightX, 53, half, 105);
-  lineField(doc, 'Адрес:', BUYER.address, rightX, 65, half, 105);
-  lineField(doc, 'ИНН/КПП покупателя:', BUYER.innKpp, rightX, 83, half, 105);
+  lineField(doc, 'Покупатель:', buyer.fullName, rightX, 53, half, 105);
+  lineField(doc, 'Адрес:', buyer.address, rightX, 65, half, 105);
+  lineField(doc, 'ИНН/КПП покупателя:', innKpp(buyer), rightX, 83, half, 105);
   lineField(doc, 'Валюта: наименование, код', 'Российский рубль, 643', rightX, 95, half, 105);
   lineField(doc, 'Идентификатор государственного контракта:', '', rightX, 107, half, 138);
 }
@@ -305,6 +308,9 @@ function drawTotals(doc, data, x, y) {
 }
 
 function drawSignatures(doc, data, x, y, width) {
+  const seller = data.parties.executor;
+  const buyer = data.parties.customer;
+  const sellerDirector = directorShortName(seller);
   doc.font('Regular').fontSize(6);
   lineField(
     doc,
@@ -335,7 +341,7 @@ function drawSignatures(doc, data, x, y, width) {
     .font('Regular')
     .fontSize(6.2)
     .text('Товар (груз) передал / услуги, результаты работ, права сдал', x, y + 42);
-  lineField(doc, 'Генеральный директор', SELLER.director, x, y + 56, half, 118);
+  lineField(doc, seller.directorPosition, sellerDirector, x, y + 56, half, 118);
   doc
     .fontSize(6)
     .text(
@@ -347,7 +353,7 @@ function drawSignatures(doc, data, x, y, width) {
   lineField(
     doc,
     'Ответственный за правильность оформления факта хозяйственной жизни',
-    `Генеральный директор  ${SELLER.director}`,
+    `${seller.directorPosition}  ${sellerDirector}`,
     x,
     y + 100,
     half,
@@ -356,7 +362,7 @@ function drawSignatures(doc, data, x, y, width) {
   doc
     .fontSize(6)
     .text(
-      `Наименование экономического субъекта – составителя документа\n${SELLER.name}, ИНН/КПП ${SELLER.innKpp}`,
+      `Наименование экономического субъекта – составителя документа\n${seller.fullName}, ИНН/КПП ${innKpp(seller)}`,
       x,
       y + 125,
       {
@@ -384,7 +390,7 @@ function drawSignatures(doc, data, x, y, width) {
   doc
     .fontSize(6)
     .text(
-      `Наименование экономического субъекта – составителя документа\n${BUYER.name}, ИНН/КПП ${BUYER.innKpp}`,
+      `Наименование экономического субъекта – составителя документа\n${buyer.fullName}, ИНН/КПП ${innKpp(buyer)}`,
       right,
       y + 125,
       {
@@ -415,6 +421,15 @@ export async function generateUpdPdf(data) {
   drawFirstPageHeader(doc, data, x, tableWidth);
   let y = drawTableHeader(doc, x, 151);
   drawRows(doc, data.rows.slice(0, 17), 0, x, y);
+  doc
+    .font('Regular')
+    .fontSize(4.5)
+    .text(
+      `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
+      x,
+      579,
+      { width: tableWidth, align: 'right' },
+    );
 
   doc.addPage();
   doc
@@ -430,6 +445,15 @@ export async function generateUpdPdf(data) {
   y = drawRows(doc, data.rows.slice(17), 17, x, y);
   drawTotals(doc, data, x, y);
   drawSignatures(doc, data, x + 4, y + 30, tableWidth - 8);
+  doc
+    .font('Regular')
+    .fontSize(4.5)
+    .text(
+      `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
+      x,
+      579,
+      { width: tableWidth, align: 'right' },
+    );
 
   doc.end();
   return output;

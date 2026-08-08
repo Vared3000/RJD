@@ -10,6 +10,7 @@ import {
   mergeSourceEntries,
   sourceFields,
 } from './print-form-data-sources.js';
+import { printFormSettingsService } from './settings/print-form-settings.service.js';
 
 const num = (value) => Number(value ?? 0);
 // В архивных Excel-актах встречаются цены с пятью знаками после запятой.
@@ -86,9 +87,10 @@ function priceValues(price, fallback = 0) {
 async function loadContext(query) {
   const { from, to } = resolvePeriod({ from: query.from, to: query.to });
   if (from > to) throw ApiError.badRequest('Дата начала не может быть позже даты окончания');
-  const [dpo, documents] = await Promise.all([
+  const [dpo, documents, parties] = await Promise.all([
     dpoSnapshotAt(query.dpoId, to),
     printFormsRepository.findIssuanceDocuments({ dpoId: query.dpoId, from, to }),
+    printFormSettingsService.snapshotAt(toDateOnly(to)),
   ]);
   const modelIds = [
     ...new Set(documents.flatMap((document) => document.lines.map((line) => line.modelId))),
@@ -106,6 +108,7 @@ async function loadContext(query) {
   ]);
   return {
     dpo,
+    parties,
     documents,
     from,
     to,
@@ -148,9 +151,10 @@ async function loadPersonalCardContext(query) {
 
   const asOfText = query.to ?? employee.terminationDate ?? new Date().toISOString().slice(0, 10);
   const asOf = new Date(`${asOfText}T23:59:59.999Z`);
-  const [dpo, issuanceDocuments, returnDocuments, kitItems, importedPersonalCard] =
+  const [dpo, parties, issuanceDocuments, returnDocuments, kitItems, importedPersonalCard] =
     await Promise.all([
       dpoSnapshotAt(dpoId, asOf),
+      printFormSettingsService.snapshotAt(asOfText),
       printFormsRepository.findEmployeeIssuanceDocuments(employee.id),
       printFormsRepository.findEmployeeReturnDocuments(employee.id),
       printFormsRepository.findPositionKitItems(employee.positionId),
@@ -161,6 +165,7 @@ async function loadPersonalCardContext(query) {
   );
   return {
     dpo,
+    parties,
     employee,
     issuanceDocuments,
     returnDocuments,
@@ -677,7 +682,7 @@ function buildPersonalCard(context) {
       {
         index,
         quantity: num(item.quantity) || 1,
-        serviceLifeYears: item.serviceLifeYears ?? inferServiceLifeYears(item.model?.name),
+        serviceLifeYears: item.serviceLifeYears ?? null,
         model: item.model,
       },
     ]),
@@ -702,7 +707,11 @@ function buildPersonalCard(context) {
       unit: model.unit || 'шт.',
       quantity: 1,
       normQuantity: kit?.quantity ?? 1,
-      serviceLifeYears: kit?.serviceLifeYears ?? inferServiceLifeYears(model.name),
+      serviceLifeYears: kit?.serviceLifeYears ?? null,
+      serviceLifeWarning:
+        kit?.serviceLifeYears == null
+          ? `Норматив не задан; ориентировочная подсказка: ${inferServiceLifeYears(model.name)} г.`
+          : null,
       issuedQuantity: 1,
       issuedDate: issueDate,
       returnedQuantity: returnedDate ? 1 : null,
@@ -733,7 +742,10 @@ function buildPersonalCard(context) {
       unit: candidate.unit || 'шт.',
       quantity: num(candidate.quantity) || num(candidate.normQuantity) || 1,
       normQuantity: num(candidate.normQuantity) || num(candidate.quantity) || 1,
-      serviceLifeYears: num(candidate.serviceLifeYears) || inferServiceLifeYears(candidate.name),
+      serviceLifeYears: num(candidate.serviceLifeYears) || null,
+      serviceLifeWarning: candidate.serviceLifeYears
+        ? null
+        : `Норматив не задан; ориентировочная подсказка: ${inferServiceLifeYears(candidate.name)} г.`,
       issuedQuantity: candidate.issuedQuantity == null ? null : num(candidate.issuedQuantity),
       issuedDate: candidate.issuedDate || null,
       returnedQuantity: candidate.returnedQuantity == null ? null : num(candidate.returnedQuantity),
@@ -750,6 +762,10 @@ function buildPersonalCard(context) {
         quantity: kit.quantity,
         normQuantity: kit.quantity,
         serviceLifeYears: kit.serviceLifeYears,
+        serviceLifeWarning:
+          kit.serviceLifeYears == null
+            ? `Норматив не задан; ориентировочная подсказка: ${inferServiceLifeYears(kit.model.name)} г.`
+            : null,
         issuedQuantity: null,
         issuedDate: null,
         returnedQuantity: null,
@@ -878,6 +894,11 @@ export const printFormsService = {
           : await loadContext(query);
     const data = await builder(context);
     data.form = form;
+    data.parties = context.parties;
+    data.generatedAt = new Date().toISOString();
+    data.dataSources = [
+      ...new Set((data.rows ?? []).map((row) => row.dataSourceLabel).filter(Boolean)),
+    ];
     const extension = query.format;
     const buffer = extension === 'pdf' ? await generatePdf(data) : await generateExcel(data);
     return {

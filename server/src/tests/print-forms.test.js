@@ -57,9 +57,13 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     kitId: null,
     instanceIds: [],
     sourceRecordIds: [],
+    partyVersionIds: [],
   };
 
   t.after(async () => {
+    if (state.partyVersionIds.length > 0) {
+      await models.PrintFormParty.destroy({ where: { id: state.partyVersionIds } });
+    }
     if (state.instanceIds.length > 0) {
       await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
     }
@@ -235,6 +239,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     await workbook.xlsx.load(xlsx.body);
     const sheet = workbook.worksheets[0];
     assert.ok(sheet);
+    assert.match(workbook.subject, /Сформировано/);
     const cellValues = [];
     let hasFormula = false;
     sheet.eachRow((row) =>
@@ -270,6 +275,38 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     assert.ok(pdf.body.length > 5000);
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.pdf`), pdf.body);
   }
+
+  const partyVersion = await auth(agent.post('/api/v1/print-form-settings/parties')).send({
+    role: 'executor',
+    effectiveDate: '2026-07-20',
+    fullName: 'ООО «Тестовый исполнитель»',
+    shortName: 'ООО «Тест»',
+    inn: '1234567890',
+    kpp: '123456789',
+    address: 'Тестовый адрес, дом 1',
+    okpo: '12345678',
+    directorFullName: 'Сидоров Сидор Сидорович',
+    directorPosition: 'Генеральный директор',
+    directorBasis: 'Устава',
+  });
+  assert.equal(partyVersion.status, 201);
+  state.partyVersionIds.push(partyVersion.body.data.id);
+
+  async function fpuPartyNames(to) {
+    const response = await auth(agent.get('/api/v1/print-forms/fpu-26'))
+      .query({ dpoId: state.dpoId, from: '2026-07-01', to, format: 'xlsx' })
+      .buffer(true)
+      .parse(binaryParser);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(response.body);
+    const values = [];
+    workbook.worksheets[0].eachRow((row) =>
+      row.eachCell((cell) => values.push(String(cell.value ?? ''))),
+    );
+    return values.join('\n');
+  }
+  assert.match(await fpuPartyNames('2026-07-15'), /Лазурит/);
+  assert.match(await fpuPartyNames('2026-07-31'), /Тестовый исполнитель/);
 
   const secondPriceSource = await models.SourceImportRecord.create({
     sourceKey: `print-form-second-price-${Date.now()}`,

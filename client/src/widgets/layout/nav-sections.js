@@ -95,7 +95,10 @@ export const NAV_SECTIONS = [
   {
     title: 'Администрирование',
     permission: 'admin.manage',
-    items: [{ to: '/admin/users', label: 'Пользователи' }],
+    items: [
+      { to: '/admin/users', label: 'Пользователи' },
+      { to: '/admin/print-form-settings', label: 'Реквизиты печатных форм' },
+    ],
   },
 ];
 

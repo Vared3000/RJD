@@ -1,24 +1,6 @@
 import ExcelJS from 'exceljs';
 import { fileURLToPath } from 'node:url';
 
-const EXECUTOR = {
-  name: 'Общество с ограниченной ответственностью «Лазурит»',
-  shortName: 'ООО «Лазурит»',
-  address:
-    '188309, Ленинградская область, м.р-н Гатчинский, г.п. Гатчинское, г. Гатчина, ул. Новосёлов, дом 7А, помещ. 52',
-  okpo: '31078898',
-  directorFullName: 'Просовикова Наталья Сергеевна',
-  directorInitials: 'Н.С. Просовикова',
-  directorSurnameInitials: 'Просовикова Н.С.',
-  directorBasis: 'Устава',
-};
-
-const CUSTOMER = {
-  fullName:
-    'Открытое акционерное общество «Российские железные дороги», 107174, г. Москва, вн.тер.г. муниципальный округ Басманный, ул. Новая Басманная, д. 2/1, стр. 1',
-  okpo: '00083262',
-};
-
 const TEMPLATE_CONFIG = {
   'fpu-26': {
     file: 'fpu-26.xlsx',
@@ -319,6 +301,11 @@ function dpoWithAddress(dpo) {
   return `${fullName}, ${dpo.address}`;
 }
 
+function partyWithAddress(party) {
+  if (!party.address || party.fullName.includes(party.address)) return party.fullName;
+  return `${party.fullName}, ${party.address}`;
+}
+
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('ru-RU', {
     minimumFractionDigits: 2,
@@ -459,23 +446,25 @@ function mergeGroups(sheet, rows, dataStart, keyBuilder, columns) {
 
 function fillFpu26(sheet, data, positions) {
   const director = data.dpo.directorFullName || '';
+  const executor = data.parties.executor;
+  const customer = data.parties.customer;
   sheet.getColumn(7).hidden = false;
-  set(sheet, 'B7', CUSTOMER.fullName.replaceAll('«', '"').replaceAll('»', '"'));
+  set(sheet, 'B7', partyWithAddress(customer).replaceAll('«', '"').replaceAll('»', '"'));
   set(sheet, 'A9', dpoWithAddress(data.dpo));
-  set(sheet, 'B11', EXECUTOR.name.replaceAll('«', '"').replaceAll('»', '"'));
-  set(sheet, 'A13', EXECUTOR.address);
-  set(sheet, 'L6', CUSTOMER.okpo);
+  set(sheet, 'B11', executor.fullName.replaceAll('«', '"').replaceAll('»', '"'));
+  set(sheet, 'A13', executor.address);
+  set(sheet, 'L6', customer.okpo);
   set(sheet, 'L8', data.dpo.businessUnitCode || '-');
-  set(sheet, 'L10', EXECUTOR.okpo);
+  set(sheet, 'L10', executor.okpo);
   set(sheet, 'L12', '-');
   set(sheet, 'H16', formatDate(data.to));
   set(sheet, 'A19', contractLine(data.dpo));
   set(
     sheet,
     'A24',
-    `Генеральный директор  ${EXECUTOR.shortName.replaceAll('«', '"').replaceAll('»', '"')} ${EXECUTOR.directorFullName}`,
+    `${executor.directorPosition}  ${executor.shortName.replaceAll('«', '"').replaceAll('»', '"')} ${executor.directorFullName}`,
   );
-  set(sheet, 'C26', EXECUTOR.directorBasis);
+  set(sheet, 'C26', executor.directorBasis);
   set(sheet, 'C28', `начальник ${unitGenitive(data.dpo)}`);
   set(sheet, 'A29', director);
   set(sheet, 'C31', data.dpo.directorBasis || '');
@@ -559,12 +548,14 @@ function fillFpu26(sheet, data, positions) {
 function commonNarrative(data, verb) {
   const director = data.dpo.directorFullName || '';
   const contractDate = data.dpo.contractDate ? formatDate(data.dpo.contractDate) : '';
+  const executor = data.parties.executor;
+  const customer = data.parties.customer;
   return (
-    `Открытое акционерное общество «Российские железные дороги», именуемое в дальнейшем Заказчик, ` +
+    `${customer.fullName}, именуемое в дальнейшем Заказчик, ` +
     `в лице начальника ${unitGenitive(data.dpo)} ${fullNameGenitive(director)}, ` +
     `действующего на основании ${data.dpo.directorBasis || 'доверенности'}, с одной стороны, ` +
-    `и ${EXECUTOR.name}, именуемое в дальнейшем «Исполнитель», в лице Генерального директора ` +
-    `${fullNameGenitive(EXECUTOR.directorFullName)}, действующей на основании ${EXECUTOR.directorBasis}, ` +
+    `и ${executor.fullName}, именуемое в дальнейшем «Исполнитель», в лице ${executor.directorPosition} ` +
+    `${fullNameGenitive(executor.directorFullName)}, действующего на основании ${executor.directorBasis}, ` +
     `${verb} к договору от ${contractDate} № ${data.dpo.contractNumber || ''}, заключенному между Сторонами, ` +
     'о нижеследующем:'
   );
@@ -743,7 +734,7 @@ function fillPersonalCard(sheet, data, positions) {
     'A4',
     `Структурное подразделение Центральной дирекции пассажирских обустройств ${unitNominative(data.dpo)}`,
   );
-  set(sheet, 'A5', `От Исполнителя: ${EXECUTOR.shortName}`);
+  set(sheet, 'A5', `От Исполнителя: ${data.parties.executor.shortName}`);
   set(sheet, 'A6', `Работник Заказчика: ${employee.fullName}${personnel}   должность: ${position}`);
   set(sheet, 'A7', `Индивидуальные размеры одежды: ${clothing}`);
   set(sheet, 'E7', `Индивидуальные размеры перчатки: ${data.glovesSize || ''}`);
@@ -767,7 +758,8 @@ function fillPersonalCard(sheet, data, positions) {
     set(sheet, `C${rowNumber}`, row.unit || 'шт.');
     set(sheet, `D${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `E${rowNumber}`, Number(row.normQuantity || 0));
-    set(sheet, `F${rowNumber}`, Number(row.serviceLifeYears || 0));
+    set(sheet, `F${rowNumber}`, row.serviceLifeYears == null ? null : Number(row.serviceLifeYears));
+    if (row.serviceLifeWarning) sheet.getCell(`F${rowNumber}`).note = row.serviceLifeWarning;
     sheet.getCell(`G${rowNumber}`).value =
       row.issuedQuantity == null ? null : Number(row.issuedQuantity);
     sheet.getCell(`H${rowNumber}`).value = row.issuedDate ? formatDate(row.issuedDate) : null;
@@ -802,6 +794,11 @@ export async function generateExcel(data) {
   const positions = prepareDataRows(sheet, config, data.rows.length);
   fill(sheet, data, positions);
   sheet.views = [{ showGridLines: false }];
+  const sourceText = data.dataSources?.length ? data.dataSources.join(', ') : 'расчётные данные';
+  const generatedText = `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${sourceText}`;
+  workbook.subject = generatedText;
+  sheet.headerFooter = { ...(sheet.headerFooter ?? {}), oddFooter: `&L${generatedText}` };
+  sheet.getCell('A1').note = generatedText;
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

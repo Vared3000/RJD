@@ -41,6 +41,7 @@ import { defineDpoHistory } from './dpo-history.model.js';
 import { defineSourceImportRecord } from './source-import-record.model.js';
 import { defineNomenclaturePrice } from './nomenclature-price.model.js';
 import { defineEmployeeMeasurement } from './employee-measurement.model.js';
+import { definePrintFormParty } from './print-form-party.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -84,6 +85,7 @@ const DpoHistory = defineDpoHistory(sequelize);
 const SourceImportRecord = defineSourceImportRecord(sequelize);
 const NomenclaturePrice = defineNomenclaturePrice(sequelize);
 const EmployeeMeasurement = defineEmployeeMeasurement(sequelize);
+const PrintFormParty = definePrintFormParty(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -322,6 +324,8 @@ SourceImportRecord.hasMany(EmployeeMeasurement, {
   foreignKey: 'sourceRecordId',
   as: 'employeeMeasurements',
 });
+
+PrintFormParty.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdByUser' });
 EmployeeMeasurement.belongsTo(SourceImportRecord, {
   foreignKey: 'sourceRecordId',
   as: 'sourceRecord',
@@ -370,6 +374,7 @@ export const models = {
   SourceImportRecord,
   NomenclaturePrice,
   EmployeeMeasurement,
+  PrintFormParty,
 };
 
 export { sequelize };
