@@ -30,6 +30,7 @@ import { createRepairRouter } from './modules/repair/repair.routes.js';
 import { createTransferRouter } from './modules/transfers/transfer.routes.js';
 import { createWriteoffRouter } from './modules/writeoff/writeoff.routes.js';
 import { createInventoryRouter } from './modules/inventory/inventory.routes.js';
+import { createAdjustmentsRouter } from './modules/adjustments/adjustment.routes.js';
 import { createDpoRouter } from './modules/dpo/dpo.routes.js';
 import { createReportsRouter } from './modules/reports/reports.routes.js';
 import { createPrintFormsRouter } from './modules/print-forms/print-forms.routes.js';
@@ -73,6 +74,7 @@ export function createApp() {
   app.use('/api/v1/transfers/documents', createTransferRouter());
   app.use('/api/v1/writeoff/documents', createWriteoffRouter());
   app.use('/api/v1/inventory/documents', createInventoryRouter());
+  app.use('/api/v1/adjustments/documents', createAdjustmentsRouter());
   app.use('/api/v1/dpo', createDpoRouter());
   app.use('/api/v1/reports', createReportsRouter());
   app.use('/api/v1/print-forms', createPrintFormsRouter());

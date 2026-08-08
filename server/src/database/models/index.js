@@ -33,6 +33,8 @@ import { defineWriteoffDocument } from './writeoff-document.model.js';
 import { defineWriteoffLine } from './writeoff-line.model.js';
 import { defineInventoryDocument } from './inventory-document.model.js';
 import { defineInventoryLine } from './inventory-line.model.js';
+import { defineStockAdjustment } from './stock-adjustment.model.js';
+import { defineStockAdjustmentLine } from './stock-adjustment-line.model.js';
 import { defineDpo } from './dpo.model.js';
 import { defineDpoHistory } from './dpo-history.model.js';
 import { defineSourceImportRecord } from './source-import-record.model.js';
@@ -73,6 +75,8 @@ const WriteoffDocument = defineWriteoffDocument(sequelize);
 const WriteoffLine = defineWriteoffLine(sequelize);
 const InventoryDocument = defineInventoryDocument(sequelize);
 const InventoryLine = defineInventoryLine(sequelize);
+const StockAdjustment = defineStockAdjustment(sequelize);
+const StockAdjustmentLine = defineStockAdjustmentLine(sequelize);
 const Dpo = defineDpo(sequelize);
 const DpoHistory = defineDpoHistory(sequelize);
 const SourceImportRecord = defineSourceImportRecord(sequelize);
@@ -258,6 +262,27 @@ InventoryDocument.hasMany(InventoryLine, { foreignKey: 'documentId', as: 'lines'
 InventoryLine.belongsTo(InventoryDocument, { foreignKey: 'documentId', as: 'document' });
 InventoryLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 
+// Документ "Корректировка" (задача 7 docs/IMPROVEMENT_PLAN.md) — 4 типа строк
+// (surplus/shortage/relocate/condition), draft/posted. Может опираться на
+// завершённую Инвентаризацию (ссылка на построчном уровне — inventoryDocumentId
+// у конкретной строки, не у шапки, т.к. документ может сочетать строки из
+// инвентаризации и добавленные вручную).
+StockAdjustment.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+StockAdjustment.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
+StockAdjustment.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+
+StockAdjustment.hasMany(StockAdjustmentLine, { foreignKey: 'documentId', as: 'lines' });
+StockAdjustmentLine.belongsTo(StockAdjustment, { foreignKey: 'documentId', as: 'document' });
+StockAdjustmentLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+StockAdjustmentLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+StockAdjustmentLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+StockAdjustmentLine.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
+StockAdjustmentLine.belongsTo(Warehouse, { foreignKey: 'toWarehouseId', as: 'toWarehouse' });
+StockAdjustmentLine.belongsTo(InventoryDocument, {
+  foreignKey: 'inventoryDocumentId',
+  as: 'inventoryDocument',
+});
+
 // ДПО заказчика (раздел 10 ТЗ) — работник может быть привязан к ДПО;
 // история изменений ДПО — отдельная таблица (см. dpo-history.model.js).
 Dpo.hasMany(Employee, { foreignKey: 'dpoId', as: 'employees' });
@@ -327,6 +352,8 @@ export const models = {
   WriteoffLine,
   InventoryDocument,
   InventoryLine,
+  StockAdjustment,
+  StockAdjustmentLine,
   Dpo,
   DpoHistory,
   SourceImportRecord,

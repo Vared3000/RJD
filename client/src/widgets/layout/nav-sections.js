@@ -68,6 +68,7 @@ export const NAV_SECTIONS = [
       { to: '/transfers/documents', label: 'Перемещение', permission: 'transfers.manage' },
       { to: '/inventory/documents', label: 'Инвентаризация', permission: 'inventory.manage' },
       { to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' },
+      { to: '/adjustments/documents', label: 'Корректировка', permission: 'adjustments.manage' },
     ],
   },
   {

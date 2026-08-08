@@ -8,6 +8,7 @@ import {
   updateHeaderFields,
   updateHeaderSchema,
 } from '../../features/inventory/model/header-schema.js';
+import { useAdjustmentMutations } from '../../features/adjustments/model/use-adjustment-queries.js';
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
@@ -27,10 +28,14 @@ export function InventoryEditorPage() {
   const navigate = useNavigate();
   const { data: document, isLoading } = useInventoryDocument(id);
   const { update, remove, updateLine, removeLine, complete } = useInventoryMutations(id);
+  const { createFromInventory } = useAdjustmentMutations();
   const [editingHeader, setEditingHeader] = useState(false);
   const [confirmingComplete, setConfirmingComplete] = useState(false);
   const canManage = useSessionStore((state) =>
     state.user?.permissions?.includes('inventory.manage'),
+  );
+  const canAdjust = useSessionStore((state) =>
+    state.user?.permissions?.includes('adjustments.manage'),
   );
 
   if (isLoading || !document) {
@@ -60,6 +65,14 @@ export function InventoryEditorPage() {
     navigate('/inventory/documents');
   }
 
+  async function handleCreateAdjustment() {
+    const adjustment = await createFromInventory.mutateAsync({
+      inventoryDocumentId: id,
+      payload: {},
+    });
+    navigate(`/adjustments/documents/${adjustment.id}`);
+  }
+
   return (
     <div className={catalogStyles.page}>
       <div className={catalogStyles.header}>
@@ -78,7 +91,20 @@ export function InventoryEditorPage() {
             <Button onClick={() => setConfirmingComplete(true)}>Завершить</Button>
           </div>
         )}
+        {!isDraft && canAdjust && summary.missing > 0 && (
+          <div className={styles.headerActions}>
+            <Button onClick={handleCreateAdjustment} disabled={createFromInventory.isPending}>
+              {createFromInventory.isPending ? 'Создание…' : 'Создать корректировку'}
+            </Button>
+          </div>
+        )}
       </div>
+      {createFromInventory.isError && (
+        <p className={catalogStyles.formError}>
+          {createFromInventory.error?.response?.data?.error?.message ||
+            'Не удалось создать корректировку'}
+        </p>
+      )}
 
       <div className={styles.summary}>
         <div>

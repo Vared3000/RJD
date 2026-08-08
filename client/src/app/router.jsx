@@ -32,6 +32,8 @@ import { WriteoffListPage } from '../pages/writeoff/WriteoffListPage.jsx';
 import { WriteoffEditorPage } from '../pages/writeoff/WriteoffEditorPage.jsx';
 import { InventoryListPage } from '../pages/inventory/InventoryListPage.jsx';
 import { InventoryEditorPage } from '../pages/inventory/InventoryEditorPage.jsx';
+import { AdjustmentListPage } from '../pages/adjustments/AdjustmentListPage.jsx';
+import { AdjustmentEditorPage } from '../pages/adjustments/AdjustmentEditorPage.jsx';
 import { ReportEmployeesPage } from '../pages/reports/ReportEmployeesPage.jsx';
 import { ReportDpoPage } from '../pages/reports/ReportDpoPage.jsx';
 import { ReportPurchasesPage } from '../pages/reports/ReportPurchasesPage.jsx';
@@ -100,6 +102,8 @@ export function AppRouter() {
         <Route path="writeoff/documents/:id" element={<WriteoffEditorPage />} />
         <Route path="inventory/documents" element={<InventoryListPage />} />
         <Route path="inventory/documents/:id" element={<InventoryEditorPage />} />
+        <Route path="adjustments/documents" element={<AdjustmentListPage />} />
+        <Route path="adjustments/documents/:id" element={<AdjustmentEditorPage />} />
         <Route path="reports/employees" element={<ReportEmployeesPage />} />
         <Route path="reports/dpo" element={<ReportDpoPage />} />
         <Route path="reports/purchases" element={<ReportPurchasesPage />} />

@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   { code: 'laundry.manage', description: 'Стирка' },
   { code: 'repair.manage', description: 'Ремонт' },
   { code: 'writeoff.manage', description: 'Списание' },
+  { code: 'adjustments.manage', description: 'Корректировка остатков' },
   { code: 'reports.view', description: 'Просмотр отчётов' },
   { code: 'print_forms.use', description: 'Формирование печатных форм' },
   { code: 'admin.manage', description: 'Администрирование системы (пользователи, роли)' },
@@ -51,6 +52,7 @@ export const ROLE_DEFINITIONS = [
       'laundry.manage',
       'repair.manage',
       'writeoff.manage',
+      'adjustments.manage',
     ],
   },
   {

@@ -161,6 +161,7 @@ app → pages → widgets → features → shared
 | Выдача/Возврат | issuance |
 | Перемещение | transfers |
 | Инвентаризация | inventory |
+| Корректировка | adjustments |
 | Стирка | laundry |
 | Ремонт | repair |
 | Списание | writeoff |
