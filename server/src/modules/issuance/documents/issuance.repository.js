@@ -144,6 +144,14 @@ export const issuanceRepository = {
     return models.Size.findOne({ where: { id, archivedAt: null }, transaction });
   },
 
+  findEmployeeDpo(employeeId, { transaction } = {}) {
+    return Employee.findByPk(employeeId, { attributes: ['id', 'dpoId'], transaction });
+  },
+
+  async savePriceSnapshot(lineId, snapshot, { transaction }) {
+    await IssuanceLine.update(snapshot, { where: { id: lineId }, transaction });
+  },
+
   // Подбор экземпляров под строку при проведении — FOR UPDATE SKIP LOCKED,
   // чтобы два одновременно проводимых документа Выдачи не забрали один и
   // тот же экземпляр (без SKIP LOCKED второй запрос просто ждал бы

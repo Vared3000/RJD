@@ -205,6 +205,7 @@ IssuanceLine.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'docume
 IssuanceLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
 IssuanceLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
 IssuanceLine.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
+IssuanceLine.belongsTo(NomenclaturePrice, { foreignKey: 'priceSourceId', as: 'priceSource' });
 
 // Документ "Возврат": шапка -> строки (конкретный экземпляр + состояние при
 // возврате), в отличие от "Выдачи" — по экземплярам, не по модели/размеру,

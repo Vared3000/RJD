@@ -7,6 +7,7 @@ import {
   buildInstanceEvent,
   instanceEventsRepository,
 } from '../../nomenclature/instances/instance-events.repository.js';
+import { priceRepository } from '../../nomenclature/prices/price.repository.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -93,6 +94,20 @@ function assertNoDuplicateLine(lines, { modelId, sizeId, heightSizeId }, exclude
 
 function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
+}
+
+function priceSnapshot(price) {
+  if (!price) return null;
+  const withoutVat = Number(price.priceWithoutVat);
+  const withVat = price.priceWithVat == null ? null : Number(price.priceWithVat);
+  const derivedVat = withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : 5;
+  return {
+    priceSourceId: price.id,
+    priceEffectiveDate: price.effectiveDate,
+    priceWithoutVatSnapshot: withoutVat,
+    vatRateSnapshot: Number(price.vatRate ?? derivedVat),
+    priceWithVatSnapshot: withVat,
+  };
 }
 
 async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
@@ -349,8 +364,23 @@ export const issuanceService = {
       const allInstanceIds = [];
       const movementRows = [];
       const eventRows = [];
+      const employee = await issuanceRepository.findEmployeeDpo(document.employeeId, {
+        transaction,
+      });
 
       for (const line of document.lines) {
+        const applicablePrice = await priceRepository.findApplicable(
+          {
+            modelId: line.modelId,
+            dpoId: employee?.dpoId ?? null,
+            operationDate: document.documentDate,
+          },
+          { transaction },
+        );
+        const snapshot = priceSnapshot(applicablePrice);
+        if (snapshot) {
+          await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
+        }
         const instances = await issuanceRepository.findAvailableInstances(
           {
             modelId: line.modelId,

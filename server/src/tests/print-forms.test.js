@@ -52,6 +52,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     receivingId: null,
     batchId: null,
     issuanceId: null,
+    secondIssuanceId: null,
     returnId: null,
     kitId: null,
     instanceIds: [],
@@ -64,6 +65,9 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     }
     if (state.issuanceId) {
       await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
+    }
+    if (state.secondIssuanceId) {
+      await models.IssuanceDocument.destroy({ where: { id: state.secondIssuanceId } });
     }
     if (state.returnId) {
       await models.ReturnDocument.destroy({ where: { id: state.returnId } });
@@ -177,7 +181,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   await auth(agent.post(`/api/v1/purchases/receiving/${state.receivingId}/lines`)).send({
     modelId: state.modelId,
     sizeId: state.sizeId,
-    quantity: 2,
+    quantity: 3,
     purchasePrice: 1000,
   });
   const receivingPosted = await auth(
@@ -267,6 +271,72 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.pdf`), pdf.body);
   }
 
+  const secondPriceSource = await models.SourceImportRecord.create({
+    sourceKey: `print-form-second-price-${Date.now()}`,
+    sourceFile: 'second-price.xlsx',
+    fileHash: '9'.repeat(64),
+    recordType: 'price',
+    sheetName: 'Тест',
+    rowNumber: 2,
+    payload: { test: true },
+  });
+  state.sourceRecordIds.push(secondPriceSource.id);
+  const secondPrice = await models.NomenclaturePrice.create({
+    modelId: state.modelId,
+    dpoId: state.dpoId,
+    sourceRecordId: secondPriceSource.id,
+    effectiveDate: '2026-07-20',
+    priceWithoutVat: 2000,
+    vatRate: 5,
+    priceWithVat: 2100,
+  });
+  const secondIssuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: state.employeeId,
+    warehouseId: state.warehouseId,
+    documentDate: '2026-07-25',
+  });
+  state.secondIssuanceId = secondIssuance.body.data.id;
+  await auth(agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/lines`)).send({
+    modelId: state.modelId,
+    sizeId: state.sizeId,
+    quantity: 1,
+  });
+  const secondIssuancePosted = await auth(
+    agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/post`),
+  );
+  assert.equal(secondIssuancePosted.status, 200);
+
+  const snapshottedLines = await models.IssuanceLine.findAll({
+    where: { documentId: [state.issuanceId, state.secondIssuanceId] },
+    order: [['priceWithoutVatSnapshot', 'ASC']],
+  });
+  assert.deepEqual(
+    snapshottedLines.map((line) => Number(line.priceWithoutVatSnapshot)),
+    [1000, 2000],
+  );
+  await models.NomenclaturePrice.update(
+    { priceWithoutVat: 9999, priceWithVat: 10498.95 },
+    { where: { id: secondPrice.id } },
+  );
+  const historicalPrices = await auth(agent.get('/api/v1/print-forms/appendix-1-7'))
+    .query({
+      dpoId: state.dpoId,
+      from: '2026-07-01',
+      to: '2026-07-31',
+      format: 'xlsx',
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(historicalPrices.status, 200);
+  const historicalWorkbook = new ExcelJS.Workbook();
+  await historicalWorkbook.xlsx.load(historicalPrices.body);
+  const historicalValues = [];
+  historicalWorkbook.worksheets[0].getColumn(8).eachCell((cell) => {
+    if (typeof cell.value === 'number') historicalValues.push(cell.value);
+  });
+  assert.equal(historicalValues.filter((value) => value === 1000).length, 2);
+  assert.equal(historicalValues.filter((value) => value === 2000).length, 1);
+
   const mixedArchivePayloads = [
     {
       type: 'nomenclature',
@@ -330,7 +400,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   });
   assert.equal(
     mixedModels.filter((value) => value === unique).length,
-    2,
+    3,
     'архивная копия живой выдачи не должна создавать третью строку',
   );
   assert.ok(mixedModels.includes(`${unique} смешанный архив`));
@@ -386,6 +456,8 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   state.returnId = null;
   await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
   state.issuanceId = null;
+  await models.IssuanceDocument.destroy({ where: { id: state.secondIssuanceId } });
+  state.secondIssuanceId = null;
   await models.Instance.destroy({ where: { id: state.instanceIds } });
   state.instanceIds = [];
 

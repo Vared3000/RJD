@@ -47,20 +47,27 @@ async function dpoSnapshotAt(dpoId, asOf) {
   return snapshot;
 }
 
-function selectPrices(prices, modelIds, dpoId, to) {
-  const dateLimit = toDateOnly(to);
-  const result = new Map();
-  for (const modelId of modelIds) {
-    const eligible = prices.filter(
-      (price) =>
-        price.modelId === modelId && (!price.effectiveDate || price.effectiveDate <= dateLimit),
-    );
-    const selected =
-      eligible.find((price) => price.dpoId === dpoId) ??
-      eligible.find((price) => price.dpoId == null);
-    if (selected) result.set(modelId, selected);
+function selectPriceAt(prices, modelId, dpoId, operationDate) {
+  const eligible = prices.filter(
+    (price) =>
+      price.modelId === modelId && (!price.effectiveDate || price.effectiveDate <= operationDate),
+  );
+  return (
+    eligible.find((price) => price.dpoId === dpoId) ?? eligible.find((price) => price.dpoId == null)
+  );
+}
+
+function priceForLine(context, document, line) {
+  if (line.priceWithoutVatSnapshot != null) {
+    return {
+      priceWithoutVat: line.priceWithoutVatSnapshot,
+      priceWithVat: line.priceWithVatSnapshot,
+      vatRate: line.vatRateSnapshot,
+      effectiveDate: line.priceEffectiveDate,
+      id: line.priceSourceId,
+    };
   }
-  return result;
+  return selectPriceAt(context.prices, line.modelId, context.dpo.id, String(document.documentDate));
 }
 
 function priceValues(price, fallback = 0) {
@@ -104,7 +111,7 @@ async function loadContext(query) {
     to,
     fromText: toDateOnly(from),
     toText: toDateOnly(to),
-    priceByModel: selectPrices(prices, modelIds, query.dpoId, to),
+    prices,
     importedNomenclature,
   };
 }
@@ -213,7 +220,7 @@ function importedCandidates(context, withEmployee) {
 function buildFpu26(context) {
   const grouped = new Map();
   const addRow = ({ modelId, modelName, article, unit, quantity, sourcePrice, source }) => {
-    const price = sourcePrice ?? priceValues(context.priceByModel.get(modelId));
+    const price = sourcePrice ?? priceValues();
     const key = `${modelId ?? modelName}\u0000${price.priceWithoutVat}\u0000${price.vatRate}`;
     const row = grouped.get(key) ?? {
       modelName,
@@ -258,6 +265,7 @@ function buildFpu26(context) {
       article: line.model?.article,
       unit: line.model?.unit,
       quantity: line.quantity,
+      sourcePrice: priceValues(priceForLine(context, entry.document, line)),
       source: sourceFields(entry),
     });
   }
@@ -377,7 +385,7 @@ async function buildAppendix15(context) {
   const grouped = new Map();
   for (const entry of retainedLive) {
     const { document, line } = entry;
-    const price = priceValues(context.priceByModel.get(line.modelId));
+    const price = priceValues(priceForLine(context, document, line));
     const positionName = document.employee?.position?.name ?? 'Должность не указана';
     const key = `${positionName}\u0000${line.modelId}\u0000${price.priceWithoutVat}`;
     const row = grouped.get(key) ?? {
@@ -537,7 +545,7 @@ async function buildAppendix17(context) {
   const rows = [];
   for (const entry of retainedLive) {
     const { document, line } = entry;
-    const price = priceValues(context.priceByModel.get(line.modelId));
+    const price = priceValues(priceForLine(context, document, line));
     const instances = byDocumentModel.get(`${document.id}\u0000${line.modelId}`) ?? [];
     const lineInstances = instances.length > 0 ? instances : Array(line.quantity).fill(null);
     for (const instance of lineInstances) {
