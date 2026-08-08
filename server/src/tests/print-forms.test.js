@@ -58,9 +58,13 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     instanceIds: [],
     sourceRecordIds: [],
     partyVersionIds: [],
+    monthlyActIds: [],
   };
 
   t.after(async () => {
+    if (state.monthlyActIds.length > 0) {
+      await models.MonthlyRentalAct.destroy({ where: { id: state.monthlyActIds } });
+    }
     if (state.partyVersionIds.length > 0) {
       await models.PrintFormParty.destroy({ where: { id: state.partyVersionIds } });
     }
@@ -487,6 +491,53 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     await writeFile(path.join(qaDirectory, 'personal-card.xlsx'), personalCard.body);
     await writeFile(path.join(qaDirectory, 'personal-card.pdf'), personalPdf.body);
   }
+
+  const augustPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
+    dpoId: state.dpoId,
+    month: '2026-08',
+  });
+  assert.equal(augustPreview.status, 200);
+  assert.equal(augustPreview.body.data.finalized, false);
+  assert.equal(augustPreview.body.data.rows.length, 2);
+  assert.deepEqual(
+    augustPreview.body.data.rows.map((row) => row.rentalDays),
+    [31, 31],
+  );
+  assert.equal(augustPreview.body.data.totals.costWithoutVat, 19998);
+
+  const monthlyExcel = await auth(agent.get('/api/v1/print-forms/monthly-rental'))
+    .query({ dpoId: state.dpoId, month: '2026-08', format: 'xlsx' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(monthlyExcel.status, 200);
+  assert.equal(monthlyExcel.body.subarray(0, 2).toString(), 'PK');
+  const monthlyWorkbook = new ExcelJS.Workbook();
+  await monthlyWorkbook.xlsx.load(monthlyExcel.body);
+  assert.ok(monthlyWorkbook.worksheets[0].rowCount > 5);
+
+  const fixedPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
+    dpoId: state.dpoId,
+    month: '2026-08',
+  });
+  assert.equal(fixedPreview.body.data.finalized, true);
+  state.monthlyActIds.push(fixedPreview.body.data.actId);
+  await models.NomenclaturePrice.update(
+    { priceWithoutVat: 1234, priceWithVat: 1295.7 },
+    { where: { id: secondPrice.id } },
+  );
+  const frozenPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
+    dpoId: state.dpoId,
+    month: '2026-08',
+  });
+  assert.equal(frozenPreview.body.data.totals.costWithoutVat, 19998);
+
+  const monthlyPdf = await auth(agent.get('/api/v1/print-forms/monthly-rental'))
+    .query({ dpoId: state.dpoId, month: '2026-08', format: 'pdf' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(monthlyPdf.status, 200);
+  assert.equal(monthlyPdf.body.subarray(0, 4).toString(), '%PDF');
+  assert.ok(monthlyPdf.body.length > 5000);
 
   await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
   await models.ReturnDocument.destroy({ where: { id: state.returnId } });

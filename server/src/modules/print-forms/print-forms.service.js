@@ -11,6 +11,7 @@ import {
   sourceFields,
 } from './print-form-data-sources.js';
 import { printFormSettingsService } from './settings/print-form-settings.service.js';
+import { monthlyRentalService } from './monthly-rental/monthly-rental.service.js';
 
 const num = (value) => Number(value ?? 0);
 // В архивных Excel-актах встречаются цены с пятью знаками после запятой.
@@ -877,7 +878,10 @@ const BUILDERS = {
 };
 
 export const printFormsService = {
-  async generate(form, query) {
+  async generate(form, query, requestContext = {}) {
+    if (form === 'monthly-rental') {
+      return monthlyRentalService.generate({ ...query, userId: requestContext.userId });
+    }
     const builder = BUILDERS[form];
     if (!builder) throw ApiError.notFound('Печатная форма не найдена');
     if (form !== 'personal-card' && (!query.dpoId || !query.from || !query.to)) {

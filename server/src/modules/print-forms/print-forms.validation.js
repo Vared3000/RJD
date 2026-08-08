@@ -13,4 +13,11 @@ export const printFormQuerySchema = z.object({
   from: optionalDate('Некорректная дата начала'),
   to: optionalDate('Некорректная дата окончания'),
   format: z.enum(['xlsx', 'pdf']).default('xlsx'),
+  month: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
+  ),
 });

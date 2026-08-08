@@ -113,6 +113,63 @@ export function createEmployeesRouter() {
         attributes: ['id', 'sizeType', 'value'],
       },
     ],
+    mutationHooks: {
+      sequelize: models.Employee.sequelize,
+      async afterCreate(employee, { userId, transaction }) {
+        if (!employee.dpoId) return;
+        await models.EmployeeDpoAssignment.create(
+          {
+            employeeId: employee.id,
+            dpoId: employee.dpoId,
+            validFrom: employee.hireDate ?? new Date().toISOString().slice(0, 10),
+            changedByUserId: userId,
+          },
+          { transaction },
+        );
+      },
+      async afterUpdate(current, employee, data, { userId, transaction }) {
+        if (
+          !Object.prototype.hasOwnProperty.call(data, 'dpoId') ||
+          current.dpoId === employee.dpoId
+        ) {
+          return;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const activeAssignment = await models.EmployeeDpoAssignment.findOne({
+          where: { employeeId: employee.id, validTo: null },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        if (activeAssignment?.validFrom === today) {
+          if (employee.dpoId) {
+            await activeAssignment.update(
+              { dpoId: employee.dpoId, changedByUserId: userId },
+              { transaction },
+            );
+          } else {
+            await activeAssignment.destroy({ transaction });
+          }
+          return;
+        }
+        const previousDate = new Date(`${today}T00:00:00Z`);
+        previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+        await models.EmployeeDpoAssignment.update(
+          { validTo: previousDate.toISOString().slice(0, 10) },
+          { where: { employeeId: employee.id, validTo: null }, transaction },
+        );
+        if (employee.dpoId) {
+          await models.EmployeeDpoAssignment.create(
+            {
+              employeeId: employee.id,
+              dpoId: employee.dpoId,
+              validFrom: today,
+              changedByUserId: userId,
+            },
+            { transaction },
+          );
+        }
+      },
+    },
   });
 
   extendSwaggerPaths(

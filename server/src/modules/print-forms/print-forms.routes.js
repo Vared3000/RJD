@@ -8,6 +8,7 @@ import { printFormsController } from './print-forms.controller.js';
 export function createPrintFormsRouter() {
   const router = Router();
   router.use(requireAuth, requirePermission('print_forms.use'));
+  router.get('/monthly-rental/preview', asyncHandler(printFormsController.previewMonthlyRental));
   router.get('/:form', asyncHandler(printFormsController.generate));
 
   extendSwaggerPaths({
@@ -22,7 +23,14 @@ export function createPrintFormsRouter() {
             required: true,
             schema: {
               type: 'string',
-              enum: ['fpu-26', 'appendix-1-5', 'appendix-1-7', 'personal-card', 'upd'],
+              enum: [
+                'fpu-26',
+                'appendix-1-5',
+                'appendix-1-7',
+                'personal-card',
+                'upd',
+                'monthly-rental',
+              ],
             },
           },
           {

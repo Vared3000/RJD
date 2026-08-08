@@ -6,6 +6,21 @@ import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models, sequelize } from '../database/models/index.js';
 
+async function waitForReceivingLockWaiters(minimum) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [rows] = await sequelize.query(`
+      SELECT COUNT(*)::int AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+        AND query ILIKE '%receiving_documents%'
+    `);
+    if (Number(rows[0]?.count ?? 0) >= minimum) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Не дождались ${minimum} ожидающих блокировку запросов поступления`);
+}
+
 async function loginAsAdmin(agent) {
   const res = await agent
     .post('/api/v1/auth/login')
@@ -97,13 +112,13 @@ test('поступление: черновик -> строки -> проведе
   const postPromise = auth(agent.post(`/api/v1/purchases/receiving/${documentId}/post`)).then(
     (response) => response,
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await waitForReceivingLockWaiters(1);
   const concurrentEditPromise = auth(
     agent.patch(`/api/v1/purchases/receiving/${documentId}/lines/${lineId}`),
   )
     .send({ quantity: 4 })
     .then((response) => response);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await waitForReceivingLockWaiters(2);
   await blocker.commit();
 
   const [posted, concurrentEdit] = await Promise.all([postPromise, concurrentEditPromise]);

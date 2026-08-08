@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
-import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import {
+  downloadPrintForm,
+  previewMonthlyRental,
+} from '../../features/print-forms/api/print-forms-api.js';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { Button } from '../../shared/ui/Button.jsx';
@@ -44,6 +47,8 @@ export function PrintFormsPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
+  const [rentalMonth, setRentalMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [rentalPreview, setRentalPreview] = useState(null);
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
   const { data: employees } = createCatalogHooks('employees').useList(false);
 
@@ -66,6 +71,40 @@ export function PrintFormsPage() {
         requestError.response?.data?.message ??
           'Не удалось сформировать файл. Проверьте период и реквизиты ДПО.',
       );
+    } finally {
+      setPending('');
+    }
+  }
+
+  async function previewRental() {
+    if (!dpoId) {
+      setError('Сначала выберите ДПО');
+      return;
+    }
+    setPending('monthly-rental:preview');
+    setError('');
+    try {
+      setRentalPreview(await previewMonthlyRental({ dpoId, month: rentalMonth }));
+    } catch (requestError) {
+      setError(requestError.response?.data?.message ?? 'Не удалось рассчитать ежемесячный акт.');
+    } finally {
+      setPending('');
+    }
+  }
+
+  async function downloadRental(format) {
+    if (!dpoId) {
+      setError('Сначала выберите ДПО');
+      return;
+    }
+    const key = `monthly-rental:${format}`;
+    setPending(key);
+    setError('');
+    try {
+      await downloadPrintForm('monthly-rental', { dpoId, month: rentalMonth, format });
+      setRentalPreview(await previewMonthlyRental({ dpoId, month: rentalMonth }));
+    } catch (requestError) {
+      setError(requestError.response?.data?.message ?? 'Не удалось зафиксировать ежемесячный акт.');
     } finally {
       setPending('');
     }
@@ -111,6 +150,60 @@ export function PrintFormsPage() {
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
+
+      <section className={`${styles.card} ${styles.monthlyCard}`}>
+        <div>
+          <h2>Ежемесячный акт аренды по ДПО</h2>
+          <p>
+            Все экземпляры, находившиеся у работников выбранного ДПО хотя бы один день месяца.
+            Предпросмотр пересчитывается, а первое скачивание фиксирует состав, цены и реквизиты
+            акта.
+          </p>
+        </div>
+        <div className={styles.monthlyControls}>
+          <label className={styles.monthField}>
+            <span>Отчётный месяц</span>
+            <input
+              type="month"
+              value={rentalMonth}
+              onChange={(event) => {
+                setRentalMonth(event.target.value);
+                setRentalPreview(null);
+              }}
+            />
+          </label>
+          <Button onClick={previewRental} disabled={Boolean(pending)} variant="secondary">
+            {pending === 'monthly-rental:preview' ? 'Расчёт…' : 'Предпросмотр'}
+          </Button>
+          <Button onClick={() => downloadRental('xlsx')} disabled={Boolean(pending)}>
+            {pending === 'monthly-rental:xlsx' ? 'Фиксация…' : 'Зафиксировать и скачать Excel'}
+          </Button>
+          <Button
+            onClick={() => downloadRental('pdf')}
+            disabled={Boolean(pending)}
+            variant="secondary"
+          >
+            {pending === 'monthly-rental:pdf' ? 'Фиксация…' : 'Зафиксировать и скачать PDF'}
+          </Button>
+        </div>
+        {rentalPreview && (
+          <div className={styles.previewSummary}>
+            <strong>
+              {rentalPreview.finalized ? 'Акт уже зафиксирован' : 'Предварительный расчёт'}
+            </strong>
+            <span>Работников: {rentalPreview.employeeGroups.length}</span>
+            <span>Экземпляров/строк: {rentalPreview.rows.length}</span>
+            <span>
+              Итого с НДС: {Number(rentalPreview.totals.totalWithVat).toLocaleString('ru-RU')} ₽
+            </span>
+            {rentalPreview.warnings.length > 0 && (
+              <span className={styles.warning}>
+                Предупреждений: {rentalPreview.warnings.length}
+              </span>
+            )}
+          </div>
+        )}
+      </section>
 
       <div className={styles.grid}>
         {FORMS.map((form) => (

@@ -1,5 +1,7 @@
 import { printFormsService } from './print-forms.service.js';
 import { printFormQuerySchema } from './print-forms.validation.js';
+import { monthlyRentalService } from './monthly-rental/monthly-rental.service.js';
+import { success } from '../../utils/respond.js';
 
 function attachmentHeader(fileName) {
   const fallback = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -13,10 +15,15 @@ function attachmentHeader(fileName) {
 export const printFormsController = {
   async generate(req, res) {
     const query = printFormQuerySchema.parse(req.query);
-    const file = await printFormsService.generate(req.params.form, query);
+    const file = await printFormsService.generate(req.params.form, query, { userId: req.user.sub });
     res.setHeader('Content-Type', file.contentType);
     res.setHeader('Content-Disposition', attachmentHeader(file.fileName));
     res.setHeader('Content-Length', file.buffer.length);
     return res.send(file.buffer);
+  },
+
+  async previewMonthlyRental(req, res) {
+    const query = printFormQuerySchema.parse(req.query);
+    return success(res, await monthlyRentalService.preview(query));
   },
 };

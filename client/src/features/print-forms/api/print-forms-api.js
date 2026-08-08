@@ -20,3 +20,10 @@ export async function downloadPrintForm(form, params) {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export async function previewMonthlyRental(params) {
+  const response = await httpClient.get('/print-forms/monthly-rental/preview', {
+    params: pruneParams(params ?? {}),
+  });
+  return response.data.data;
+}

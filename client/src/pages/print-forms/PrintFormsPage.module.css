@@ -52,3 +52,46 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+.monthlyCard {
+  min-height: auto;
+}
+
+.monthlyControls,
+.previewSummary {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.monthField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.monthField input {
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font: inherit;
+  color: var(--color-text);
+}
+
+.previewSummary {
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-background);
+}
+
+.warning {
+  color: var(--color-warning, #9a6700);
+  font-weight: 600;
+}

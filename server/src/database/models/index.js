@@ -42,6 +42,8 @@ import { defineSourceImportRecord } from './source-import-record.model.js';
 import { defineNomenclaturePrice } from './nomenclature-price.model.js';
 import { defineEmployeeMeasurement } from './employee-measurement.model.js';
 import { definePrintFormParty } from './print-form-party.model.js';
+import { defineEmployeeDpoAssignment } from './employee-dpo-assignment.model.js';
+import { defineMonthlyRentalAct } from './monthly-rental-act.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -86,6 +88,8 @@ const SourceImportRecord = defineSourceImportRecord(sequelize);
 const NomenclaturePrice = defineNomenclaturePrice(sequelize);
 const EmployeeMeasurement = defineEmployeeMeasurement(sequelize);
 const PrintFormParty = definePrintFormParty(sequelize);
+const EmployeeDpoAssignment = defineEmployeeDpoAssignment(sequelize);
+const MonthlyRentalAct = defineMonthlyRentalAct(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -326,6 +330,14 @@ SourceImportRecord.hasMany(EmployeeMeasurement, {
 });
 
 PrintFormParty.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdByUser' });
+Employee.hasMany(EmployeeDpoAssignment, { foreignKey: 'employeeId', as: 'dpoAssignments' });
+EmployeeDpoAssignment.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+Dpo.hasMany(EmployeeDpoAssignment, { foreignKey: 'dpoId', as: 'employeeAssignments' });
+EmployeeDpoAssignment.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
+EmployeeDpoAssignment.belongsTo(User, { foreignKey: 'changedByUserId', as: 'changedByUser' });
+Dpo.hasMany(MonthlyRentalAct, { foreignKey: 'dpoId', as: 'monthlyRentalActs' });
+MonthlyRentalAct.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
+MonthlyRentalAct.belongsTo(User, { foreignKey: 'generatedByUserId', as: 'generatedByUser' });
 EmployeeMeasurement.belongsTo(SourceImportRecord, {
   foreignKey: 'sourceRecordId',
   as: 'sourceRecord',
@@ -375,6 +387,8 @@ export const models = {
   NomenclaturePrice,
   EmployeeMeasurement,
   PrintFormParty,
+  EmployeeDpoAssignment,
+  MonthlyRentalAct,
 };
 
 export { sequelize };
