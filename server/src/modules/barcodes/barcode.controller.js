@@ -1,30 +1,40 @@
 import { barcodeService } from './barcode.service.js';
-import { paginatedSuccess } from '../../utils/respond.js';
+import { success } from '../../utils/respond.js';
+
+function attachmentHeader(fileName) {
+  const encoded = encodeURIComponent(fileName);
+  return `attachment; filename="labels.pdf"; filename*=UTF-8''${encoded}`;
+}
+
+function sendPdf(res, buffer, fileName) {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', attachmentHeader(fileName));
+  res.setHeader('Content-Length', buffer.length);
+  return res.send(buffer);
+}
 
 export const barcodeController = {
   async findByBarcode(req, res) {
-    const { barcode } = req.params;
-    const instance = await barcodeService.findByBarcode(barcode);
-    return paginatedSuccess(res, [instance], 1, 1, 1);
+    return success(res, await barcodeService.findByBarcode(req.params.barcode));
   },
 
-  async findBarcodeByInventoryNumber(req, res) {
-    const { inventoryNumber } = req.params;
-    const instance = await barcodeService.findByInventoryNumber(inventoryNumber);
-    return paginatedSuccess(res, [instance], 1, 1, 1);
+  async findByInventoryNumber(req, res) {
+    return success(res, await barcodeService.findByInventoryNumber(req.params.inventoryNumber));
   },
 
   async printLabels(req, res) {
-    const { instanceIds, labelType = 'qr' } = req.body;
-    const labels = await barcodeService.printLabels(instanceIds, { labelType });
-    return paginatedSuccess(res, labels, labels.length, labels.length, 1);
+    const buffer = await barcodeService.printLabels(
+      req.validatedBody.instanceIds,
+      req.validatedBody,
+    );
+    return sendPdf(res, buffer, `Этикетки_${req.validatedBody.labelType}.pdf`);
   },
 
   async printLabelsByInventoryNumbers(req, res) {
-    const { inventoryNumbers, labelType = 'qr' } = req.body;
-    const labels = await barcodeService.printLabelsByInventoryNumbers(inventoryNumbers, {
-      labelType,
-    });
-    return paginatedSuccess(res, labels, labels.length, labels.length, 1);
+    const buffer = await barcodeService.printLabelsByInventoryNumbers(
+      req.validatedBody.inventoryNumbers,
+      req.validatedBody,
+    );
+    return sendPdf(res, buffer, `Этикетки_${req.validatedBody.labelType}.pdf`);
   },
 };

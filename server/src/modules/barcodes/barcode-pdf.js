@@ -1,87 +1,99 @@
+import { createRequire } from 'node:module';
 import PDFDocument from 'pdfkit';
+import QRCode from 'qrcode';
+import bwipjs from 'bwip-js';
 
-const LABEL_WIDTH = 200;
-const LABEL_HEIGHT = 100;
-const MARGIN = 10;
-const QR_SIZE = 80;
+const require = createRequire(import.meta.url);
+const FONT = require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf');
+const FONT_BOLD = require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf');
+const LABEL_WIDTH = 283.46; // 100 мм
+const LABEL_HEIGHT = 141.73; // 50 мм
+const MARGIN = 12;
 
-// Генерация PDF с этикетками
-export async function createBarcodePDF(instances) {
+function collectPdf(doc) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    const doc = new PDFDocument({ size: [LABEL_WIDTH, LABEL_HEIGHT], margin: 0 });
-
-    // Собираем байты PDF
     doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('end', () => {
-      const pdfBytes = Buffer.concat(chunks);
-      resolve({
-        pdfBytes,
-        pageCount: instances.length,
-        instances: instances.map((i) => ({
-          id: i.id,
-          inventoryNumber: i.inventoryNumber,
-        })),
-      });
-    });
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-
-    for (const instance of instances) {
-      const { width, height } = doc.page;
-
-      // Инвентарный номер (жирный)
-      doc.font('Helvetica-Bold');
-      doc.fontSize(12);
-      doc.text(`Инв. № ${instance.inventoryNumber}`, MARGIN, MARGIN);
-
-      // Модель
-      doc.font('Helvetica');
-      const modelName = instance.model?.name || 'Модель не определена';
-      doc.fontSize(10);
-      doc.text(modelName, MARGIN, MARGIN + 18);
-
-      // Размер
-      let sizeText = '';
-      if (instance.size) {
-        sizeText += `${instance.size.value}`;
-      }
-      if (instance.heightSize) {
-        sizeText += sizeText ? ', ' : '';
-        sizeText += `Рост: ${instance.heightSize.value}`;
-      }
-      if (sizeText) {
-        doc.text(sizeText, MARGIN, MARGIN + 32);
-      }
-
-      // QR-код (используем внешний сервис через URL)
-      const barcodeY = height / 2 - QR_SIZE / 2;
-      const qrUrl = generateQrUrl(instance.inventoryNumber, QR_SIZE);
-      doc.image(qrUrl, width - QR_SIZE - MARGIN, barcodeY, { width: QR_SIZE, height: QR_SIZE });
-
-      // Текстовое представление barcode
-      doc.fontSize(8);
-      doc.text(instance.inventoryNumber, width - QR_SIZE - MARGIN, barcodeY + QR_SIZE + 5);
-
-      // Статус и состояние (внизу слева)
-      doc.text(`Статус: ${instance.status}`, MARGIN, height - MARGIN - 10);
-      doc.text(`Состояние: ${instance.condition}`, MARGIN, height - MARGIN);
-
-      // ДПО
-      if (instance.batch?.dpo) {
-        doc.text(instance.batch.dpo.name, width / 2, MARGIN);
-      }
-
-      doc.addPage();
-    }
-
-    // Удаляем последнюю пустую страницу
-    doc.removePage(doc.pageCount);
-    doc.end();
   });
 }
 
-// Генерация URL для QR-кода
-export function generateQrUrl(data, size = 200) {
-  const encoded = encodeURIComponent(data);
-  return `https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=${size}x${size}`;
+async function barcodePng(value, labelType) {
+  if (labelType === 'code128') {
+    return bwipjs.toBuffer({
+      bcid: 'code128',
+      text: value,
+      scale: 3,
+      height: 14,
+      includetext: false,
+      paddingwidth: 2,
+      paddingheight: 2,
+    });
+  }
+  return QRCode.toBuffer(value, {
+    type: 'png',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 220,
+  });
+}
+
+export async function createBarcodePdf(instances, { labelType = 'qr' } = {}) {
+  const images = await Promise.all(
+    instances.map((instance) =>
+      barcodePng(instance.barcode || instance.inventoryNumber, labelType),
+    ),
+  );
+  const doc = new PDFDocument({
+    size: [LABEL_WIDTH, LABEL_HEIGHT],
+    margin: 0,
+    autoFirstPage: false,
+  });
+  const result = collectPdf(doc);
+  doc.registerFont('LabelSans', FONT);
+  doc.registerFont('LabelSansBold', FONT_BOLD);
+
+  instances.forEach((instance, index) => {
+    doc.addPage();
+    const value = instance.barcode || instance.inventoryNumber;
+    const modelName = instance.model?.name || 'Модель не указана';
+    const size = [
+      instance.size?.value,
+      instance.heightSize?.value && `рост ${instance.heightSize.value}`,
+    ]
+      .filter(Boolean)
+      .join(' / ');
+
+    doc.font('LabelSansBold').fontSize(11).text(`Инв. № ${instance.inventoryNumber}`, MARGIN, 11, {
+      width: 155,
+      ellipsis: true,
+    });
+    doc.font('LabelSans').fontSize(8).text(modelName, MARGIN, 31, {
+      width: 155,
+      height: 38,
+      ellipsis: true,
+    });
+    if (size) doc.text(`Размер: ${size}`, MARGIN, 72, { width: 155, ellipsis: true });
+
+    if (labelType === 'code128') {
+      doc.image(images[index], 165, 30, { fit: [106, 55], align: 'center', valign: 'center' });
+    } else {
+      doc.image(images[index], 184, 10, { width: 82, height: 82 });
+    }
+    doc.font('LabelSans').fontSize(7).text(value, 165, 98, {
+      width: 106,
+      align: 'center',
+      ellipsis: true,
+    });
+    doc
+      .fontSize(7)
+      .text(`Статус: ${instance.status} · состояние: ${instance.condition}`, MARGIN, 118, {
+        width: 255,
+        ellipsis: true,
+      });
+  });
+
+  doc.end();
+  return result;
 }

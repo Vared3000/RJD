@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
 import { EntityFormModal } from './EntityFormModal.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
@@ -21,9 +22,20 @@ export function CatalogPage({
   searchable = false,
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
-  const [showArchived, setShowArchived] = useState(false);
-  const [search, setSearch] = useState('');
-  const { data: items, isLoading } = useList(showArchived, searchable ? { search } : {});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showArchived, setShowArchived] = useState(searchParams.get('archived') === 'true');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const {
+    data: items,
+    meta,
+    isLoading,
+  } = useList(showArchived, {
+    ...(searchable ? { search: debouncedSearch } : {}),
+    page,
+    limit: 50,
+  });
   const { create, update, archive, restore } = useCatalogMutations();
   const [editingItem, setEditingItem] = useState(null);
   const permissions = useSessionStore((state) => state.user?.permissions ?? []);
@@ -32,6 +44,34 @@ export function CatalogPage({
 
   const saveError = create.error ?? update.error;
   const isSaving = create.isPending || update.isPending;
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (debouncedSearch) next.set('search', debouncedSearch);
+        else next.delete('search');
+        if (showArchived) next.set('archived', 'true');
+        else next.delete('archived');
+        next.set('page', String(page));
+        return next;
+      },
+      { replace: true },
+    );
+  }, [debouncedSearch, page, setSearchParams, showArchived]);
+
+  function goToPage(nextPage) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('page', String(nextPage));
+      return next;
+    });
+  }
 
   function closeModal() {
     setEditingItem(null);
@@ -64,7 +104,10 @@ export function CatalogPage({
           <input
             type="checkbox"
             checked={showArchived}
-            onChange={(event) => setShowArchived(event.target.checked)}
+            onChange={(event) => {
+              setShowArchived(event.target.checked);
+              goToPage(1);
+            }}
           />
           Показать архивные
         </label>
@@ -73,7 +116,10 @@ export function CatalogPage({
             type="search"
             placeholder="Поиск…"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              goToPage(1);
+            }}
             className={styles.searchInput}
           />
         )}
@@ -155,6 +201,28 @@ export function CatalogPage({
           </tbody>
         </table>
       </div>
+
+      {(meta?.pages ?? 0) > 1 && (
+        <nav className={styles.pagination} aria-label="Навигация по страницам">
+          <Button
+            variant="secondary"
+            disabled={page <= 1 || isLoading}
+            onClick={() => goToPage(page - 1)}
+          >
+            Назад
+          </Button>
+          <span>
+            Страница {meta.page} из {meta.pages} · записей: {meta.total}
+          </span>
+          <Button
+            variant="secondary"
+            disabled={page >= meta.pages || isLoading}
+            onClick={() => goToPage(page + 1)}
+          >
+            Далее
+          </Button>
+        </nav>
+      )}
 
       {editingItem !== null && (
         <EntityFormModal

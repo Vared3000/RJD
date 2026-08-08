@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { sequelize, models } from '../../database/models/index.js';
 import { ApiError } from '../../utils/api-error.js';
 import { success, paginatedSuccess } from '../../utils/respond.js';
+import { parsePagination } from '../../utils/pagination.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requirePermission } from '../../middlewares/permission.middleware.js';
@@ -420,22 +421,14 @@ export function createServiceDocumentModule({
 
   const controller = {
     async list(req, res) {
+      const pagination = parsePagination(req.query);
       const { rows, count } = await service.list({
         warehouseId: req.query.warehouseId,
         status: req.query.status,
         search: req.query.search,
-        page: req.query.page,
-        limit: req.query.limit,
-        sort: req.query.sort,
-        order: req.query.order,
+        ...pagination,
       });
-      return paginatedSuccess(
-        res,
-        rows,
-        count,
-        Number(req.query.limit) || 50,
-        Number(req.query.page) || 1,
-      );
+      return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
     },
     async getOne(req, res) {
       const item = await service.getById(req.params.id);

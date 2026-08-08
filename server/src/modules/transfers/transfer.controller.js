@@ -1,26 +1,19 @@
 import { transferService } from './transfer.service.js';
 import { success, paginatedSuccess } from '../../utils/respond.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 export const transferController = {
   async list(req, res) {
+    const pagination = parsePagination(req.query);
     const { rows, count } = await transferService.list({
       warehouseId: req.query.warehouseId,
       fromWarehouseId: req.query.fromWarehouseId,
       toWarehouseId: req.query.toWarehouseId,
       status: req.query.status,
       search: req.query.search,
-      page: req.query.page,
-      limit: req.query.limit,
-      sort: req.query.sort,
-      order: req.query.order,
+      ...pagination,
     });
-    return paginatedSuccess(
-      res,
-      rows,
-      count,
-      Number(req.query.limit) || 50,
-      Number(req.query.page) || 1,
-    );
+    return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
   },
 
   async getOne(req, res) {

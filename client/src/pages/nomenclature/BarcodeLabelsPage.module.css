@@ -1,0 +1,30 @@
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+.scanForm {
+  display: flex;
+  align-items: end;
+  gap: var(--space-3);
+}
+.scanForm label {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 360px;
+  font-size: 13px;
+}
+.scanForm input {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 16px;
+}
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.error {
+  margin: 0;
+  color: var(--color-danger);
+}

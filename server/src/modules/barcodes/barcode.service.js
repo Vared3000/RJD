@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { models } from '../../database/models/index.js';
 import { ApiError } from '../../utils/api-error.js';
-import { createBarcodePDF } from './barcode-pdf.js';
+import { createBarcodePdf } from './barcode-pdf.js';
 
 const { Instance } = models;
 
@@ -58,7 +58,7 @@ export const barcodeService = {
     if (instances.length !== instanceIds.length) {
       throw ApiError.badRequest('Некоторые экземпляры не найдены');
     }
-    return createBarcodePDF(instances, { labelType });
+    return createBarcodePdf(instances, { labelType });
   },
 
   async printLabelsByInventoryNumbers(inventoryNumbers, { labelType = 'qr' } = {}) {
@@ -73,6 +73,6 @@ export const barcodeService = {
     if (instances.length !== inventoryNumbers.length) {
       throw ApiError.badRequest('Некоторые экземпляры не найдены');
     }
-    return createBarcodePDF(instances, { labelType });
+    return createBarcodePdf(instances, { labelType });
   },
 };

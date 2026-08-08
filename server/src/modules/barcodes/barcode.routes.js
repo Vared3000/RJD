@@ -3,6 +3,8 @@ import { barcodeController } from './barcode.controller.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requirePermission } from '../../middlewares/permission.middleware.js';
 import { asyncHandler } from '../../utils/async-handler.js';
+import { validateBody } from '../../middlewares/validate.middleware.js';
+import { printLabelsByInventorySchema, printLabelsSchema } from './barcode.validation.js';
 
 const PERMISSION = 'warehouse.view';
 
@@ -21,7 +23,7 @@ export function createBarcodeRouter() {
    *     responses:
    *       200: { description: Экземпляр с полной информацией }
    */
-  router.get('/barcodes/:barcode', asyncHandler(barcodeController.findByBarcode));
+  router.get('/:barcode', asyncHandler(barcodeController.findByBarcode));
 
   /**
    * @openapi
@@ -35,8 +37,8 @@ export function createBarcodeRouter() {
    *       200: { description: Экземпляр с полной информацией }
    */
   router.get(
-    '/barcodes/inventory-number/:inventoryNumber',
-    asyncHandler(barcodeController.findBarcodeByInventoryNumber),
+    '/inventory-number/:inventoryNumber',
+    asyncHandler(barcodeController.findByInventoryNumber),
   );
 
   /**
@@ -62,7 +64,11 @@ export function createBarcodeRouter() {
    *     responses:
    *       200: { description: PDF с этикетками }
    */
-  router.post('/barcodes/print', asyncHandler(barcodeController.printLabels));
+  router.post(
+    '/labels',
+    validateBody(printLabelsSchema),
+    asyncHandler(barcodeController.printLabels),
+  );
 
   /**
    * @openapi
@@ -88,7 +94,8 @@ export function createBarcodeRouter() {
    *       200: { description: PDF с этикетками }
    */
   router.post(
-    '/barcodes/print-by-inventory',
+    '/labels/by-inventory',
+    validateBody(printLabelsByInventorySchema),
     asyncHandler(barcodeController.printLabelsByInventoryNumbers),
   );
 

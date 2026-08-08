@@ -18,6 +18,7 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/nomenclature/models', label: 'Модели' },
       { to: '/nomenclature/instances', label: 'Экземпляры' },
+      { to: '/nomenclature/barcodes', label: 'Штрихкоды и этикетки' },
     ],
   },
   {

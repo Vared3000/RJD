@@ -35,6 +35,7 @@ import { createDpoRouter } from './modules/dpo/dpo.routes.js';
 import { createAdminRouter } from './modules/admin/admin.routes.js';
 import { createReportsRouter } from './modules/reports/reports.routes.js';
 import { createPrintFormsRouter } from './modules/print-forms/print-forms.routes.js';
+import { createBarcodeRouter } from './modules/barcodes/barcode.routes.js';
 
 export function createApp() {
   const app = express();
@@ -80,6 +81,7 @@ export function createApp() {
   app.use('/api/v1/admin', createAdminRouter());
   app.use('/api/v1/reports', createReportsRouter());
   app.use('/api/v1/print-forms', createPrintFormsRouter());
+  app.use('/api/v1/barcodes', createBarcodeRouter());
 
   // Прод: единственный процесс отдаёт и API, и собранный фронтенд (client/dist)
   // с одного порта/origin — упрощает постоянное развёртывание без отдельного

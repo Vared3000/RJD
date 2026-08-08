@@ -6,6 +6,7 @@ import { asyncHandler } from '../../utils/async-handler.js';
 import { validateBody } from '../../middlewares/validate.middleware.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requirePermission } from '../../middlewares/permission.middleware.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 // Общий CRUD для справочников с мягким удалением через archivedAt.
 // Используется для простых сущностей (Организации, Подразделения, Должности,
@@ -158,21 +159,13 @@ export function createReferenceService(
 export function createReferenceController(service) {
   return {
     async list(req, res) {
+      const pagination = parsePagination(req.query);
       const { rows, count } = await service.list({
         includeArchived: req.query.includeArchived === 'true',
         search: req.query.search,
-        page: req.query.page,
-        limit: req.query.limit,
-        sort: req.query.sort,
-        order: req.query.order,
+        ...pagination,
       });
-      return paginatedSuccess(
-        res,
-        rows,
-        count,
-        Number(req.query.limit) || 50,
-        Number(req.query.page) || 1,
-      );
+      return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
     },
     async getOne(req, res) {
       const item = await service.getById(req.params.id);

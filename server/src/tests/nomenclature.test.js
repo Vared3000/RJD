@@ -76,6 +76,29 @@ test('номенклатура: модель -> размер -> экземпля
   assert.equal(fetched.body.data.model.id, model.body.data.id);
   assert.equal(fetched.body.data.size.id, size.body.data.id);
 
+  const byBarcode = await auth(agent.get(`/api/v1/barcodes/${instance1.body.data.barcode}`));
+  assert.equal(byBarcode.status, 200);
+  assert.equal(byBarcode.body.data.id, instance1.body.data.id);
+
+  for (const labelType of ['qr', 'code128']) {
+    const labels = await auth(agent.post('/api/v1/barcodes/labels')).send({
+      instanceIds: [instance1.body.data.id, instance2.body.data.id],
+      labelType,
+    });
+    assert.equal(labels.status, 200);
+    assert.equal(labels.headers['content-type'], 'application/pdf');
+    assert.equal(Buffer.from(labels.body).subarray(0, 4).toString(), '%PDF');
+  }
+
+  const invalidPage = await auth(agent.get('/api/v1/instances?page=0'));
+  assert.equal(invalidPage.status, 400);
+
+  const page = await auth(agent.get('/api/v1/instances?page=1&limit=1'));
+  assert.equal(page.status, 200);
+  assert.equal(page.body.data.length, 1);
+  assert.equal(page.body.meta.limit, 1);
+  assert.ok(page.body.meta.total >= 2);
+
   const updated = await auth(agent.patch(`/api/v1/instances/${instance1.body.data.id}`)).send({
     status: 'repair',
   });
