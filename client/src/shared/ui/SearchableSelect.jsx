@@ -23,6 +23,8 @@ export const SearchableSelect = forwardRef(function SearchableSelect(
     name,
     required,
     disabled,
+    onSearch,
+    isLoading = false,
   },
   ref,
 ) {
@@ -113,6 +115,7 @@ export const SearchableSelect = forwardRef(function SearchableSelect(
           }}
           onChange={(event) => {
             setQuery(event.target.value);
+            onSearch?.(event.target.value);
             onChange('');
             setIsOpen(true);
             setActiveIndex(0);
@@ -132,7 +135,7 @@ export const SearchableSelect = forwardRef(function SearchableSelect(
         {isOpen && (
           <div className={styles.dropdown} id={listboxId} role="listbox">
             {visibleOptions.length === 0 ? (
-              <div className={styles.empty}>Ничего не найдено</div>
+              <div className={styles.empty}>{isLoading ? 'Поиск…' : 'Ничего не найдено'}</div>
             ) : (
               visibleOptions.map((option, index) => (
                 <button

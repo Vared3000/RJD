@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import {
   downloadPrintForm,
@@ -45,12 +45,21 @@ export function PrintFormsPage() {
   const [range, setRange] = useState(() => resolvePreset('month'));
   const [dpoId, setDpoId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [debouncedEmployeeSearch, setDebouncedEmployeeSearch] = useState('');
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
   const [rentalMonth, setRentalMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [rentalPreview, setRentalPreview] = useState(null);
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
-  const { data: employees } = createCatalogHooks('employees').useList(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedEmployeeSearch(employeeSearch), 250);
+    return () => clearTimeout(timer);
+  }, [employeeSearch]);
+  const { data: employees, isFetching: employeesLoading } = createCatalogHooks('employees').useList(
+    false,
+    { search: debouncedEmployeeSearch, limit: 40 },
+  );
 
   async function download(form, format) {
     if (form === 'personal-card' && !employeeId) {
@@ -130,6 +139,7 @@ export function PrintFormsPage() {
           onChange={(event) => {
             setDpoId(event.target.value);
             setEmployeeId('');
+            setEmployeeSearch('');
           }}
           options={(dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name }))}
         />
@@ -137,6 +147,8 @@ export function PrintFormsPage() {
           label="Работник"
           value={employeeId}
           onChange={setEmployeeId}
+          onSearch={setEmployeeSearch}
+          isLoading={employeesLoading}
           disabled={!dpoId}
           placeholder={dpoId ? 'Введите ФИО или табельный номер…' : 'Сначала выберите ДПО'}
           hint="Нужен только для личной карточки"

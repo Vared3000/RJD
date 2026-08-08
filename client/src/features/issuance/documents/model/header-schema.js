@@ -13,6 +13,7 @@ export const headerFields = [
     label: 'Работник',
     type: 'select',
     searchable: true,
+    serverSearch: true,
     optionsResource: 'employees',
     optionValue: 'id',
     optionLabel: 'fullName',

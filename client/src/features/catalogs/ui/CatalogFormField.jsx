@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
 import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Select } from '../../../shared/ui/Select.jsx';
@@ -58,12 +59,22 @@ function resolveAccessor(accessor, item) {
 }
 
 function SelectField({ field, control, error }) {
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    if (!field.serverSearch) return undefined;
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [field.serverSearch, search]);
+
   const resourceHooks = field.optionsResource ? createCatalogHooks(field.optionsResource) : null;
   const filterResourceHooks = field.optionsFilterResource
     ? createCatalogHooks(field.optionsFilterResource)
     : null;
   // Для select со связанным справочником всегда подгружаем только активные записи.
-  const { data: fetchedItems } = resourceHooks ? resourceHooks.useList(false) : { data: null };
+  const { data: fetchedItems, isFetching } = resourceHooks
+    ? resourceHooks.useList(false, field.serverSearch ? { search: debouncedSearch, limit: 40 } : {})
+    : { data: null, isFetching: false };
   const { data: filterItems } = filterResourceHooks
     ? filterResourceHooks.useList(false)
     : { data: null };
@@ -106,6 +117,8 @@ function SelectField({ field, control, error }) {
           required={field.required}
           placeholder={field.placeholder}
           options={options}
+          onSearch={field.serverSearch ? setSearch : undefined}
+          isLoading={field.serverSearch && isFetching}
           {...controllerField}
         />
       )}
