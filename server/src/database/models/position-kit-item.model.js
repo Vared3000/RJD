@@ -1,4 +1,7 @@
 import { DataTypes } from 'sequelize';
+import { GENDERS } from './employee.model.js';
+
+export { GENDERS as KIT_GENDERS };
 
 // Сезон позиции комплекта (раздел 9 ТЗ): при подборе комплекта на выдаче
 // пользователь выбирает Летний/Зимний, и в документ попадают только позиции
@@ -18,6 +21,12 @@ export function definePositionKitItem(sequelize) {
       modelId: { type: DataTypes.UUID, allowNull: false, field: 'model_id' },
       quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
       season: { type: DataTypes.STRING(16), allowNull: true },
+      // Пол позиции комплекта (Employee.gender, см. employee.model.js) — для
+      // унисекс-вещей (бейдж, галстук, ремень и т.п.) null, попадает в подбор
+      // независимо от пола работника; так же, как и при неизвестном поле
+      // работника (gender === null) — фильтр по полу не применяется ни в
+      // одну сторону, см. applyKit/previewKit в issuance.service.js.
+      gender: { type: DataTypes.STRING(16), allowNull: true },
       serviceLifeYears: {
         type: DataTypes.INTEGER,
         allowNull: true,

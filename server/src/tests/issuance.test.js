@@ -146,9 +146,9 @@ test('выдача: автоподбор комплекта -> проведен�
   const issuanceId = issuanceDraft.body.data.id;
   state.issuanceDocIds.push(issuanceId);
 
-  const applied = await auth(
-    agent.post(`/api/v1/issuance/documents/${issuanceId}/apply-kit`),
-  ).send({ season: 'summer' });
+  const applied = await auth(agent.post(`/api/v1/issuance/documents/${issuanceId}/apply-kit`)).send(
+    { season: 'summer' },
+  );
   assert.equal(applied.status, 200);
   assert.equal(applied.body.data.lines.length, 1);
   assert.equal(applied.body.data.lines[0].quantity, 2);
@@ -616,4 +616,205 @@ test('безразмерная позиция проходит поступле�
   await instance.reload();
   assert.equal(instance.status, 'issued');
   assert.equal(instance.employeeId, employee.id);
+});
+
+test('комплект учитывает пол и сезон, выбирает самый точный вариант и не создаёт дубли', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = `Test Kit Variants ${Date.now()}`;
+  const state = {
+    issuanceIds: [],
+    employeeIds: [],
+    modelIds: [],
+  };
+
+  t.after(async () => {
+    if (state.issuanceIds.length) {
+      await models.IssuanceDocument.destroy({ where: { id: state.issuanceIds } });
+    }
+    if (state.positionId) {
+      await models.PositionKitItem.destroy({ where: { positionId: state.positionId } });
+    }
+    if (state.employeeIds.length) {
+      await models.Employee.destroy({ where: { id: state.employeeIds } });
+    }
+    if (state.positionId) {
+      await models.Position.destroy({ where: { id: state.positionId } });
+    }
+    if (state.modelIds.length) {
+      await models.NomenclatureModel.destroy({ where: { id: state.modelIds } });
+    }
+    if (state.warehouseId) {
+      await models.Warehouse.destroy({ where: { id: state.warehouseId } });
+    }
+    if (state.organizationId) {
+      await models.Organization.destroy({ where: { id: state.organizationId } });
+    }
+  });
+
+  const organization = await models.Organization.create({ name: unique });
+  state.organizationId = organization.id;
+  const warehouse = await models.Warehouse.create({
+    organizationId: organization.id,
+    name: unique,
+  });
+  state.warehouseId = warehouse.id;
+  const position = await models.Position.create({ name: unique });
+  state.positionId = position.id;
+
+  const variantModel = await models.NomenclatureModel.create({ name: `${unique} Variant` });
+  const legacyModel = await models.NomenclatureModel.create({ name: `${unique} Legacy` });
+  const maleOnlyModel = await models.NomenclatureModel.create({ name: `${unique} Male only` });
+  const winterOnlyModel = await models.NomenclatureModel.create({ name: `${unique} Winter` });
+  state.modelIds.push(variantModel.id, legacyModel.id, maleOnlyModel.id, winterOnlyModel.id);
+
+  const employees = await Promise.all(
+    [
+      { suffix: 'Male', gender: 'male' },
+      { suffix: 'Female', gender: 'female' },
+      { suffix: 'Unknown', gender: null },
+    ].map(({ suffix, gender }) =>
+      models.Employee.create({
+        organizationId: organization.id,
+        positionId: position.id,
+        fullName: `${unique} ${suffix}`,
+        hireDate: '2026-01-01',
+        gender,
+      }),
+    ),
+  );
+  state.employeeIds.push(...employees.map((employee) => employee.id));
+  const [maleEmployee, femaleEmployee, unknownEmployee] = employees;
+
+  for (const data of [
+    { season: 'summer', gender: 'male', quantity: 2 },
+    { season: 'summer', gender: 'female', quantity: 3 },
+    { season: 'summer', gender: null, quantity: 1 },
+    { season: 'winter', gender: null, quantity: 8 },
+  ]) {
+    const created = await auth(agent.post('/api/v1/kits')).send({
+      positionId: position.id,
+      modelId: variantModel.id,
+      ...data,
+    });
+    assert.equal(created.status, 201);
+  }
+
+  const duplicate = await auth(agent.post('/api/v1/kits')).send({
+    positionId: position.id,
+    modelId: variantModel.id,
+    season: 'summer',
+    gender: 'male',
+    quantity: 99,
+  });
+  assert.equal(duplicate.status, 409);
+
+  const invalidGender = await auth(agent.post('/api/v1/kits')).send({
+    positionId: position.id,
+    modelId: variantModel.id,
+    season: 'summer',
+    gender: 'other',
+  });
+  assert.equal(invalidGender.status, 400);
+
+  await models.PositionKitItem.bulkCreate([
+    {
+      positionId: position.id,
+      modelId: legacyModel.id,
+      season: null,
+      gender: null,
+      quantity: 4,
+    },
+    {
+      positionId: position.id,
+      modelId: legacyModel.id,
+      season: 'summer',
+      gender: null,
+      quantity: 5,
+    },
+    {
+      positionId: position.id,
+      modelId: maleOnlyModel.id,
+      season: 'summer',
+      gender: 'male',
+      quantity: 6,
+    },
+    {
+      positionId: position.id,
+      modelId: winterOnlyModel.id,
+      season: 'winter',
+      gender: null,
+      quantity: 7,
+    },
+  ]);
+
+  async function createDraftAndPreview(employeeId, season) {
+    const draft = await auth(agent.post('/api/v1/issuance/documents')).send({
+      employeeId,
+      warehouseId: warehouse.id,
+      documentDate: '2026-08-08',
+    });
+    assert.equal(draft.status, 201);
+    state.issuanceIds.push(draft.body.data.id);
+    const preview = await auth(
+      agent.get(`/api/v1/issuance/documents/${draft.body.data.id}/kit-preview?season=${season}`),
+    );
+    assert.equal(preview.status, 200);
+    return { draftId: draft.body.data.id, preview: preview.body.data.items };
+  }
+
+  function assertPreview(items, expectedEntries) {
+    assert.equal(items.length, expectedEntries.length);
+    assert.equal(new Set(items.map((item) => item.modelId)).size, expectedEntries.length);
+    const quantities = new Map(items.map((item) => [item.modelId, item.quantity]));
+    for (const [modelId, quantity] of expectedEntries) {
+      assert.equal(quantities.get(modelId), quantity);
+    }
+  }
+
+  const maleSummer = await createDraftAndPreview(maleEmployee.id, 'summer');
+  assertPreview(maleSummer.preview, [
+    [variantModel.id, 2],
+    [legacyModel.id, 5],
+    [maleOnlyModel.id, 6],
+  ]);
+
+  const femaleSummer = await createDraftAndPreview(femaleEmployee.id, 'summer');
+  assertPreview(femaleSummer.preview, [
+    [variantModel.id, 3],
+    [legacyModel.id, 5],
+  ]);
+
+  const unknownSummer = await createDraftAndPreview(unknownEmployee.id, 'summer');
+  assertPreview(unknownSummer.preview, [
+    [variantModel.id, 1],
+    [legacyModel.id, 5],
+    [maleOnlyModel.id, 6],
+  ]);
+
+  const maleWinter = await createDraftAndPreview(maleEmployee.id, 'winter');
+  assertPreview(maleWinter.preview, [
+    [variantModel.id, 8],
+    [legacyModel.id, 4],
+    [winterOnlyModel.id, 7],
+  ]);
+
+  const applied = await auth(
+    agent.post(`/api/v1/issuance/documents/${maleSummer.draftId}/apply-kit`),
+  ).send({ season: 'summer' });
+  assert.equal(applied.status, 200);
+  assert.equal(applied.body.data.lines.length, 3);
+  assert.equal(new Set(applied.body.data.lines.map((line) => line.modelId)).size, 3);
+  assertPreview(applied.body.data.lines, [
+    [variantModel.id, 2],
+    [legacyModel.id, 5],
+    [maleOnlyModel.id, 6],
+  ]);
 });

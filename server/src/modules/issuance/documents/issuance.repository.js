@@ -111,10 +111,7 @@ export const issuanceRepository = {
   // чтобы два одновременно проводимых документа Выдачи не забрали один и
   // тот же экземпляр (без SKIP LOCKED второй запрос просто ждал бы
   // разблокировки и потом всё равно получил бы уже занятые записи в выборке).
-  findAvailableInstances(
-    { modelId, sizeId, heightSizeId, warehouseId, limit },
-    { transaction },
-  ) {
+  findAvailableInstances({ modelId, sizeId, heightSizeId, warehouseId, limit }, { transaction }) {
     return Instance.findAll({
       where: {
         modelId,
@@ -173,6 +170,10 @@ export const issuanceRepository = {
           as: 'model',
           attributes: ['id', 'name', 'sizeType', 'requiresHeightSize'],
         },
+      ],
+      order: [
+        ['createdAt', 'ASC'],
+        ['id', 'ASC'],
       ],
     });
     return { employee, kitItems };

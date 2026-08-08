@@ -46,7 +46,7 @@ export function createKitsRouter() {
       tag: 'Работники: Комплекты по должности',
       entityName: 'Позиция комплекта',
       requestBodyHint:
-        'positionId, modelId (обязательно), quantity, serviceLifeYears (нормативный срок)',
+        'positionId, modelId, season (summer|winter — обязательно), gender (male|female|null — унисекс), quantity, serviceLifeYears (нормативный срок)',
     }),
   );
 

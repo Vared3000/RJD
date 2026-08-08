@@ -22,6 +22,46 @@ const SIZE_ALIAS_BY_TYPE = {
   gloves: 'glovesSize',
 };
 
+// Позиция подходит работнику, если её сезон/пол не заданы (унисекс/
+// круглогодично — импортированные архивные позиции без разметки), либо
+// совпадают. Пол работника, если он не указан в карточке, тоже не
+// используется как ограничение — не блокировать подбор комплекта только
+// из-за того, что администратор ещё не заполнил пол работника.
+function matchesKitItem(item, season, employeeGender) {
+  const seasonMatches = !item.season || item.season === season;
+  const genderMatches = !item.gender || !employeeGender || item.gender === employeeGender;
+  return seasonMatches && genderMatches;
+}
+
+function kitItemPriority(item, season, employeeGender) {
+  let priority = item.season === season ? 4 : 0;
+  if (employeeGender) {
+    priority += item.gender === employeeGender ? 2 : item.gender ? 0 : 1;
+  } else {
+    priority += item.gender ? 0 : 2;
+  }
+  return priority;
+}
+
+// Несколько вариантов одной модели могут пересекаться из-за универсальных значений NULL.
+// На одну модель выбирается ровно один, наиболее точный вариант; порядок из репозитория
+// используется как стабильный критерий при одинаковом приоритете.
+function selectKitItems(items, season, employeeGender) {
+  const selectedByModel = new Map();
+  for (const item of items) {
+    if (!matchesKitItem(item, season, employeeGender)) continue;
+    const selected = selectedByModel.get(item.modelId);
+    if (
+      !selected ||
+      kitItemPriority(item, season, employeeGender) >
+        kitItemPriority(selected, season, employeeGender)
+    ) {
+      selectedByModel.set(item.modelId, item);
+    }
+  }
+  return [...selectedByModel.values()];
+}
+
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
@@ -168,7 +208,8 @@ export const issuanceService = {
   // зимний (см. PositionKitItem.season), выбор сезона отдельным действием на
   // экране. Позиции без сезона (season === null) — унаследованные из архивного
   // импорта, ещё не размеченные администратором — считаются нужными в любом
-  // сезоне и попадают в оба варианта подбора.
+  // сезоне и попадают в оба варианта подбора. Пол позиции (PositionKitItem.
+  // gender) фильтруется так же — см. matchesKitItem.
   async applyKit(documentId, { season } = {}) {
     if (!KIT_SEASONS.includes(season)) {
       throw ApiError.badRequest('Укажите сезон комплекта (летний или зимний)');
@@ -180,7 +221,7 @@ export const issuanceService = {
     const { employee, kitItems: allKitItems } = await issuanceRepository.findEmployeeWithKit(
       document.employeeId,
     );
-    const kitItems = allKitItems.filter((item) => !item.season || item.season === season);
+    const kitItems = selectKitItems(allKitItems, season, employee.gender);
 
     const existingKeys = new Set(
       document.lines.map((line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`),
@@ -234,7 +275,7 @@ export const issuanceService = {
     if (!employee?.positionId) {
       return { items: [], noPosition: true };
     }
-    const kitItems = allKitItems.filter((item) => !item.season || item.season === season);
+    const kitItems = selectKitItems(allKitItems, season, employee.gender);
 
     const items = [];
     for (const kitItem of kitItems) {
