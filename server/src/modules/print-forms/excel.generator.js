@@ -432,6 +432,16 @@ function set(sheet, address, value) {
   sheet.getCell(address).value = value ?? '';
 }
 
+function addSourceNote(cell, row) {
+  if (!row.dataSourceLabel) return;
+  cell.note = [
+    `Источник данных: ${row.dataSourceLabel}`,
+    row.sourceReference ? `Ссылка: ${row.sourceReference}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 function mergeGroups(sheet, rows, dataStart, keyBuilder, columns) {
   let groupStart = 0;
   while (groupStart < rows.length) {
@@ -480,6 +490,7 @@ function fillFpu26(sheet, data, positions) {
   data.rows.forEach((row, index) => {
     const rowNumber = positions.dataStart + index;
     set(sheet, `A${rowNumber}`, row.modelName);
+    addSourceNote(sheet.getCell(`A${rowNumber}`), row);
     set(sheet, `E${rowNumber}`, row.unit || 'шт.');
     set(sheet, `F${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `G${rowNumber}`, Number(row.priceWithoutVat || 0));
@@ -593,6 +604,7 @@ function fillAppendix15(sheet, data, positions) {
     set(sheet, `A${rowNumber}`, number);
     set(sheet, `B${rowNumber}`, row.positionName);
     set(sheet, `C${rowNumber}`, row.modelName);
+    addSourceNote(sheet.getCell(`C${rowNumber}`), row);
     set(sheet, `D${rowNumber}`, row.unit || 'шт.');
     set(sheet, `E${rowNumber}`, Number(row.quantity || 0));
     set(sheet, `F${rowNumber}`, Number(row.coverageDays || 0));
@@ -679,6 +691,7 @@ function fillAppendix17(sheet, data, positions) {
     set(sheet, `B${rowNumber}`, row.fullName);
     set(sheet, `C${rowNumber}`, row.personnelNumber);
     set(sheet, `D${rowNumber}`, row.modelName);
+    addSourceNote(sheet.getCell(`D${rowNumber}`), row);
     sheet.getCell(`E${rowNumber}`).value = row.inventoryNumber || null;
     set(sheet, `F${rowNumber}`, row.unit || 'шт.');
     set(sheet, `G${rowNumber}`, Number(row.quantity || 0));

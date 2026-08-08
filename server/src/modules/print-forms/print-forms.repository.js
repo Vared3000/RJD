@@ -159,8 +159,10 @@ export const printFormsRepository = {
   findImportedPersonalCard({ employee }) {
     return sequelize.query(
       `SELECT normalized.payload,
+              normalized.source_key AS "sourceKey",
               normalized.source_file AS "sourceFile",
-              normalized.sheet_name AS "sheetName"
+              normalized.sheet_name AS "sheetName",
+              COALESCE(normalized.row_number, source_row.row_number) AS "rowNumber"
        FROM source_import_records normalized
        LEFT JOIN source_import_records source_row
          ON source_row.source_key = normalized.payload->>'sourceKey'
@@ -208,8 +210,10 @@ export const printFormsRepository = {
   findImportedNomenclature({ dpoName, from, to }) {
     return sequelize.query(
       `SELECT normalized.payload,
+              normalized.source_key AS "sourceKey",
               normalized.source_file AS "sourceFile",
-              normalized.sheet_name AS "sheetName"
+              normalized.sheet_name AS "sheetName",
+              COALESCE(normalized.row_number, source_row.row_number) AS "rowNumber"
        FROM source_import_records normalized
        LEFT JOIN source_import_records source_row
          ON source_row.source_key = normalized.payload->>'sourceKey'

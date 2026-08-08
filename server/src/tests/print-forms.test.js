@@ -267,6 +267,74 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
     if (qaDirectory) await writeFile(path.join(qaDirectory, `${form}.pdf`), pdf.body);
   }
 
+  const mixedArchivePayloads = [
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-15',
+      name: unique,
+      unit: 'шт.',
+      employee: {
+        fullName: employee.body.data.fullName,
+        personnelNumber: employee.body.data.personnelNumber,
+      },
+      quantity: 2,
+      priceWithoutVat: 1000,
+      priceWithVat: 1050,
+      subtotalWithoutVat: 2000,
+      vatAmount: 100,
+      totalWithVat: 2100,
+    },
+    {
+      type: 'nomenclature',
+      dpo: unique,
+      effectiveDate: '2026-07-20',
+      name: `${unique} смешанный архив`,
+      unit: 'шт.',
+      employee: { fullName: 'Архивный сотрудник', personnelNumber: 'MIX-001' },
+      quantity: 1,
+      priceWithoutVat: 500,
+      priceWithVat: 525,
+      subtotalWithoutVat: 500,
+      vatAmount: 25,
+      totalWithVat: 525,
+    },
+  ];
+  for (const [index, payload] of mixedArchivePayloads.entries()) {
+    const record = await models.SourceImportRecord.create({
+      sourceKey: `print-form-mixed-test-${Date.now()}-${index}`,
+      sourceFile: 'zz-mixed-archive.xlsx',
+      fileHash: String(index + 7).repeat(64),
+      recordType: 'normalized_candidate',
+      sheetName: 'Приложение 1.7',
+      rowNumber: index + 1,
+      payload,
+    });
+    state.sourceRecordIds.push(record.id);
+  }
+  const mixed = await auth(agent.get('/api/v1/print-forms/appendix-1-7'))
+    .query({
+      dpoId: state.dpoId,
+      from: '2026-07-01',
+      to: '2026-07-31',
+      format: 'xlsx',
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(mixed.status, 200);
+  const mixedWorkbook = new ExcelJS.Workbook();
+  await mixedWorkbook.xlsx.load(mixed.body);
+  const mixedModels = [];
+  mixedWorkbook.worksheets[0].getColumn(4).eachCell((cell) => {
+    mixedModels.push(String(cell.value ?? ''));
+  });
+  assert.equal(
+    mixedModels.filter((value) => value === unique).length,
+    2,
+    'архивная копия живой выдачи не должна создавать третью строку',
+  );
+  assert.ok(mixedModels.includes(`${unique} смешанный архив`));
+
   const returnDraft = await auth(agent.post('/api/v1/issuance/returns')).send({
     employeeId: state.employeeId,
     warehouseId: state.warehouseId,

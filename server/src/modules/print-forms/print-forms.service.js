@@ -4,6 +4,12 @@ import { resolvePeriod, toDateOnly } from '../reports/period.js';
 import { printFormsRepository } from './print-forms.repository.js';
 import { generateExcel } from './excel.generator.js';
 import { generatePdf } from './pdf.generator.js';
+import {
+  archiveSourceEntry,
+  liveSourceEntry,
+  mergeSourceEntries,
+  sourceFields,
+} from './print-form-data-sources.js';
 
 const num = (value) => Number(value ?? 0);
 // В архивных Excel-актах встречаются цены с пятью знаками после запятой.
@@ -85,13 +91,11 @@ async function loadContext(query) {
       modelIds,
       dpoId: query.dpoId,
     }),
-    documents.length === 0
-      ? printFormsRepository.findImportedNomenclature({
-          dpoName: dpo.name,
-          from,
-          to,
-        })
-      : [],
+    printFormsRepository.findImportedNomenclature({
+      dpoName: dpo.name,
+      from,
+      to,
+    }),
   ]);
   return {
     dpo,
@@ -201,15 +205,14 @@ function importedCandidates(context, withEmployee) {
       num(candidate.priceWithVat),
       candidate.effectiveDate,
     ]);
-    if (!unique.has(key)) unique.set(key, candidate);
+    if (!unique.has(key)) unique.set(key, { ...candidate, _source: source });
   }
   return [...unique.values()];
 }
 
 function buildFpu26(context) {
   const grouped = new Map();
-  let rows = null;
-  const addRow = ({ modelId, modelName, article, unit, quantity, sourcePrice }) => {
+  const addRow = ({ modelId, modelName, article, unit, quantity, sourcePrice, source }) => {
     const price = sourcePrice ?? priceValues(context.priceByModel.get(modelId));
     const key = `${modelId ?? modelName}\u0000${price.priceWithoutVat}\u0000${price.vatRate}`;
     const row = grouped.get(key) ?? {
@@ -218,75 +221,81 @@ function buildFpu26(context) {
       unit: unit || 'шт.',
       quantity: 0,
       ...price,
+      ...source,
     };
     row.quantity += quantity;
+    if (row.dataSource !== source?.dataSource) {
+      row.dataSource = 'mixed';
+      row.dataSourceLabel = 'Учётная система + архив';
+    }
     grouped.set(key, row);
   };
-  if (context.documents.length > 0) {
-    for (const document of context.documents) {
-      for (const line of document.lines) {
-        addRow({
-          modelId: line.modelId,
-          modelName: line.model?.name ?? '',
-          article: line.model?.article,
-          unit: line.model?.unit,
-          quantity: line.quantity,
-        });
-      }
-    }
-  } else {
-    const sourceCandidates = importedCandidates(context, false).filter(
-      (candidate) => candidate.formType === 'fpu-26' && num(candidate.quantity) > 0,
+  const liveEntries = context.documents.flatMap((document) =>
+    document.lines.map((line) => ({
+      ...liveSourceEntry({ dpo: context.dpo, document, line }),
+      employeeKey: '',
+    })),
+  );
+  let sourceCandidates = importedCandidates(context, false).filter(
+    (candidate) => candidate.formType === 'fpu-26' && num(candidate.quantity) > 0,
+  );
+  if (sourceCandidates.length === 0) {
+    sourceCandidates = importedCandidates(context, true).filter(
+      (candidate) => candidate.employee && num(candidate.quantity) > 0,
     );
-    if (sourceCandidates.length > 0) {
-      rows = sourceCandidates.map((candidate) => {
-        const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
-        const calculated = calculateMoney(
-          num(candidate.quantity),
-          price.priceWithoutVat,
-          price.vatRate,
-        );
-        return {
-          modelName: candidate.name,
-          unit: candidate.unit || 'шт.',
-          quantity: num(candidate.quantity),
-          ...price,
-          displayedPriceWithoutVat:
-            candidate.displayedPriceWithoutVat != null
-              ? money(candidate.displayedPriceWithoutVat)
-              : price.priceWithoutVat,
-          costWithoutVat:
-            candidate.subtotalWithoutVat != null
-              ? money(candidate.subtotalWithoutVat)
-              : calculated.costWithoutVat,
-          vatAmount:
-            candidate.vatAmount != null ? money(candidate.vatAmount) : calculated.vatAmount,
-          totalWithVat:
-            candidate.totalWithVat != null
-              ? money(candidate.totalWithVat)
-              : calculated.totalWithVat,
-          sourceValues: true,
-          sourceFormulas: candidate.sourceFormulas ?? null,
-        };
-      });
-    } else {
-      for (const candidate of importedCandidates(context, true)) {
-        if (!candidate.employee || num(candidate.quantity) <= 0) continue;
-        addRow({
-          modelName: candidate.name,
-          unit: candidate.unit,
-          quantity: num(candidate.quantity),
-          sourcePrice: priceValues({
-            priceWithoutVat: candidate.priceWithoutVat,
-            priceWithVat: candidate.priceWithVat,
-          }),
-        });
-      }
-    }
   }
-  rows ??= [...grouped.values()]
+  const archiveEntries = sourceCandidates.map((candidate) => ({
+    ...archiveSourceEntry({ dpo: context.dpo, source: candidate._source, candidate }),
+    employeeKey: '',
+  }));
+  const entries = mergeSourceEntries(liveEntries, archiveEntries);
+
+  for (const entry of entries.filter((item) => item.source === 'live')) {
+    const { line } = entry;
+    addRow({
+      modelId: line.modelId,
+      modelName: line.model?.name ?? '',
+      article: line.model?.article,
+      unit: line.model?.unit,
+      quantity: line.quantity,
+      source: sourceFields(entry),
+    });
+  }
+  const archiveRows = entries
+    .filter((entry) => entry.source === 'archive')
+    .map((entry) => {
+      const candidate = entry.candidate;
+      const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
+      const calculated = calculateMoney(
+        num(candidate.quantity),
+        price.priceWithoutVat,
+        price.vatRate,
+      );
+      return {
+        modelName: candidate.name,
+        unit: candidate.unit || 'шт.',
+        quantity: num(candidate.quantity),
+        ...price,
+        displayedPriceWithoutVat:
+          candidate.displayedPriceWithoutVat != null
+            ? money(candidate.displayedPriceWithoutVat)
+            : price.priceWithoutVat,
+        costWithoutVat:
+          candidate.subtotalWithoutVat != null
+            ? money(candidate.subtotalWithoutVat)
+            : calculated.costWithoutVat,
+        vatAmount: candidate.vatAmount != null ? money(candidate.vatAmount) : calculated.vatAmount,
+        totalWithVat:
+          candidate.totalWithVat != null ? money(candidate.totalWithVat) : calculated.totalWithVat,
+        sourceValues: true,
+        sourceFormulas: candidate.sourceFormulas ?? null,
+        ...sourceFields(entry),
+      };
+    });
+  const liveRows = [...grouped.values()]
     .map((row) => ({ ...row, ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate) }))
     .sort((a, b) => a.modelName.localeCompare(b.modelName, 'ru'));
+  const rows = [...liveRows, ...archiveRows];
   return baseData(
     context,
     'АКТ о выполненных работах (оказанных услугах), форма ФПУ-26',
@@ -345,19 +354,71 @@ function buildFpu26(context) {
 }
 
 async function buildAppendix15(context) {
-  if (context.documents.length === 0) {
-    const rows = [];
-    for (const candidate of importedCandidates(context, false)) {
-      if (!candidate.position || candidate.employee || !candidate.name) continue;
-      const price = priceValues({
-        priceWithoutVat: candidate.priceWithoutVat,
-      });
+  const liveEntries = context.documents.flatMap((document) =>
+    document.lines.map((line) => liveSourceEntry({ dpo: context.dpo, document, line })),
+  );
+  const archiveEntries = importedCandidates(context, false)
+    .filter((candidate) => candidate.position && !candidate.employee && candidate.name)
+    .map((candidate) =>
+      archiveSourceEntry({
+        dpo: context.dpo,
+        source: candidate._source,
+        candidate,
+      }),
+    );
+  const entries = mergeSourceEntries(liveEntries, archiveEntries);
+  const retainedLive = entries.filter((entry) => entry.source === 'live');
+  const employeeIds = [...new Set(retainedLive.map((entry) => entry.document.employeeId))];
+  const coverage = await computeCoverageDays({
+    from: context.from,
+    to: context.to,
+    employeeIds,
+  });
+  const grouped = new Map();
+  for (const entry of retainedLive) {
+    const { document, line } = entry;
+    const price = priceValues(context.priceByModel.get(line.modelId));
+    const positionName = document.employee?.position?.name ?? 'Должность не указана';
+    const key = `${positionName}\u0000${line.modelId}\u0000${price.priceWithoutVat}`;
+    const row = grouped.get(key) ?? {
+      positionName,
+      modelName: line.model?.name ?? '',
+      unit: line.model?.unit ?? 'шт.',
+      quantity: 0,
+      employeeIds: new Set(),
+      ...price,
+      ...sourceFields(entry),
+    };
+    row.quantity += line.quantity;
+    row.employeeIds.add(document.employeeId);
+    grouped.set(key, row);
+  }
+  const liveRows = [...grouped.values()]
+    .map((row) => {
+      const coverageDays = [...row.employeeIds].reduce(
+        (sum, employeeId) => sum + (coverage.get(employeeId) ?? 0),
+        0,
+      );
+      return {
+        ...row,
+        coverageDays,
+        ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate, row.priceWithVat),
+      };
+    })
+    .sort((a, b) =>
+      `${a.positionName}${a.modelName}`.localeCompare(`${b.positionName}${b.modelName}`, 'ru'),
+    );
+  const archiveRows = entries
+    .filter((entry) => entry.source === 'archive')
+    .map((entry) => {
+      const candidate = entry.candidate;
+      const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
       const calculated = calculateMoney(
         num(candidate.quantity),
         price.priceWithoutVat,
         price.vatRate,
       );
-      rows.push({
+      return {
         positionName: candidate.position,
         modelName: candidate.name,
         unit: candidate.unit || 'шт.',
@@ -377,51 +438,10 @@ async function buildAppendix15(context) {
           candidate.totalWithVat != null ? money(candidate.totalWithVat) : calculated.totalWithVat,
         sourceValues: true,
         sourceFormulas: candidate.sourceFormulas ?? null,
-      });
-    }
-    return appendix15Data(context, rows);
-  }
-  const employeeIds = [...new Set(context.documents.map((document) => document.employeeId))];
-  const coverage = await computeCoverageDays({
-    from: context.from,
-    to: context.to,
-    employeeIds,
-  });
-  const grouped = new Map();
-  for (const document of context.documents) {
-    for (const line of document.lines) {
-      const price = priceValues(context.priceByModel.get(line.modelId));
-      const positionName = document.employee?.position?.name ?? 'Должность не указана';
-      const key = `${positionName}\u0000${line.modelId}\u0000${price.priceWithoutVat}`;
-      const row = grouped.get(key) ?? {
-        positionName,
-        modelName: line.model?.name ?? '',
-        unit: line.model?.unit ?? 'шт.',
-        quantity: 0,
-        employeeIds: new Set(),
-        ...price,
+        ...sourceFields(entry),
       };
-      row.quantity += line.quantity;
-      row.employeeIds.add(document.employeeId);
-      grouped.set(key, row);
-    }
-  }
-  const rows = [...grouped.values()]
-    .map((row) => {
-      const coverageDays = [...row.employeeIds].reduce(
-        (sum, employeeId) => sum + (coverage.get(employeeId) ?? 0),
-        0,
-      );
-      return {
-        ...row,
-        coverageDays,
-        ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate, row.priceWithVat),
-      };
-    })
-    .sort((a, b) =>
-      `${a.positionName}${a.modelName}`.localeCompare(`${b.positionName}${b.modelName}`, 'ru'),
-    );
-  return appendix15Data(context, rows);
+    });
+  return appendix15Data(context, [...liveRows, ...archiveRows]);
 }
 
 function appendix15Data(context, rows) {
@@ -491,44 +511,23 @@ function appendix15Data(context, rows) {
 }
 
 async function buildAppendix17(context) {
-  if (context.documents.length === 0) {
-    const rows = [];
-    for (const candidate of importedCandidates(context, true)) {
-      if (!candidate.employee || !candidate.name) continue;
-      const price = priceValues({
-        priceWithoutVat: candidate.priceWithoutVat,
-        priceWithVat: candidate.priceWithVat,
-      });
-      const values = calculateMoney(
-        num(candidate.quantity),
-        price.priceWithoutVat,
-        price.vatRate,
-        price.priceWithVat,
-      );
-      const hasSourceTotals =
-        candidate.subtotalWithoutVat != null &&
-        candidate.vatAmount != null &&
-        candidate.totalWithVat != null;
-      rows.push({
-        fullName: candidate.employee.fullName ?? '',
-        personnelNumber: candidate.employee.personnelNumber ?? '',
-        modelName: candidate.name ?? '',
-        inventoryNumber: '',
-        unit: candidate.unit || 'шт.',
-        quantity: num(candidate.quantity),
-        ...price,
-        subtotalWithoutVat: hasSourceTotals
-          ? money(candidate.subtotalWithoutVat)
-          : values.costWithoutVat,
-        vatAmount: hasSourceTotals ? money(candidate.vatAmount) : values.vatAmount,
-        totalWithVat: hasSourceTotals ? money(candidate.totalWithVat) : values.totalWithVat,
-      });
-    }
-    return appendix17Data(context, rows);
-  }
-  const movements = await printFormsRepository.findIssuanceMovements(
-    context.documents.map((document) => document.id),
+  const liveEntries = context.documents.flatMap((document) =>
+    document.lines.map((line) => liveSourceEntry({ dpo: context.dpo, document, line })),
   );
+  const archiveEntries = importedCandidates(context, true)
+    .filter((candidate) => candidate.employee && candidate.name)
+    .map((candidate) =>
+      archiveSourceEntry({
+        dpo: context.dpo,
+        source: candidate._source,
+        candidate,
+      }),
+    );
+  const entries = mergeSourceEntries(liveEntries, archiveEntries);
+  const retainedLive = entries.filter((entry) => entry.source === 'live');
+  const movements = await printFormsRepository.findIssuanceMovements([
+    ...new Set(retainedLive.map((entry) => entry.document.id)),
+  ]);
   const byDocumentModel = new Map();
   for (const movement of movements) {
     const key = `${movement.documentId}\u0000${movement.instance?.modelId}`;
@@ -536,27 +535,59 @@ async function buildAppendix17(context) {
     byDocumentModel.get(key).push(movement.instance);
   }
   const rows = [];
-  for (const document of context.documents) {
-    for (const line of document.lines) {
-      const price = priceValues(context.priceByModel.get(line.modelId));
-      const instances = byDocumentModel.get(`${document.id}\u0000${line.modelId}`) ?? [];
-      const lineInstances = instances.length > 0 ? instances : Array(line.quantity).fill(null);
-      for (const instance of lineInstances) {
-        const values = calculateMoney(1, price.priceWithoutVat, price.vatRate);
-        rows.push({
-          fullName: document.employee?.fullName ?? '',
-          personnelNumber: document.employee?.personnelNumber ?? '',
-          modelName: line.model?.name ?? instance?.model?.name ?? '',
-          inventoryNumber: instance?.inventoryNumber ?? '',
-          unit: line.model?.unit ?? instance?.model?.unit ?? 'шт.',
-          quantity: 1,
-          ...price,
-          subtotalWithoutVat: values.costWithoutVat,
-          vatAmount: values.vatAmount,
-          totalWithVat: values.totalWithVat,
-        });
-      }
+  for (const entry of retainedLive) {
+    const { document, line } = entry;
+    const price = priceValues(context.priceByModel.get(line.modelId));
+    const instances = byDocumentModel.get(`${document.id}\u0000${line.modelId}`) ?? [];
+    const lineInstances = instances.length > 0 ? instances : Array(line.quantity).fill(null);
+    for (const instance of lineInstances) {
+      const values = calculateMoney(1, price.priceWithoutVat, price.vatRate);
+      rows.push({
+        fullName: document.employee?.fullName ?? '',
+        personnelNumber: document.employee?.personnelNumber ?? '',
+        modelName: line.model?.name ?? instance?.model?.name ?? '',
+        inventoryNumber: instance?.inventoryNumber ?? '',
+        unit: line.model?.unit ?? instance?.model?.unit ?? 'шт.',
+        quantity: 1,
+        ...price,
+        subtotalWithoutVat: values.costWithoutVat,
+        vatAmount: values.vatAmount,
+        totalWithVat: values.totalWithVat,
+        ...sourceFields(entry),
+      });
     }
+  }
+  for (const entry of entries.filter((item) => item.source === 'archive')) {
+    const candidate = entry.candidate;
+    const price = priceValues({
+      priceWithoutVat: candidate.priceWithoutVat,
+      priceWithVat: candidate.priceWithVat,
+    });
+    const values = calculateMoney(
+      num(candidate.quantity),
+      price.priceWithoutVat,
+      price.vatRate,
+      price.priceWithVat,
+    );
+    const hasSourceTotals =
+      candidate.subtotalWithoutVat != null &&
+      candidate.vatAmount != null &&
+      candidate.totalWithVat != null;
+    rows.push({
+      fullName: candidate.employee.fullName ?? '',
+      personnelNumber: candidate.employee.personnelNumber ?? '',
+      modelName: candidate.name ?? '',
+      inventoryNumber: candidate.inventoryNumber ?? '',
+      unit: candidate.unit || 'шт.',
+      quantity: num(candidate.quantity),
+      ...price,
+      subtotalWithoutVat: hasSourceTotals
+        ? money(candidate.subtotalWithoutVat)
+        : values.costWithoutVat,
+      vatAmount: hasSourceTotals ? money(candidate.vatAmount) : values.vatAmount,
+      totalWithVat: hasSourceTotals ? money(candidate.totalWithVat) : values.totalWithVat,
+      ...sourceFields(entry),
+    });
   }
   return appendix17Data(context, rows);
 }
