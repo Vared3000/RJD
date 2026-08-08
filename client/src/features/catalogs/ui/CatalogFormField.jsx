@@ -5,7 +5,7 @@ import { SearchableSelect } from '../../../shared/ui/SearchableSelect.jsx';
 import { createCatalogHooks } from '../model/use-catalog-queries.js';
 import styles from './CatalogFormField.module.css';
 
-const INPUT_TYPES = { number: 'number', email: 'email', date: 'date' };
+const INPUT_TYPES = { number: 'number', email: 'email', date: 'date', password: 'password' };
 
 // field: { name, label, type: 'text'|'email'|'number'|'date'|'select'|'checkbox', required,
 //          options?: [{value,label}] — для статичного select,

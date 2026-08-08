@@ -4,6 +4,7 @@ import { definePermission } from './permission.model.js';
 import { defineRolePermission } from './role-permission.model.js';
 import { defineUser } from './user.model.js';
 import { defineRefreshToken } from './refresh-token.model.js';
+import { defineUserAdminEvent } from './user-admin-event.model.js';
 import { defineOrganization } from './organization.model.js';
 import { defineSubdivision } from './subdivision.model.js';
 import { definePosition } from './position.model.js';
@@ -46,6 +47,7 @@ const Permission = definePermission(sequelize);
 const RolePermission = defineRolePermission(sequelize);
 const User = defineUser(sequelize);
 const RefreshToken = defineRefreshToken(sequelize);
+const UserAdminEvent = defineUserAdminEvent(sequelize);
 const Organization = defineOrganization(sequelize);
 const Subdivision = defineSubdivision(sequelize);
 const Position = definePosition(sequelize);
@@ -104,6 +106,13 @@ User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
 // User -> RefreshToken (один ко многим)
 User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' });
 RefreshToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Журнал административных действий над пользователями (задача 6)
+User.hasMany(UserAdminEvent, { foreignKey: 'userId', as: 'adminEvents' });
+UserAdminEvent.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+UserAdminEvent.belongsTo(User, { foreignKey: 'performedByUserId', as: 'performedBy' });
+UserAdminEvent.belongsTo(Role, { foreignKey: 'fromRoleId', as: 'fromRole' });
+UserAdminEvent.belongsTo(Role, { foreignKey: 'toRoleId', as: 'toRole' });
 
 // Organization -> Subdivision / Warehouse (один ко многим)
 Organization.hasMany(Subdivision, { foreignKey: 'organizationId', as: 'subdivisions' });
@@ -323,6 +332,7 @@ export const models = {
   RolePermission,
   User,
   RefreshToken,
+  UserAdminEvent,
   Organization,
   Subdivision,
   Position,

@@ -91,6 +91,11 @@ export const NAV_SECTIONS = [
     permission: 'print_forms.use',
     items: [{ to: '/print-forms', label: 'Печатные формы' }],
   },
+  {
+    title: 'Администрирование',
+    permission: 'admin.manage',
+    items: [{ to: '/admin/users', label: 'Пользователи' }],
+  },
 ];
 
 export function getVisibleNavSections(permissions) {

@@ -37,7 +37,10 @@ export const authRepository = {
     return token.update({ revokedAt: new Date(), replacedById: replacedById ?? null });
   },
 
-  revokeAllUserRefreshTokens(userId) {
-    return RefreshToken.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null } });
+  revokeAllUserRefreshTokens(userId, { transaction } = {}) {
+    return RefreshToken.update(
+      { revokedAt: new Date() },
+      { where: { userId, revokedAt: null }, transaction },
+    );
   },
 };

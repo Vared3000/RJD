@@ -46,6 +46,7 @@ import { ReportPropertyCostPage } from '../pages/reports/ReportPropertyCostPage.
 import { DpoPage } from '../pages/dpo/DpoPage.jsx';
 import { DpoHistoryPage } from '../pages/dpo/DpoHistoryPage.jsx';
 import { PrintFormsPage } from '../pages/print-forms/PrintFormsPage.jsx';
+import { AdminUsersPage } from '../pages/admin/AdminUsersPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -114,6 +115,7 @@ export function AppRouter() {
         <Route path="reports/stock-balances" element={<ReportStockBalancesPage />} />
         <Route path="reports/property-cost" element={<ReportPropertyCostPage />} />
         <Route path="print-forms" element={<PrintFormsPage />} />
+        <Route path="admin/users" element={<AdminUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
