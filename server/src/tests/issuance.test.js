@@ -114,6 +114,10 @@ test('выдача: автоподбор комплекта -> проведен�
     agent.delete(`/api/v1/kits/${sizeLessKitItem.body.data.id}`),
   );
   assert.equal(archivedSizeLessKitItem.status, 200);
+  const filteredKit = await auth(agent.get('/api/v1/kits')).query({ positionId, limit: 200 });
+  assert.equal(filteredKit.status, 200);
+  assert.equal(filteredKit.body.data.length, 1);
+  assert.equal(filteredKit.body.data[0].positionId, positionId);
 
   // Оприходуем 2 экземпляра.
   const receivingDraft = await auth(agent.post('/api/v1/purchases/receiving')).send({

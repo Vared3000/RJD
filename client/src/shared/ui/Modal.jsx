@@ -6,7 +6,7 @@ import styles from './Modal.module.css';
 // закрыть такую модалку можно кнопкой ×/"Отмена" или Escape. Для модалок
 // подтверждения действия (без полей ввода) поведение по умолчанию (true)
 // безопасно и ожидаемо.
-export function Modal({ title, onClose, children, closeOnOverlayClick = true }) {
+export function Modal({ title, onClose, children, closeOnOverlayClick = true, size = 'default' }) {
   const titleId = useId();
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function Modal({ title, onClose, children, closeOnOverlayClick = true }) 
   return (
     <div className={styles.overlay} onClick={closeOnOverlayClick ? onClose : undefined}>
       <div
-        className={styles.card}
+        className={`${styles.card} ${size === 'wide' ? styles.wide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

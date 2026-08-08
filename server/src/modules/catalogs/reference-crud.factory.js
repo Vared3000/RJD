@@ -12,7 +12,10 @@ import { parsePagination } from '../../utils/pagination.js';
 // Используется для простых сущностей (Организации, Подразделения, Должности,
 // Склады, Поставщики, Размеры и т.п.) — см. docs/architecture.md.
 
-export function createReferenceRepository(Model, { include, searchFields, sortFields } = {}) {
+export function createReferenceRepository(
+  Model,
+  { include, searchFields, sortFields, filterFields = [] } = {},
+) {
   return {
     list({
       includeArchived = false,
@@ -21,8 +24,14 @@ export function createReferenceRepository(Model, { include, searchFields, sortFi
       limit = 50,
       sort = 'createdAt',
       order = 'ASC',
+      filters = {},
     } = {}) {
       const where = includeArchived ? {} : { archivedAt: null };
+      for (const field of filterFields) {
+        if (filters[field] !== undefined && filters[field] !== '') {
+          where[field] = filters[field];
+        }
+      }
       if (search && searchFields?.length) {
         where[Op.or] = searchFields.map((field) => ({
           [field]: { [Op.iLike]: `%${search}%` },
@@ -156,13 +165,14 @@ export function createReferenceService(
   };
 }
 
-export function createReferenceController(service) {
+export function createReferenceController(service, { filterFields = [] } = {}) {
   return {
     async list(req, res) {
       const pagination = parsePagination(req.query);
       const { rows, count } = await service.list({
         includeArchived: req.query.includeArchived === 'true',
         search: req.query.search,
+        filters: Object.fromEntries(filterFields.map((field) => [field, req.query[field]])),
         ...pagination,
       });
       return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
@@ -244,6 +254,7 @@ function createReferenceRouter({
 // beforeCreate(data) — необязательное async-преобразование данных перед созданием
 // (например, автогенерация инвентарного номера, если он не передан).
 // sortFields — массив полей, по которым разрешена сортировка.
+// filterFields — разрешённые точные фильтры из query-параметров списка.
 export function createReferenceModule(
   Model,
   {
@@ -256,18 +267,24 @@ export function createReferenceModule(
     beforeCreate,
     include,
     searchFields,
+    filterFields = [],
     sortFields = ['createdAt', 'name'],
     mutationHooks,
   },
 ) {
-  const repository = createReferenceRepository(Model, { include, searchFields, sortFields });
+  const repository = createReferenceRepository(Model, {
+    include,
+    searchFields,
+    sortFields,
+    filterFields,
+  });
   const service = createReferenceService(repository, {
     entityName,
     validateRelations,
     beforeCreate,
     mutationHooks,
   });
-  const controller = createReferenceController(service);
+  const controller = createReferenceController(service, { filterFields });
   const router = createReferenceRouter({
     controller,
     viewPermission,

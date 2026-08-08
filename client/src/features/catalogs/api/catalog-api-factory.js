@@ -4,9 +4,18 @@ export function createCatalogApi(resource) {
   const basePath = `/${resource}`;
 
   return {
-    async list({ includeArchived = false, search, page = 1, limit = 200, sort, order } = {}) {
+    async list({
+      includeArchived = false,
+      search,
+      page = 1,
+      limit = 200,
+      sort,
+      order,
+      ...filters
+    } = {}) {
       const { data } = await httpClient.get(basePath, {
         params: {
+          ...filters,
           includeArchived: includeArchived || undefined,
           search: search || undefined,
           page,

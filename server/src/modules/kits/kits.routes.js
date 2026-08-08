@@ -30,6 +30,7 @@ export function createKitsRouter() {
     createSchema: createKitItemSchema,
     updateSchema: updateKitItemSchema,
     validateRelations,
+    filterFields: ['positionId'],
     include: [
       { model: models.Position, as: 'position', attributes: ['id', 'name'] },
       {

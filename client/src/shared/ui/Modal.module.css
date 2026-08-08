@@ -18,6 +18,10 @@
   box-shadow: var(--shadow-card);
 }
 
+.wide {
+  max-width: 960px;
+}
+
 .header {
   display: flex;
   align-items: center;
