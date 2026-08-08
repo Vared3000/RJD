@@ -13,7 +13,7 @@ import { serviceDocumentOpenApiPaths } from './service-document-openapi.js';
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже отправлен и недоступен для изменения');
+    throw ApiError.conflict('Документ уже отправлен и недоступен для изменения');
   }
 }
 
@@ -110,26 +110,32 @@ export function createServiceDocumentModule({
       return DocumentModel.create(data);
     },
 
-    async updateDocument(id, data) {
-      const [count] = await DocumentModel.update(data, { where: { id, status: 'draft' } });
+    async updateDocument(id, data, { transaction }) {
+      const [count] = await DocumentModel.update(data, {
+        where: { id, status: 'draft' },
+        transaction,
+      });
       return count > 0;
     },
 
-    async deleteDraft(id) {
-      const count = await DocumentModel.destroy({ where: { id, status: 'draft' } });
+    async deleteDraft(id, { transaction }) {
+      const count = await DocumentModel.destroy({
+        where: { id, status: 'draft' },
+        transaction,
+      });
       return count > 0;
     },
 
-    createLine(documentId, data) {
-      return LineModel.create({ ...data, documentId });
+    createLine(documentId, data, { transaction }) {
+      return LineModel.create({ ...data, documentId }, { transaction });
     },
 
-    findLine(documentId, lineId) {
-      return LineModel.findOne({ where: { id: lineId, documentId } });
+    findLine(documentId, lineId, { transaction }) {
+      return LineModel.findOne({ where: { id: lineId, documentId }, transaction });
     },
 
-    deleteLine(lineId) {
-      return LineModel.destroy({ where: { id: lineId } });
+    deleteLine(lineId, { transaction }) {
+      return LineModel.destroy({ where: { id: lineId }, transaction });
     },
 
     updateLine(lineId, data, { transaction }) {
@@ -191,32 +197,40 @@ export function createServiceDocumentModule({
     },
 
     async update(id, data) {
-      const document = await repository.findById(id);
-      assertDraft(document);
-      await repository.updateDocument(id, data);
+      await sequelize.transaction(async (transaction) => {
+        const document = await repository.findForTransition(id, { transaction });
+        assertDraft(document);
+        await repository.updateDocument(id, data, { transaction });
+      });
       return repository.findById(id);
     },
 
     async remove(id) {
-      const document = await repository.findById(id);
-      assertDraft(document);
-      await repository.deleteDraft(id);
+      await sequelize.transaction(async (transaction) => {
+        const document = await repository.findForTransition(id, { transaction });
+        assertDraft(document);
+        await repository.deleteDraft(id, { transaction });
+      });
     },
 
     async addLine(documentId, data) {
-      const document = await repository.findById(documentId);
-      assertDraft(document);
-      assertNoDuplicateLine(document.lines, data.instanceId);
-      await repository.createLine(documentId, data);
+      await sequelize.transaction(async (transaction) => {
+        const document = await repository.findForTransition(documentId, { transaction });
+        assertDraft(document);
+        assertNoDuplicateLine(document.lines, data.instanceId);
+        await repository.createLine(documentId, data, { transaction });
+      });
       return repository.findById(documentId);
     },
 
     async removeLine(documentId, lineId) {
-      const document = await repository.findById(documentId);
-      assertDraft(document);
-      const line = await repository.findLine(documentId, lineId);
-      if (!line) throw ApiError.notFound('Позиция не найдена');
-      await repository.deleteLine(lineId);
+      await sequelize.transaction(async (transaction) => {
+        const document = await repository.findForTransition(documentId, { transaction });
+        assertDraft(document);
+        const line = await repository.findLine(documentId, lineId, { transaction });
+        if (!line) throw ApiError.notFound('Позиция не найдена');
+        await repository.deleteLine(lineId, { transaction });
+      });
       return repository.findById(documentId);
     },
 
@@ -229,7 +243,7 @@ export function createServiceDocumentModule({
       await sequelize.transaction(async (transaction) => {
         const document = await repository.findForTransition(documentId, { transaction });
         if (!document) throw ApiError.notFound('Документ не найден');
-        if (document.status !== 'draft') throw ApiError.badRequest('Документ уже отправлен');
+        if (document.status !== 'draft') throw ApiError.conflict('Документ уже отправлен');
         if (!document.lines || document.lines.length === 0) {
           throw ApiError.badRequest('В документе нет позиций — нечего отправлять');
         }
@@ -284,7 +298,7 @@ export function createServiceDocumentModule({
         const document = await repository.findForTransition(documentId, { transaction });
         if (!document) throw ApiError.notFound('Документ не найден');
         if (document.status !== 'sent') {
-          throw ApiError.badRequest('Документ должен быть в статусе "отправлен"');
+          throw ApiError.conflict('Документ должен быть в статусе "отправлен"');
         }
         if (completionLines.length !== document.lines.length) {
           throw ApiError.badRequest('Нужно указать итог по всем позициям документа');

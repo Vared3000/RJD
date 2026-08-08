@@ -65,7 +65,7 @@ function selectKitItems(items, season, employeeGender) {
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже проведён и недоступен для изменения');
+    throw ApiError.conflict('Документ уже проведён и недоступен для изменения');
   }
 }
 
@@ -91,11 +91,11 @@ function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
 }
 
-async function normalizeLineSizes(data, currentLine) {
+async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
   const modelId = valueFrom(data, currentLine, 'modelId');
   const sizeId = valueFrom(data, currentLine, 'sizeId');
   const heightSizeId = valueFrom(data, currentLine, 'heightSizeId');
-  const model = await issuanceRepository.findActiveModel(modelId);
+  const model = await issuanceRepository.findActiveModel(modelId, { transaction });
   if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
 
   if (!model.sizeType) {
@@ -105,7 +105,7 @@ async function normalizeLineSizes(data, currentLine) {
   if (!sizeId) {
     throw ApiError.badRequest('Для этой модели необходимо указать размер');
   }
-  const size = await issuanceRepository.findActiveSize(sizeId);
+  const size = await issuanceRepository.findActiveSize(sizeId, { transaction });
   if (!size || size.type !== model.sizeType) {
     throw ApiError.badRequest('Размер не найден, архивирован или не соответствует типу модели');
   }
@@ -114,7 +114,7 @@ async function normalizeLineSizes(data, currentLine) {
     throw ApiError.badRequest('Для этой модели необходимо указать рост');
   }
   if (model.requiresHeightSize && heightSizeId) {
-    const heightSize = await issuanceRepository.findActiveSize(heightSizeId);
+    const heightSize = await issuanceRepository.findActiveSize(heightSizeId, { transaction });
     if (!heightSize || heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
     }
@@ -147,52 +147,62 @@ export const issuanceService = {
   },
 
   async update(id, data) {
-    const document = await issuanceRepository.findById(id);
-    assertDraft(document);
-    await issuanceRepository.updateDocument(id, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await issuanceRepository.updateDocument(id, data, { transaction });
+    });
     return issuanceRepository.findById(id);
   },
 
   async remove(id) {
-    const document = await issuanceRepository.findById(id);
-    assertDraft(document);
-    await issuanceRepository.deleteDraft(id);
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await issuanceRepository.deleteDraft(id, { transaction });
+    });
   },
 
   async addLine(documentId, data) {
-    const document = await issuanceRepository.findById(documentId);
-    assertDraft(document);
-    const normalizedData = await normalizeLineSizes(data);
-    assertNoDuplicateLine(document.lines, normalizedData);
-    await issuanceRepository.createLine(documentId, normalizedData);
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const normalizedData = await normalizeLineSizes(data, null, { transaction });
+      assertNoDuplicateLine(document.lines, normalizedData);
+      await issuanceRepository.createLine(documentId, normalizedData, { transaction });
+    });
     return issuanceRepository.findById(documentId);
   },
 
   async updateLine(documentId, lineId, data) {
-    const document = await issuanceRepository.findById(documentId);
-    assertDraft(document);
-    const line = await issuanceRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    const normalizedData = await normalizeLineSizes(data, line);
-    assertNoDuplicateLine(
-      document.lines,
-      {
-        modelId: normalizedData.modelId ?? line.modelId,
-        sizeId: normalizedData.sizeId,
-        heightSizeId: normalizedData.heightSizeId,
-      },
-      lineId,
-    );
-    await issuanceRepository.updateLine(lineId, normalizedData);
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await issuanceRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      const normalizedData = await normalizeLineSizes(data, line, { transaction });
+      assertNoDuplicateLine(
+        document.lines,
+        {
+          modelId: normalizedData.modelId ?? line.modelId,
+          sizeId: normalizedData.sizeId,
+          heightSizeId: normalizedData.heightSizeId,
+        },
+        lineId,
+      );
+      await issuanceRepository.updateLine(lineId, normalizedData, { transaction });
+    });
     return issuanceRepository.findById(documentId);
   },
 
   async removeLine(documentId, lineId) {
-    const document = await issuanceRepository.findById(documentId);
-    assertDraft(document);
-    const line = await issuanceRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await issuanceRepository.deleteLine(lineId);
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await issuanceRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await issuanceRepository.deleteLine(lineId, { transaction });
+    });
     return issuanceRepository.findById(documentId);
   },
 
@@ -215,42 +225,48 @@ export const issuanceService = {
       throw ApiError.badRequest('Укажите сезон комплекта (летний или зимний)');
     }
 
-    const document = await issuanceRepository.findById(documentId);
-    assertDraft(document);
-
-    const { employee, kitItems: allKitItems } = await issuanceRepository.findEmployeeWithKit(
-      document.employeeId,
-    );
-    const kitItems = selectKitItems(allKitItems, season, employee.gender);
-
-    const existingKeys = new Set(
-      document.lines.map((line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`),
-    );
     const skipped = [];
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
 
-    for (const kitItem of kitItems) {
-      const sizeField = SIZE_FIELD_BY_TYPE[kitItem.model?.sizeType];
-      const sizeId = sizeField ? employee[sizeField] : null;
-      const heightSizeId = kitItem.model?.requiresHeightSize ? employee.heightSizeId : null;
-      const requiresSize = Boolean(kitItem.model?.sizeType);
-      if ((requiresSize && !sizeId) || (kitItem.model?.requiresHeightSize && !heightSizeId)) {
-        skipped.push({
-          modelId: kitItem.modelId,
-          modelName: kitItem.model?.name,
-          reason: 'no-size',
-        });
-        continue;
+      const { employee, kitItems: allKitItems } = await issuanceRepository.findEmployeeWithKit(
+        document.employeeId,
+        { transaction },
+      );
+      const kitItems = selectKitItems(allKitItems, season, employee.gender);
+      const existingKeys = new Set(
+        document.lines.map((line) => `${line.modelId}:${line.sizeId}:${line.heightSizeId ?? ''}`),
+      );
+
+      for (const kitItem of kitItems) {
+        const sizeField = SIZE_FIELD_BY_TYPE[kitItem.model?.sizeType];
+        const sizeId = sizeField ? employee[sizeField] : null;
+        const heightSizeId = kitItem.model?.requiresHeightSize ? employee.heightSizeId : null;
+        const requiresSize = Boolean(kitItem.model?.sizeType);
+        if ((requiresSize && !sizeId) || (kitItem.model?.requiresHeightSize && !heightSizeId)) {
+          skipped.push({
+            modelId: kitItem.modelId,
+            modelName: kitItem.model?.name,
+            reason: 'no-size',
+          });
+          continue;
+        }
+        const key = `${kitItem.modelId}:${sizeId}:${heightSizeId ?? ''}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        await issuanceRepository.createLine(
+          documentId,
+          {
+            modelId: kitItem.modelId,
+            sizeId,
+            heightSizeId,
+            quantity: kitItem.quantity,
+          },
+          { transaction },
+        );
       }
-      const key = `${kitItem.modelId}:${sizeId}:${heightSizeId ?? ''}`;
-      if (existingKeys.has(key)) continue;
-      existingKeys.add(key);
-      await issuanceRepository.createLine(documentId, {
-        modelId: kitItem.modelId,
-        sizeId,
-        heightSizeId,
-        quantity: kitItem.quantity,
-      });
-    }
+    });
 
     return { document: await issuanceRepository.findById(documentId), skipped };
   },
@@ -319,9 +335,9 @@ export const issuanceService = {
   // откатывается, документ остаётся черновиком.
   async post(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
-      const document = await issuanceRepository.findForPosting(documentId, { transaction });
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
-      if (document.status !== 'draft') throw ApiError.badRequest('Документ уже проведён');
+      if (document.status !== 'draft') throw ApiError.conflict('Документ уже проведён');
       if (!document.lines || document.lines.length === 0) {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }

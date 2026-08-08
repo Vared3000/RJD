@@ -152,7 +152,7 @@ test('перемещение, списание, инвентаризация: п
 
   // Повторное проведение отклоняется.
   const transferRepost = await auth(agent.post(`/api/v1/transfers/documents/${transferId}/post`));
-  assert.equal(transferRepost.status, 400);
+  assert.equal(transferRepost.status, 409);
 
   // --- Списание ---
   const writeoffDraft = await auth(agent.post('/api/v1/writeoff/documents')).send({
@@ -235,5 +235,5 @@ test('перемещение, списание, инвентаризация: п
   const editAfterComplete = await auth(
     agent.patch(`/api/v1/inventory/documents/${inventoryId}/lines/${inventoryLines[2].id}`),
   ).send({ confirmed: true });
-  assert.equal(editAfterComplete.status, 400);
+  assert.equal(editAfterComplete.status, 409);
 });

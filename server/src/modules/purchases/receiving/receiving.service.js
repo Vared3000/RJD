@@ -7,7 +7,7 @@ import { generateInventoryNumbers } from '../../nomenclature/instances/generate-
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже проведён и недоступен для изменения');
+    throw ApiError.conflict('Документ уже проведён и недоступен для изменения');
   }
 }
 
@@ -15,11 +15,11 @@ function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
 }
 
-async function normalizeLineSizes(data, currentLine) {
+async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
   const modelId = valueFrom(data, currentLine, 'modelId');
   const sizeId = valueFrom(data, currentLine, 'sizeId');
   const heightSizeId = valueFrom(data, currentLine, 'heightSizeId');
-  const model = await receivingRepository.findActiveModel(modelId);
+  const model = await receivingRepository.findActiveModel(modelId, { transaction });
   if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
 
   if (!model.sizeType) {
@@ -29,7 +29,7 @@ async function normalizeLineSizes(data, currentLine) {
   if (!sizeId) {
     throw ApiError.badRequest('Для этой модели необходимо указать размер');
   }
-  const size = await receivingRepository.findActiveSize(sizeId);
+  const size = await receivingRepository.findActiveSize(sizeId, { transaction });
   if (!size || size.type !== model.sizeType) {
     throw ApiError.badRequest('Размер не найден, архивирован или не соответствует типу модели');
   }
@@ -38,7 +38,7 @@ async function normalizeLineSizes(data, currentLine) {
     throw ApiError.badRequest('Для этой модели необходимо указать рост');
   }
   if (model.requiresHeightSize && heightSizeId) {
-    const heightSize = await receivingRepository.findActiveSize(heightSizeId);
+    const heightSize = await receivingRepository.findActiveSize(heightSizeId, { transaction });
     if (!heightSize || heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
     }
@@ -71,42 +71,52 @@ export const receivingService = {
   },
 
   async update(id, data) {
-    const document = await receivingRepository.findById(id);
-    assertDraft(document);
-    await receivingRepository.updateDocument(id, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await receivingRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await receivingRepository.updateDocument(id, data, { transaction });
+    });
     return receivingRepository.findById(id);
   },
 
   async remove(id) {
-    const document = await receivingRepository.findById(id);
-    assertDraft(document);
-    await receivingRepository.deleteDraft(id);
+    await sequelize.transaction(async (transaction) => {
+      const document = await receivingRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await receivingRepository.deleteDraft(id, { transaction });
+    });
   },
 
   async addLine(documentId, data) {
-    const document = await receivingRepository.findById(documentId);
-    assertDraft(document);
-    const normalizedData = await normalizeLineSizes(data);
-    await receivingRepository.createLine(documentId, normalizedData);
+    await sequelize.transaction(async (transaction) => {
+      const document = await receivingRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const normalizedData = await normalizeLineSizes(data, null, { transaction });
+      await receivingRepository.createLine(documentId, normalizedData, { transaction });
+    });
     return receivingRepository.findById(documentId);
   },
 
   async updateLine(documentId, lineId, data) {
-    const document = await receivingRepository.findById(documentId);
-    assertDraft(document);
-    const line = await receivingRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    const normalizedData = await normalizeLineSizes(data, line);
-    await receivingRepository.updateLine(lineId, normalizedData);
+    await sequelize.transaction(async (transaction) => {
+      const document = await receivingRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await receivingRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      const normalizedData = await normalizeLineSizes(data, line, { transaction });
+      await receivingRepository.updateLine(lineId, normalizedData, { transaction });
+    });
     return receivingRepository.findById(documentId);
   },
 
   async removeLine(documentId, lineId) {
-    const document = await receivingRepository.findById(documentId);
-    assertDraft(document);
-    const line = await receivingRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await receivingRepository.deleteLine(lineId);
+    await sequelize.transaction(async (transaction) => {
+      const document = await receivingRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await receivingRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await receivingRepository.deleteLine(lineId, { transaction });
+    });
     return receivingRepository.findById(documentId);
   },
 
@@ -116,9 +126,9 @@ export const receivingService = {
   // исключить двойное проведение при параллельных запросах.
   async post(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
-      const document = await receivingRepository.findForPosting(documentId, { transaction });
+      const document = await receivingRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
-      if (document.status !== 'draft') throw ApiError.badRequest('Документ уже проведён');
+      if (document.status !== 'draft') throw ApiError.conflict('Документ уже проведён');
       if (!document.lines || document.lines.length === 0) {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }

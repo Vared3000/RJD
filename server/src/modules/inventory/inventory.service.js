@@ -6,7 +6,7 @@ import { generateDocumentNumber } from './generate-document-number.js';
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже завершён и недоступен для изменения');
+    throw ApiError.conflict('Документ уже завершён и недоступен для изменения');
   }
 }
 
@@ -33,56 +33,73 @@ export const inventoryService = {
   // ручному набору строк с нуля, как у остальных документов.
   async create(data, { userId }) {
     const number = await generateDocumentNumber();
-    const document = await inventoryRepository.createDocument({
-      ...data,
-      number,
-      responsibleUserId: userId,
-      status: 'draft',
-    });
-
-    const instances = await inventoryRepository.findInStockInstances(data.warehouseId);
-    if (instances.length > 0) {
-      await inventoryRepository.bulkCreateLines(
-        instances.map((instance, index) => ({
-          documentId: document.id,
-          instanceId: instance.id,
-          confirmed: false,
-          sortOrder: index,
-        })),
+    let documentId;
+    await sequelize.transaction(async (transaction) => {
+      const document = await inventoryRepository.createDocument(
+        {
+          ...data,
+          number,
+          responsibleUserId: userId,
+          status: 'draft',
+        },
+        { transaction },
       );
-    }
+      documentId = document.id;
 
-    return inventoryService.getById(document.id);
+      const instances = await inventoryRepository.findInStockInstances(data.warehouseId, {
+        transaction,
+      });
+      if (instances.length > 0) {
+        await inventoryRepository.bulkCreateLines(
+          instances.map((instance, index) => ({
+            documentId: document.id,
+            instanceId: instance.id,
+            confirmed: false,
+            sortOrder: index,
+          })),
+          { transaction },
+        );
+      }
+    });
+    return inventoryService.getById(documentId);
   },
 
   async update(id, data) {
-    const document = await inventoryRepository.findById(id);
-    assertDraft(document);
-    await inventoryRepository.updateDocument(id, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await inventoryRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await inventoryRepository.updateDocument(id, data, { transaction });
+    });
     return inventoryService.getById(id);
   },
 
   async remove(id) {
-    const document = await inventoryRepository.findById(id);
-    assertDraft(document);
-    await inventoryRepository.deleteDraft(id);
+    await sequelize.transaction(async (transaction) => {
+      const document = await inventoryRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await inventoryRepository.deleteDraft(id, { transaction });
+    });
   },
 
   async updateLine(documentId, lineId, data) {
-    const document = await inventoryRepository.findById(documentId);
-    assertDraft(document);
-    const line = await inventoryRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await inventoryRepository.updateLine(lineId, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await inventoryRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await inventoryRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await inventoryRepository.updateLine(lineId, data, { transaction });
+    });
     return inventoryService.getById(documentId);
   },
 
   async removeLine(documentId, lineId) {
-    const document = await inventoryRepository.findById(documentId);
-    assertDraft(document);
-    const line = await inventoryRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await inventoryRepository.deleteLine(lineId);
+    await sequelize.transaction(async (transaction) => {
+      const document = await inventoryRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await inventoryRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await inventoryRepository.deleteLine(lineId, { transaction });
+    });
     return inventoryService.getById(documentId);
   },
 
@@ -93,9 +110,9 @@ export const inventoryService = {
   // т.п.) принимается отдельным документом "Списание".
   async complete(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
-      const document = await inventoryRepository.findForCompletion(documentId, { transaction });
+      const document = await inventoryRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
-      if (document.status !== 'draft') throw ApiError.badRequest('Документ уже завершён');
+      if (document.status !== 'draft') throw ApiError.conflict('Документ уже завершён');
 
       await inventoryRepository.markCompleted(
         documentId,

@@ -57,7 +57,7 @@ export const returnRepository = {
     });
   },
 
-  async findForPosting(id, { transaction }) {
+  async findLocked(id, { transaction }) {
     const document = await ReturnDocument.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -75,31 +75,34 @@ export const returnRepository = {
     return ReturnDocument.create(data);
   },
 
-  async updateDocument(id, data) {
-    const [count] = await ReturnDocument.update(data, { where: { id, status: 'draft' } });
+  async updateDocument(id, data, { transaction }) {
+    const [count] = await ReturnDocument.update(data, {
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  async deleteDraft(id) {
-    const count = await ReturnDocument.destroy({ where: { id, status: 'draft' } });
+  async deleteDraft(id, { transaction }) {
+    const count = await ReturnDocument.destroy({ where: { id, status: 'draft' }, transaction });
     return count > 0;
   },
 
-  createLine(documentId, data) {
-    return ReturnLine.create({ ...data, documentId });
+  createLine(documentId, data, { transaction }) {
+    return ReturnLine.create({ ...data, documentId }, { transaction });
   },
 
-  findLine(documentId, lineId) {
-    return ReturnLine.findOne({ where: { id: lineId, documentId } });
+  findLine(documentId, lineId, { transaction }) {
+    return ReturnLine.findOne({ where: { id: lineId, documentId }, transaction });
   },
 
-  async updateLine(lineId, data) {
-    const [count] = await ReturnLine.update(data, { where: { id: lineId } });
+  async updateLine(lineId, data, { transaction }) {
+    const [count] = await ReturnLine.update(data, { where: { id: lineId }, transaction });
     return count > 0;
   },
 
-  deleteLine(lineId) {
-    return ReturnLine.destroy({ where: { id: lineId } });
+  deleteLine(lineId, { transaction }) {
+    return ReturnLine.destroy({ where: { id: lineId }, transaction });
   },
 
   // Блокируем сам экземпляр на время проведения — конкретный instanceId уже

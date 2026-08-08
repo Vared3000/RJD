@@ -39,11 +39,10 @@ export const receivingRepository = {
     });
   },
 
-  // Для проведения: блокируем только шапку документа (SELECT ... FOR UPDATE),
-  // чтобы два параллельных запроса на проведение не создали дубли. Строки
-  // читаем отдельным запросом — Postgres не разрешает FOR UPDATE через LEFT
-  // JOIN (а именно так сформировался бы include при документе без строк).
-  async findForPosting(id, { transaction }) {
+  // Для любой мутации блокируем только шапку документа (SELECT ... FOR UPDATE).
+  // Строки читаем отдельно: Postgres не разрешает FOR UPDATE через LEFT JOIN,
+  // который Sequelize строит для include документа без строк.
+  async findLocked(id, { transaction }) {
     const document = await ReceivingDocument.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -61,39 +60,45 @@ export const receivingRepository = {
     return ReceivingDocument.create(data);
   },
 
-  async updateDocument(id, data) {
-    const [count] = await ReceivingDocument.update(data, { where: { id, status: 'draft' } });
+  async updateDocument(id, data, { transaction }) {
+    const [count] = await ReceivingDocument.update(data, {
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  async deleteDraft(id) {
-    const count = await ReceivingDocument.destroy({ where: { id, status: 'draft' } });
+  async deleteDraft(id, { transaction }) {
+    const count = await ReceivingDocument.destroy({
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  createLine(documentId, data) {
-    return ReceivingLine.create({ ...data, documentId });
+  createLine(documentId, data, { transaction }) {
+    return ReceivingLine.create({ ...data, documentId }, { transaction });
   },
 
-  findLine(documentId, lineId) {
-    return ReceivingLine.findOne({ where: { id: lineId, documentId } });
+  findLine(documentId, lineId, { transaction }) {
+    return ReceivingLine.findOne({ where: { id: lineId, documentId }, transaction });
   },
 
-  async updateLine(lineId, data) {
-    const [count] = await ReceivingLine.update(data, { where: { id: lineId } });
+  async updateLine(lineId, data, { transaction }) {
+    const [count] = await ReceivingLine.update(data, { where: { id: lineId }, transaction });
     return count > 0;
   },
 
-  deleteLine(lineId) {
-    return ReceivingLine.destroy({ where: { id: lineId } });
+  deleteLine(lineId, { transaction }) {
+    return ReceivingLine.destroy({ where: { id: lineId }, transaction });
   },
 
-  findActiveModel(id) {
-    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null } });
+  findActiveModel(id, { transaction } = {}) {
+    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null }, transaction });
   },
 
-  findActiveSize(id) {
-    return models.Size.findOne({ where: { id, archivedAt: null } });
+  findActiveSize(id, { transaction } = {}) {
+    return models.Size.findOne({ where: { id, archivedAt: null }, transaction });
   },
 
   createBatch(data, { transaction }) {

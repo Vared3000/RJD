@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
-import { models } from '../database/models/index.js';
+import { models, sequelize } from '../database/models/index.js';
 
 async function loginAsAdmin(agent) {
   const res = await agent
@@ -84,9 +84,31 @@ test('поступление: черновик -> строки -> проведе
   });
   assert.equal(lineRes.status, 201);
   assert.equal(lineRes.body.data.lines.length, 1);
+  const lineId = lineRes.body.data.lines[0].id;
 
-  const posted = await auth(agent.post(`/api/v1/purchases/receiving/${documentId}/post`));
+  // Удерживаем блокировку шапки, ставим проведение первым в очередь ожидания,
+  // затем одновременно пытаемся изменить строку. После снятия блокировки
+  // проведение должно завершиться, а запоздавшая правка увидеть новый статус.
+  const blocker = await sequelize.transaction();
+  await models.ReceivingDocument.findByPk(documentId, {
+    transaction: blocker,
+    lock: blocker.LOCK.UPDATE,
+  });
+  const postPromise = auth(agent.post(`/api/v1/purchases/receiving/${documentId}/post`)).then(
+    (response) => response,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const concurrentEditPromise = auth(
+    agent.patch(`/api/v1/purchases/receiving/${documentId}/lines/${lineId}`),
+  )
+    .send({ quantity: 4 })
+    .then((response) => response);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await blocker.commit();
+
+  const [posted, concurrentEdit] = await Promise.all([postPromise, concurrentEditPromise]);
   assert.equal(posted.status, 200);
+  assert.equal(concurrentEdit.status, 409, 'правка после начала проведения должна получить 409');
   assert.equal(posted.body.data.status, 'posted');
   assert.ok(posted.body.data.batch?.code);
   state.batchIds.push(posted.body.data.batchId);
@@ -116,19 +138,19 @@ test('поступление: черновик -> строки -> проведе
   });
   assert.equal(
     editAfterPost.status,
-    400,
+    409,
     'редактирование проведённого документа должно быть отклонено',
   );
 
   const deleteAfterPost = await auth(agent.delete(`/api/v1/purchases/receiving/${documentId}`));
   assert.equal(
     deleteAfterPost.status,
-    400,
+    409,
     'удаление проведённого документа должно быть отклонено',
   );
 
   const doublePost = await auth(agent.post(`/api/v1/purchases/receiving/${documentId}/post`));
-  assert.equal(doublePost.status, 400, 'повторное проведение должно быть отклонено');
+  assert.equal(doublePost.status, 409, 'повторное проведение должно быть отклонено');
 });
 
 test('поступление: черновик без строк можно удалить', async (t) => {

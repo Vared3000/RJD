@@ -50,7 +50,7 @@ export const transferRepository = {
     });
   },
 
-  async findForPosting(id, { transaction }) {
+  async findLocked(id, { transaction }) {
     const document = await TransferDocument.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -64,31 +64,37 @@ export const transferRepository = {
     return TransferDocument.create(data);
   },
 
-  async updateDocument(id, data) {
-    const [count] = await TransferDocument.update(data, { where: { id, status: 'draft' } });
+  async updateDocument(id, data, { transaction }) {
+    const [count] = await TransferDocument.update(data, {
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  async deleteDraft(id) {
-    const count = await TransferDocument.destroy({ where: { id, status: 'draft' } });
+  async deleteDraft(id, { transaction }) {
+    const count = await TransferDocument.destroy({
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  createLine(documentId, data) {
-    return TransferLine.create({ ...data, documentId });
+  createLine(documentId, data, { transaction }) {
+    return TransferLine.create({ ...data, documentId }, { transaction });
   },
 
-  findLine(documentId, lineId) {
-    return TransferLine.findOne({ where: { id: lineId, documentId } });
+  findLine(documentId, lineId, { transaction }) {
+    return TransferLine.findOne({ where: { id: lineId, documentId }, transaction });
   },
 
-  async updateLine(lineId, data) {
-    const [count] = await TransferLine.update(data, { where: { id: lineId } });
+  async updateLine(lineId, data, { transaction }) {
+    const [count] = await TransferLine.update(data, { where: { id: lineId }, transaction });
     return count > 0;
   },
 
-  deleteLine(lineId) {
-    return TransferLine.destroy({ where: { id: lineId } });
+  deleteLine(lineId, { transaction }) {
+    return TransferLine.destroy({ where: { id: lineId }, transaction });
   },
 
   // Блокируем сам экземпляр (конкретный instanceId уже известен, как у

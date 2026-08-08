@@ -43,9 +43,9 @@ export const issuanceRepository = {
     });
   },
 
-  // См. приём в receiving.repository.js: FOR UPDATE только на шапку, строки
-  // отдельным запросом (Postgres не разрешает FOR UPDATE через LEFT JOIN).
-  async findForPosting(id, { transaction }) {
+  // См. приём в receiving.repository.js: единая блокировка шапки для правок и
+  // проведения; строки читаются отдельным запросом в той же транзакции.
+  async findLocked(id, { transaction }) {
     const document = await IssuanceDocument.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -72,39 +72,45 @@ export const issuanceRepository = {
     return IssuanceDocument.create(data);
   },
 
-  async updateDocument(id, data) {
-    const [count] = await IssuanceDocument.update(data, { where: { id, status: 'draft' } });
+  async updateDocument(id, data, { transaction }) {
+    const [count] = await IssuanceDocument.update(data, {
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  async deleteDraft(id) {
-    const count = await IssuanceDocument.destroy({ where: { id, status: 'draft' } });
+  async deleteDraft(id, { transaction }) {
+    const count = await IssuanceDocument.destroy({
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  createLine(documentId, data) {
-    return IssuanceLine.create({ ...data, documentId });
+  createLine(documentId, data, { transaction }) {
+    return IssuanceLine.create({ ...data, documentId }, { transaction });
   },
 
-  findLine(documentId, lineId) {
-    return IssuanceLine.findOne({ where: { id: lineId, documentId } });
+  findLine(documentId, lineId, { transaction }) {
+    return IssuanceLine.findOne({ where: { id: lineId, documentId }, transaction });
   },
 
-  async updateLine(lineId, data) {
-    const [count] = await IssuanceLine.update(data, { where: { id: lineId } });
+  async updateLine(lineId, data, { transaction }) {
+    const [count] = await IssuanceLine.update(data, { where: { id: lineId }, transaction });
     return count > 0;
   },
 
-  deleteLine(lineId) {
-    return IssuanceLine.destroy({ where: { id: lineId } });
+  deleteLine(lineId, { transaction }) {
+    return IssuanceLine.destroy({ where: { id: lineId }, transaction });
   },
 
-  findActiveModel(id) {
-    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null } });
+  findActiveModel(id, { transaction } = {}) {
+    return models.NomenclatureModel.findOne({ where: { id, archivedAt: null }, transaction });
   },
 
-  findActiveSize(id) {
-    return models.Size.findOne({ where: { id, archivedAt: null } });
+  findActiveSize(id, { transaction } = {}) {
+    return models.Size.findOne({ where: { id, archivedAt: null }, transaction });
   },
 
   // Подбор экземпляров под строку при проведении — FOR UPDATE SKIP LOCKED,
@@ -150,7 +156,7 @@ export const issuanceRepository = {
   // Для автоподбора/предпросмотра комплекта: работник (с должностью,
   // размерами — включая связанные Size-записи с их value для отображения — и
   // активными позициями комплекта его должности.
-  async findEmployeeWithKit(employeeId) {
+  async findEmployeeWithKit(employeeId, { transaction } = {}) {
     const employee = await Employee.findByPk(employeeId, {
       include: [
         { model: models.Size, as: 'clothingSize', attributes: ['id', 'value'] },
@@ -160,6 +166,7 @@ export const issuanceRepository = {
         { model: models.Size, as: 'beltSize', attributes: ['id', 'value'] },
         { model: models.Size, as: 'glovesSize', attributes: ['id', 'value'] },
       ],
+      transaction,
     });
     if (!employee || !employee.positionId) return { employee, kitItems: [] };
     const kitItems = await PositionKitItem.findAll({
@@ -175,6 +182,7 @@ export const issuanceRepository = {
         ['createdAt', 'ASC'],
         ['id', 'ASC'],
       ],
+      transaction,
     });
     return { employee, kitItems };
   },

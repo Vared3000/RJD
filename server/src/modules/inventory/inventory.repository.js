@@ -44,7 +44,7 @@ export const inventoryRepository = {
     });
   },
 
-  async findForCompletion(id, { transaction }) {
+  async findLocked(id, { transaction }) {
     const document = await InventoryDocument.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -58,45 +58,52 @@ export const inventoryRepository = {
     return { ...document.get({ plain: true }), lines };
   },
 
-  createDocument(data) {
-    return InventoryDocument.create(data);
+  createDocument(data, { transaction } = {}) {
+    return InventoryDocument.create(data, { transaction });
   },
 
   // Снимок остатков склада на момент создания документа — источник строк
   // для физического пересчёта (см. inventory.service.js).
-  findInStockInstances(warehouseId) {
+  findInStockInstances(warehouseId, { transaction } = {}) {
     return Instance.findAll({
       where: { warehouseId, status: 'in_stock', archivedAt: null },
       attributes: ['id'],
       order: [['createdAt', 'ASC']],
+      transaction,
     });
   },
 
-  bulkCreateLines(rows) {
-    return InventoryLine.bulkCreate(rows);
+  bulkCreateLines(rows, { transaction } = {}) {
+    return InventoryLine.bulkCreate(rows, { transaction });
   },
 
-  async updateDocument(id, data) {
-    const [count] = await InventoryDocument.update(data, { where: { id, status: 'draft' } });
+  async updateDocument(id, data, { transaction }) {
+    const [count] = await InventoryDocument.update(data, {
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  async deleteDraft(id) {
-    const count = await InventoryDocument.destroy({ where: { id, status: 'draft' } });
+  async deleteDraft(id, { transaction }) {
+    const count = await InventoryDocument.destroy({
+      where: { id, status: 'draft' },
+      transaction,
+    });
     return count > 0;
   },
 
-  findLine(documentId, lineId) {
-    return InventoryLine.findOne({ where: { id: lineId, documentId } });
+  findLine(documentId, lineId, { transaction }) {
+    return InventoryLine.findOne({ where: { id: lineId, documentId }, transaction });
   },
 
-  async updateLine(lineId, data) {
-    const [count] = await InventoryLine.update(data, { where: { id: lineId } });
+  async updateLine(lineId, data, { transaction }) {
+    const [count] = await InventoryLine.update(data, { where: { id: lineId }, transaction });
     return count > 0;
   },
 
-  deleteLine(lineId) {
-    return InventoryLine.destroy({ where: { id: lineId } });
+  deleteLine(lineId, { transaction }) {
+    return InventoryLine.destroy({ where: { id: lineId }, transaction });
   },
 
   markCompleted(id, { completedByUserId }, { transaction }) {

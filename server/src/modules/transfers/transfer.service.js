@@ -6,7 +6,7 @@ import { generateDocumentNumber } from './generate-document-number.js';
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже проведён и недоступен для изменения');
+    throw ApiError.conflict('Документ уже проведён и недоступен для изменения');
   }
 }
 
@@ -44,42 +44,52 @@ export const transferService = {
   },
 
   async update(id, data) {
-    const document = await transferRepository.findById(id);
-    assertDraft(document);
-    await transferRepository.updateDocument(id, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await transferRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await transferRepository.updateDocument(id, data, { transaction });
+    });
     return transferRepository.findById(id);
   },
 
   async remove(id) {
-    const document = await transferRepository.findById(id);
-    assertDraft(document);
-    await transferRepository.deleteDraft(id);
+    await sequelize.transaction(async (transaction) => {
+      const document = await transferRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await transferRepository.deleteDraft(id, { transaction });
+    });
   },
 
   async addLine(documentId, data) {
-    const document = await transferRepository.findById(documentId);
-    assertDraft(document);
-    assertNoDuplicateLine(document.lines, data.instanceId);
-    await transferRepository.createLine(documentId, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await transferRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      assertNoDuplicateLine(document.lines, data.instanceId);
+      await transferRepository.createLine(documentId, data, { transaction });
+    });
     return transferRepository.findById(documentId);
   },
 
   async updateLine(documentId, lineId, data) {
-    const document = await transferRepository.findById(documentId);
-    assertDraft(document);
-    const line = await transferRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
-    await transferRepository.updateLine(lineId, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await transferRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await transferRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
+      await transferRepository.updateLine(lineId, data, { transaction });
+    });
     return transferRepository.findById(documentId);
   },
 
   async removeLine(documentId, lineId) {
-    const document = await transferRepository.findById(documentId);
-    assertDraft(document);
-    const line = await transferRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await transferRepository.deleteLine(lineId);
+    await sequelize.transaction(async (transaction) => {
+      const document = await transferRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await transferRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await transferRepository.deleteLine(lineId, { transaction });
+    });
     return transferRepository.findById(documentId);
   },
 
@@ -91,9 +101,9 @@ export const transferService = {
   // склада (остальные документы всегда оставляют одно из полей null).
   async post(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
-      const document = await transferRepository.findForPosting(documentId, { transaction });
+      const document = await transferRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
-      if (document.status !== 'draft') throw ApiError.badRequest('Документ уже проведён');
+      if (document.status !== 'draft') throw ApiError.conflict('Документ уже проведён');
       if (document.fromWarehouseId === document.toWarehouseId) {
         throw ApiError.badRequest('Склад-отправитель и склад-получатель не должны совпадать');
       }

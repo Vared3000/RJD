@@ -139,7 +139,7 @@ test('стирка/ремонт: отправка -> завершение, ду�
   const laundryLineAfterSend = await auth(
     agent.post(`/api/v1/laundry/documents/${laundryId}/lines`),
   ).send({ instanceId: spareInstanceId });
-  assert.equal(laundryLineAfterSend.status, 400);
+  assert.equal(laundryLineAfterSend.status, 409);
 
   const sentLineId = laundrySent.body.data.lines[0].id;
   const laundryComplete = await auth(

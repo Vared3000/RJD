@@ -6,7 +6,7 @@ import { generateDocumentNumber } from './generate-document-number.js';
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
-    throw ApiError.badRequest('Документ уже проведён и недоступен для изменения');
+    throw ApiError.conflict('Документ уже проведён и недоступен для изменения');
   }
 }
 
@@ -42,42 +42,52 @@ export const writeoffService = {
   },
 
   async update(id, data) {
-    const document = await writeoffRepository.findById(id);
-    assertDraft(document);
-    await writeoffRepository.updateDocument(id, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await writeoffRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await writeoffRepository.updateDocument(id, data, { transaction });
+    });
     return writeoffRepository.findById(id);
   },
 
   async remove(id) {
-    const document = await writeoffRepository.findById(id);
-    assertDraft(document);
-    await writeoffRepository.deleteDraft(id);
+    await sequelize.transaction(async (transaction) => {
+      const document = await writeoffRepository.findLocked(id, { transaction });
+      assertDraft(document);
+      await writeoffRepository.deleteDraft(id, { transaction });
+    });
   },
 
   async addLine(documentId, data) {
-    const document = await writeoffRepository.findById(documentId);
-    assertDraft(document);
-    assertNoDuplicateLine(document.lines, data.instanceId);
-    await writeoffRepository.createLine(documentId, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await writeoffRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      assertNoDuplicateLine(document.lines, data.instanceId);
+      await writeoffRepository.createLine(documentId, data, { transaction });
+    });
     return writeoffRepository.findById(documentId);
   },
 
   async updateLine(documentId, lineId, data) {
-    const document = await writeoffRepository.findById(documentId);
-    assertDraft(document);
-    const line = await writeoffRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
-    await writeoffRepository.updateLine(lineId, data);
+    await sequelize.transaction(async (transaction) => {
+      const document = await writeoffRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await writeoffRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
+      await writeoffRepository.updateLine(lineId, data, { transaction });
+    });
     return writeoffRepository.findById(documentId);
   },
 
   async removeLine(documentId, lineId) {
-    const document = await writeoffRepository.findById(documentId);
-    assertDraft(document);
-    const line = await writeoffRepository.findLine(documentId, lineId);
-    if (!line) throw ApiError.notFound('Позиция не найдена');
-    await writeoffRepository.deleteLine(lineId);
+    await sequelize.transaction(async (transaction) => {
+      const document = await writeoffRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const line = await writeoffRepository.findLine(documentId, lineId, { transaction });
+      if (!line) throw ApiError.notFound('Позиция не найдена');
+      await writeoffRepository.deleteLine(lineId, { transaction });
+    });
     return writeoffRepository.findById(documentId);
   },
 
@@ -87,9 +97,9 @@ export const writeoffService = {
   // остатки без toWarehouseId в движении) и создаёт движение склада.
   async post(documentId, { userId }) {
     await sequelize.transaction(async (transaction) => {
-      const document = await writeoffRepository.findForPosting(documentId, { transaction });
+      const document = await writeoffRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
-      if (document.status !== 'draft') throw ApiError.badRequest('Документ уже проведён');
+      if (document.status !== 'draft') throw ApiError.conflict('Документ уже проведён');
       if (!document.lines || document.lines.length === 0) {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }
