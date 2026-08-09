@@ -165,13 +165,6 @@ export function KitsPage() {
     unassigned: tabItems(allKitItems, 'unassigned').length,
     archive: tabItems(allKitItems, 'archive').length,
   };
-  const genderCounts = {
-    male: genderItems(currentTabItems, 'male').length,
-    female: genderItems(currentTabItems, 'female').length,
-    unisex: genderItems(currentTabItems, 'unisex').length,
-    all: currentTabItems.length,
-  };
-
   function goToPage(nextPage) {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -204,7 +197,7 @@ export function KitsPage() {
       await create.mutateAsync(payload);
     }
     setActiveTab(values.season);
-    setActiveGender(values.gender ?? 'unisex');
+    setActiveGender(values.gender === 'female' ? 'female' : 'male');
     setEditingItem(null);
   }
 
@@ -235,39 +228,27 @@ export function KitsPage() {
         />
       </div>
 
-      <div className={catalogStyles.tableWrap}>
-        <table className={catalogStyles.table}>
-          <thead>
-            <tr>
-              <th>Должность</th>
-            </tr>
-          </thead>
-          <tbody>
-            {positionsLoading && (
-              <tr>
-                <td className={catalogStyles.hint}>Загрузка…</td>
-              </tr>
-            )}
-            {!positionsLoading && positions?.length === 0 && (
-              <tr>
-                <td className={catalogStyles.hint}>Должности не найдены</td>
-              </tr>
-            )}
-            {positions?.map((position) => (
-              <tr key={position.id} className={catalogStyles.linkRow}>
-                <td>
-                  <button
-                    type="button"
-                    className={styles.positionButton}
-                    onClick={() => openPosition(position)}
-                  >
-                    {position.name}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className={styles.positionList} aria-live="polite">
+        {positionsLoading && <p className={catalogStyles.hint}>Загрузка…</p>}
+        {!positionsLoading && positions?.length === 0 && (
+          <p className={catalogStyles.hint}>Должности не найдены</p>
+        )}
+        {positions?.map((position) => (
+          <button
+            key={position.id}
+            type="button"
+            className={styles.positionCard}
+            onClick={() => openPosition(position)}
+          >
+            <span>
+              <strong>{position.name}</strong>
+              <small>Открыть и настроить комплект одежды</small>
+            </span>
+            <span className={styles.positionArrow} aria-hidden="true">
+              →
+            </span>
+          </button>
+        ))}
       </div>
 
       {(positionsMeta?.pages ?? 0) > 1 && (
@@ -295,59 +276,91 @@ export function KitsPage() {
 
       {selectedPosition && editingItem === null && (
         <Modal
-          title={`Комплект: ${selectedPosition.name}`}
+          title={`Комплект для должности «${selectedPosition.name}»`}
           onClose={closePosition}
           closeOnOverlayClick={false}
           size="wide"
         >
-          <div className={styles.tabs} role="tablist" aria-label="Сезоны комплекта">
-            {[
-              ['summer', 'Летний'],
-              ['winter', 'Зимний'],
-              ['unassigned', 'Без сезона'],
-              ['archive', 'Архив'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === value}
-                className={`${styles.tab} ${activeTab === value ? styles.activeTab : ''}`}
-                onClick={() => setActiveTab(value)}
-              >
-                {label} ({tabCounts[value]})
-              </button>
-            ))}
+          <div className={styles.selectionFlow}>
+            <section className={styles.selectionStep} aria-labelledby="kit-variant-step">
+              <span className={styles.stepNumber}>1</span>
+              <div className={styles.stepContent}>
+                <div className={styles.stepHeading}>
+                  <strong id="kit-variant-step">Выберите комплект</strong>
+                  <span>Унисекс добавляется автоматически</span>
+                </div>
+                <div className={styles.choiceGroup} role="tablist" aria-label="Комплект">
+                  {[
+                    ['male', 'Мужской'],
+                    ['female', 'Женский'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeGender === value}
+                      className={`${styles.choiceButton} ${activeGender === value ? styles.activeChoice : ''}`}
+                      onClick={() => setActiveGender(value)}
+                    >
+                      {label} + унисекс
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className={styles.selectionStep} aria-labelledby="kit-season-step">
+              <span className={styles.stepNumber}>2</span>
+              <div className={styles.stepContent}>
+                <div className={styles.stepHeading}>
+                  <strong id="kit-season-step">Выберите сезон</strong>
+                  <span>Будут показаны вещи только этого сезона</span>
+                </div>
+                <div className={styles.choiceGroup} role="tablist" aria-label="Сезон">
+                  {[
+                    ['summer', 'Летний'],
+                    ['winter', 'Зимний'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === value}
+                      className={`${styles.choiceButton} ${activeTab === value ? styles.activeChoice : ''}`}
+                      onClick={() => setActiveTab(value)}
+                    >
+                      {label} ({tabCounts[value]})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
           </div>
 
-          {(activeTab === 'summer' || activeTab === 'winter') && (
-            <div className={styles.variantFilter}>
-              <span className={styles.filterLabel}>Вариант комплекта</span>
-              <div className={styles.variantTabs} role="tablist" aria-label="Пол комплекта">
-                {[
-                  ['male', 'Мужской + унисекс'],
-                  ['female', 'Женский + унисекс'],
-                  ['unisex', 'Унисекс'],
-                  ['all', 'Все варианты'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeGender === value}
-                    className={`${styles.tab} ${activeGender === value ? styles.activeTab : ''}`}
-                    onClick={() => setActiveGender(value)}
-                  >
-                    {label} ({genderCounts[value]})
-                  </button>
-                ))}
-              </div>
-              <p className={styles.variantHint}>
-                В мужской набор входят мужские вещи и унисекс, в женский — женские вещи и унисекс.
-                Если для одной вещи есть оба варианта, используется вариант нужного пола.
-              </p>
-            </div>
-          )}
+          <div className={styles.secondaryNavigation}>
+            <span>Дополнительно:</span>
+            <button
+              type="button"
+              className={activeGender === 'all' ? styles.activeSecondaryLink : ''}
+              onClick={() => setActiveGender('all')}
+            >
+              Все варианты
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'unassigned' ? styles.activeSecondaryLink : ''}
+              onClick={() => setActiveTab('unassigned')}
+            >
+              Без сезона ({tabCounts.unassigned})
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'archive' ? styles.activeSecondaryLink : ''}
+              onClick={() => setActiveTab('archive')}
+            >
+              Архив ({tabCounts.archive})
+            </button>
+          </div>
 
           {activeTab === 'unassigned' && tabCounts.unassigned > 0 && (
             <p className={styles.warning}>
@@ -357,13 +370,24 @@ export function KitsPage() {
           )}
 
           <div className={styles.kitToolbar}>
-            <span className={styles.itemCount}>Позиций: {visibleKitItems.length}</span>
+            <div>
+              <strong className={styles.currentSelection}>
+                {activeTab === 'unassigned'
+                  ? 'Вещи без сезона'
+                  : activeTab === 'archive'
+                    ? 'Архивные вещи'
+                    : activeGender === 'all'
+                      ? `Все варианты · ${SEASON_LABELS[activeTab]}`
+                      : `${activeGender === 'female' ? 'Женский' : 'Мужской'} комплект · ${SEASON_LABELS[activeTab]}`}
+              </strong>
+              <span className={styles.itemCount}>{visibleKitItems.length} вещей</span>
+            </div>
             {canManage && (activeTab === 'summer' || activeTab === 'winter') && (
               <Button
                 onClick={() =>
                   setEditingItem({
                     season: activeTab,
-                    gender: activeGender === 'all' || activeGender === 'unisex' ? '' : activeGender,
+                    gender: activeGender === 'all' ? '' : activeGender,
                     quantity: 1,
                     serviceLifeYears: 2,
                   })
