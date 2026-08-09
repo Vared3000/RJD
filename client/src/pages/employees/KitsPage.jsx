@@ -13,6 +13,7 @@ import styles from './KitsPage.module.css';
 const positionsHooks = createCatalogHooks('positions');
 const kitsHooks = createCatalogHooks('kits');
 const SEASON_LABELS = { summer: 'Летний', winter: 'Зимний' };
+const KIT_VARIANT_LABELS = { ...GENDER_LABELS, unisex: 'Унисекс', all: 'Все варианты' };
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
 
 const kitItemSchema = z.object({
@@ -52,7 +53,7 @@ const kitItemFields = [
   },
   {
     name: 'gender',
-    label: 'Пол',
+    label: 'Вариант комплекта',
     type: 'select',
     placeholder: 'Унисекс',
     options: Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label })),
@@ -78,12 +79,19 @@ function tabItems(items, tab) {
   return active.filter((item) => item.season === tab);
 }
 
+function genderItems(items, gender) {
+  if (gender === 'all') return items;
+  if (gender === 'unisex') return items.filter((item) => !item.gender);
+  return items.filter((item) => item.gender === gender);
+}
+
 export function KitsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [activeTab, setActiveTab] = useState('summer');
+  const [activeGender, setActiveGender] = useState('male');
   const [editingItem, setEditingItem] = useState(null);
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const permissions = useSessionStore((state) => state.user?.permissions ?? []);
@@ -127,18 +135,27 @@ export function KitsPage() {
   }, [debouncedSearch, page, setSearchParams]);
 
   const allKitItems = useMemo(() => kitItems ?? [], [kitItems]);
-  const visibleKitItems = useMemo(
-    () =>
-      tabItems(allKitItems, activeTab).toSorted((left, right) =>
-        (left.model?.name ?? '').localeCompare(right.model?.name ?? '', 'ru'),
-      ),
-    [activeTab, allKitItems],
-  );
+  const currentTabItems = useMemo(() => tabItems(allKitItems, activeTab), [activeTab, allKitItems]);
+  const visibleKitItems = useMemo(() => {
+    const items =
+      activeTab === 'summer' || activeTab === 'winter'
+        ? genderItems(currentTabItems, activeGender)
+        : currentTabItems;
+    return items.toSorted((left, right) =>
+      (left.model?.name ?? '').localeCompare(right.model?.name ?? '', 'ru'),
+    );
+  }, [activeGender, activeTab, currentTabItems]);
   const tabCounts = {
     summer: tabItems(allKitItems, 'summer').length,
     winter: tabItems(allKitItems, 'winter').length,
     unassigned: tabItems(allKitItems, 'unassigned').length,
     archive: tabItems(allKitItems, 'archive').length,
+  };
+  const genderCounts = {
+    male: genderItems(currentTabItems, 'male').length,
+    female: genderItems(currentTabItems, 'female').length,
+    unisex: genderItems(currentTabItems, 'unisex').length,
+    all: currentTabItems.length,
   };
 
   function goToPage(nextPage) {
@@ -152,6 +169,7 @@ export function KitsPage() {
   function openPosition(position) {
     setSelectedPosition(position);
     setActiveTab('summer');
+    setActiveGender('male');
     setEditingItem(null);
     create.reset();
     update.reset();
@@ -172,6 +190,7 @@ export function KitsPage() {
       await create.mutateAsync(payload);
     }
     setActiveTab(values.season);
+    setActiveGender(values.gender ?? 'unisex');
     setEditingItem(null);
   }
 
@@ -287,6 +306,35 @@ export function KitsPage() {
             ))}
           </div>
 
+          {(activeTab === 'summer' || activeTab === 'winter') && (
+            <div className={styles.variantFilter}>
+              <span className={styles.filterLabel}>Вариант комплекта</span>
+              <div className={styles.variantTabs} role="tablist" aria-label="Пол комплекта">
+                {[
+                  ['male', 'Мужской'],
+                  ['female', 'Женский'],
+                  ['unisex', 'Унисекс'],
+                  ['all', 'Все варианты'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeGender === value}
+                    className={`${styles.tab} ${activeGender === value ? styles.activeTab : ''}`}
+                    onClick={() => setActiveGender(value)}
+                  >
+                    {label} ({genderCounts[value]})
+                  </button>
+                ))}
+              </div>
+              <p className={styles.variantHint}>
+                Мужские и женские вещи подбираются работникам соответствующего пола. Унисекс
+                подходит всем.
+              </p>
+            </div>
+          )}
+
           {activeTab === 'unassigned' && tabCounts.unassigned > 0 && (
             <p className={styles.warning}>
               Эти импортированные позиции не участвуют в автоматическом подборе. Откройте строку и
@@ -301,7 +349,7 @@ export function KitsPage() {
                 onClick={() =>
                   setEditingItem({
                     season: activeTab,
-                    gender: '',
+                    gender: activeGender === 'all' || activeGender === 'unisex' ? '' : activeGender,
                     quantity: 1,
                     serviceLifeYears: 2,
                   })
@@ -322,7 +370,7 @@ export function KitsPage() {
                 <tr>
                   <th>Вещь</th>
                   <th>Сезон</th>
-                  <th>Пол</th>
+                  <th>Вариант комплекта</th>
                   <th>Кол-во</th>
                   <th>Срок</th>
                   {canManage && <th aria-label="Действия" />}
@@ -339,7 +387,9 @@ export function KitsPage() {
                 {!kitLoading && visibleKitItems.length === 0 && (
                   <tr>
                     <td className={catalogStyles.hint} colSpan={canManage ? 6 : 5}>
-                      В этом разделе пока нет вещей
+                      {activeTab === 'summer' || activeTab === 'winter'
+                        ? `В варианте «${KIT_VARIANT_LABELS[activeGender]}» пока нет вещей`
+                        : 'В этом разделе пока нет вещей'}
                     </td>
                   </tr>
                 )}
@@ -392,7 +442,7 @@ export function KitsPage() {
 
       {selectedPosition && editingItem !== null && (
         <EntityFormModal
-          title={`${editingItem.id ? 'Изменить' : 'Добавить'} вещь: ${selectedPosition.name}`}
+          title={`${editingItem.id ? 'Изменить' : 'Добавить'} вещь: ${selectedPosition.name} — ${KIT_VARIANT_LABELS[editingItem.gender || 'unisex'].toLowerCase()} комплект`}
           fields={kitItemFields}
           schema={kitItemSchema}
           defaultValues={editingItem}
