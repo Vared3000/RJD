@@ -6,14 +6,13 @@ import { Button } from '../../shared/ui/Button.jsx';
 import { getVisibleNavSections } from './nav-sections.js';
 import styles from './AppLayout.module.css';
 
-const STORAGE_KEY = 'workwear.nav.expandedSections';
+const STORAGE_KEY = 'workwear.nav.openSection';
 
-function loadStoredExpanded() {
+function loadStoredSection() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return localStorage.getItem(STORAGE_KEY);
   } catch {
-    return {};
+    return null;
   }
 }
 
@@ -25,7 +24,7 @@ export function AppLayout() {
     () => getVisibleNavSections(user?.permissions ?? []),
     [user?.permissions],
   );
-  const [expandedOverrides, setExpandedOverrides] = useState(loadStoredExpanded);
+  const [navSearch, setNavSearch] = useState('');
 
   const activeSectionTitle = useMemo(
     () =>
@@ -34,31 +33,77 @@ export function AppLayout() {
       )?.title,
     [visibleSections, location.pathname],
   );
+  const [sectionChoice, setSectionChoice] = useState(() => ({
+    pathname: location.pathname,
+    title: activeSectionTitle ?? loadStoredSection(),
+  }));
+  const openSection =
+    sectionChoice.pathname === location.pathname ? sectionChoice.title : activeSectionTitle;
 
-  const isSectionExpanded = (title) =>
-    title in expandedOverrides ? expandedOverrides[title] : title === activeSectionTitle;
+  const filteredSections = useMemo(() => {
+    const query = navSearch.trim().toLocaleLowerCase('ru-RU');
+    if (!query) return visibleSections;
+
+    return visibleSections
+      .map((section) => {
+        const sectionMatches = section.title?.toLocaleLowerCase('ru-RU').includes(query);
+        const items = sectionMatches
+          ? section.items
+          : section.items.filter((item) => item.label.toLocaleLowerCase('ru-RU').includes(query));
+        return { ...section, items };
+      })
+      .filter((section) => section.items.length > 0);
+  }, [navSearch, visibleSections]);
+
+  const isSectionExpanded = (title) => Boolean(navSearch.trim()) || openSection === title;
 
   const toggleSection = (title) => {
-    setExpandedOverrides((prev) => {
-      const next = { ...prev, [title]: !isSectionExpanded(title) };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    const next = openSection === title ? null : title;
+    setSectionChoice({ pathname: location.pathname, title: next });
+    if (next) localStorage.setItem(STORAGE_KEY, next);
+    else localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>Учёт спецодежды</div>
-        <nav className={styles.nav}>
-          {visibleSections.map((section) => {
+        <div className={styles.navSearchWrap}>
+          <span className={styles.navSearchIcon} aria-hidden="true">
+            ⌕
+          </span>
+          <input
+            type="search"
+            className={styles.navSearch}
+            value={navSearch}
+            onChange={(event) => setNavSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setNavSearch('');
+            }}
+            placeholder="Найти в меню…"
+            aria-label="Поиск по меню"
+          />
+          {navSearch && (
+            <button
+              type="button"
+              className={styles.clearNavSearch}
+              onClick={() => setNavSearch('')}
+              aria-label="Очистить поиск по меню"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <nav className={styles.nav} aria-label="Основное меню">
+          {filteredSections.map((section) => {
             const expanded = !section.title || isSectionExpanded(section.title);
+            const active = section.title === activeSectionTitle;
             return (
               <div key={section.title ?? 'main'} className={styles.navSection}>
                 {section.title && (
                   <button
                     type="button"
-                    className={styles.navSectionTitle}
+                    className={`${styles.navSectionTitle} ${active ? styles.navSectionTitleActive : ''}`}
                     aria-expanded={expanded}
                     onClick={() => toggleSection(section.title)}
                   >
@@ -86,6 +131,12 @@ export function AppLayout() {
               </div>
             );
           })}
+          {filteredSections.length === 0 && (
+            <div className={styles.navEmpty}>
+              <strong>Ничего не найдено</strong>
+              <span>Попробуйте другое название</span>
+            </div>
+          )}
         </nav>
       </aside>
       <div className={styles.content}>
