@@ -41,6 +41,9 @@ docker compose ps
 
 ## Резервное копирование
 
+Для Windows без Bash и Docker используйте отдельную
+[инструкцию и PowerShell-скрипты](WINDOWS_BACKUP.md).
+
 На машине с установленным `pg_dump`:
 
 ```bash
