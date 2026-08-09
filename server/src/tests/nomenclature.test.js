@@ -42,6 +42,13 @@ test('номенклатура: модель -> размер -> экземпля
   });
   assert.equal(model.status, 201);
 
+  const modelSearch = await auth(agent.get('/api/v1/nomenclature-models')).query({
+    search: `Model ${unique}`,
+    limit: 40,
+  });
+  assert.equal(modelSearch.status, 200);
+  assert.ok(modelSearch.body.data.some((item) => item.id === model.body.data.id));
+
   const size = await auth(agent.post('/api/v1/sizes')).send({
     type: 'clothing',
     value: `TEST-${unique}`,

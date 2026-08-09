@@ -30,6 +30,7 @@ export function createNomenclatureModelsRouter() {
     createSchema: createNomenclatureModelSchema,
     updateSchema: updateNomenclatureModelSchema,
     validateRelations,
+    searchFields: ['name', 'article', 'description'],
     include: [
       {
         model: models.NomenclaturePrice,

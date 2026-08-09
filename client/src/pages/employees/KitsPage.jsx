@@ -442,7 +442,7 @@ export function KitsPage() {
 
       {selectedPosition && editingItem !== null && (
         <EntityFormModal
-          title={`${editingItem.id ? 'Изменить' : 'Добавить'} вещь: ${selectedPosition.name} — ${KIT_VARIANT_LABELS[editingItem.gender || 'unisex'].toLowerCase()} комплект`}
+          title={`${editingItem.id ? 'Изменить' : 'Добавить'} вещь: ${selectedPosition.name}`}
           fields={kitItemFields}
           schema={kitItemSchema}
           defaultValues={editingItem}
