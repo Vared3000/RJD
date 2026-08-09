@@ -208,7 +208,7 @@ export function createReferenceController(service, { filterFields = [] } = {}) {
   };
 }
 
-function createReferenceRouter({
+export function createReferenceRouter({
   controller,
   viewPermission,
   managePermission,
@@ -246,51 +246,4 @@ function createReferenceRouter({
   );
 
   return router;
-}
-
-// entityName — для сообщений об ошибках (русский, с учётом рода: "не найден(а)").
-// validateRelations(data) — необязательная async-проверка внешних ссылок (например,
-// что organizationId существует и не архивирован) перед create/update.
-// beforeCreate(data) — необязательное async-преобразование данных перед созданием
-// (например, автогенерация инвентарного номера, если он не передан).
-// sortFields — массив полей, по которым разрешена сортировка.
-// filterFields — разрешённые точные фильтры из query-параметров списка.
-export function createReferenceModule(
-  Model,
-  {
-    entityName,
-    viewPermission,
-    managePermission,
-    createSchema,
-    updateSchema,
-    validateRelations,
-    beforeCreate,
-    include,
-    searchFields,
-    filterFields = [],
-    sortFields = ['createdAt', 'name'],
-    mutationHooks,
-  },
-) {
-  const repository = createReferenceRepository(Model, {
-    include,
-    searchFields,
-    sortFields,
-    filterFields,
-  });
-  const service = createReferenceService(repository, {
-    entityName,
-    validateRelations,
-    beforeCreate,
-    mutationHooks,
-  });
-  const controller = createReferenceController(service, { filterFields });
-  const router = createReferenceRouter({
-    controller,
-    viewPermission,
-    managePermission,
-    createSchema,
-    updateSchema,
-  });
-  return { repository, service, controller, router };
 }

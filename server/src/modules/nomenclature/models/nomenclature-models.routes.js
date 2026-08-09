@@ -1,49 +1,21 @@
-import { models } from '../../../database/models/index.js';
-import { createReferenceModule } from '../../catalogs/reference-crud.factory.js';
+import { createReferenceRouter } from '../../catalogs/reference-crud.factory.js';
 import { referenceOpenApiPaths } from '../../catalogs/reference-openapi.js';
 import { extendSwaggerPaths } from '../../../config/swagger.js';
 import {
   createNomenclatureModelSchema,
   updateNomenclatureModelSchema,
 } from './nomenclature-model.validation.js';
-import { ApiError } from '../../../utils/api-error.js';
 import { requirePermission } from '../../../middlewares/permission.middleware.js';
 import { asyncHandler } from '../../../utils/async-handler.js';
-import { success } from '../../../utils/respond.js';
-
-async function validateRelations(data, { current } = {}) {
-  const sizeType = data.sizeType !== undefined ? data.sizeType : current?.sizeType;
-  const requiresHeightSize =
-    data.requiresHeightSize !== undefined
-      ? data.requiresHeightSize
-      : (current?.requiresHeightSize ?? false);
-  if (requiresHeightSize && sizeType !== 'clothing') {
-    throw ApiError.badRequest('Рост можно требовать только для моделей с типом размера «Одежда»');
-  }
-}
+import { nomenclatureModelsController } from './nomenclature-models.controller.js';
 
 export function createNomenclatureModelsRouter() {
-  const { router } = createReferenceModule(models.NomenclatureModel, {
-    entityName: 'Модель номенклатуры',
+  const router = createReferenceRouter({
+    controller: nomenclatureModelsController,
     viewPermission: 'nomenclature.view',
     managePermission: 'nomenclature.manage',
     createSchema: createNomenclatureModelSchema,
     updateSchema: updateNomenclatureModelSchema,
-    validateRelations,
-    searchFields: ['name', 'article', 'description'],
-    include: [
-      {
-        model: models.NomenclaturePrice,
-        as: 'prices',
-        separate: true,
-        limit: 1,
-        order: [
-          ['effectiveDate', 'DESC'],
-          ['createdAt', 'DESC'],
-        ],
-        include: [{ model: models.Dpo, as: 'dpo', attributes: ['id', 'name'] }],
-      },
-    ],
   });
 
   extendSwaggerPaths(
@@ -58,20 +30,7 @@ export function createNomenclatureModelsRouter() {
   router.get(
     '/:id/prices',
     requirePermission('nomenclature.view'),
-    asyncHandler(async (req, res) => {
-      const prices = await models.NomenclaturePrice.findAll({
-        where: {
-          modelId: req.params.id,
-          ...(req.query.dpoId ? { dpoId: req.query.dpoId } : {}),
-        },
-        include: [{ model: models.Dpo, as: 'dpo', attributes: ['id', 'name'] }],
-        order: [
-          ['effectiveDate', 'DESC'],
-          ['createdAt', 'DESC'],
-        ],
-      });
-      return success(res, prices);
-    }),
+    asyncHandler(nomenclatureModelsController.listPrices),
   );
 
   return router;

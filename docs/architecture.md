@@ -15,6 +15,12 @@
 - `*.repository.js` — единственное место обращения к Sequelize-моделям.
 - `*.validation.js` — zod-схемы входных данных.
 
+Правило защищено тестом `server/src/tests/routes-architecture.test.js`:
+route-файлы не импортируют Sequelize-модели, сервисы или репозитории, не
+вызывают ORM и не содержат inline async-обработчики. Для одинаковых
+справочников фабрики создают слои в отдельных `*.repository.js`, `*.service.js`
+и `*.controller.js`; HTTP-сборка остаётся в `*.routes.js`.
+
 Ошибки — только через `ApiError` (`utils/api-error.js`) или естественные
 исключения Sequelize/zod; центральный `errorHandler` сам сопоставит их с HTTP-
 статусами. Не отправлять `res.status().json()` с ошибкой напрямую из сервиса/

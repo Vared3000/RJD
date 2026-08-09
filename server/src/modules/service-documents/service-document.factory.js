@@ -1,16 +1,9 @@
-import { Router } from 'express';
 import { Op } from 'sequelize';
 import { sequelize, models } from '../../database/models/index.js';
 import { ApiError } from '../../utils/api-error.js';
 import { success, paginatedSuccess } from '../../utils/respond.js';
 import { parsePagination } from '../../utils/pagination.js';
-import { asyncHandler } from '../../utils/async-handler.js';
-import { requireAuth } from '../../middlewares/auth.middleware.js';
-import { requirePermission } from '../../middlewares/permission.middleware.js';
-import { validateBody } from '../../middlewares/validate.middleware.js';
-import { extendSwaggerPaths } from '../../config/swagger.js';
 import { buildServiceDocumentSchemas } from './service-document.validation.js';
-import { serviceDocumentOpenApiPaths } from './service-document-openapi.js';
 import {
   buildInstanceEvent,
   instanceEventsRepository,
@@ -466,24 +459,12 @@ export function createServiceDocumentModule({
     },
   };
 
-  function createRouter() {
-    const router = Router();
-    router.use(requireAuth, requirePermission(permission));
-
-    router.get('/', asyncHandler(controller.list));
-    router.post('/', validateBody(createDocumentSchema), asyncHandler(controller.create));
-    router.get('/:id', asyncHandler(controller.getOne));
-    router.patch('/:id', validateBody(updateDocumentSchema), asyncHandler(controller.update));
-    router.delete('/:id', asyncHandler(controller.remove));
-    router.post('/:id/lines', validateBody(createLineSchema), asyncHandler(controller.addLine));
-    router.delete('/:id/lines/:lineId', asyncHandler(controller.removeLine));
-    router.post('/:id/send', asyncHandler(controller.send));
-    router.post('/:id/complete', validateBody(completeSchema), asyncHandler(controller.complete));
-
-    return router;
-  }
-
-  extendSwaggerPaths(serviceDocumentOpenApiPaths({ basePath, tag, entityName }));
-
-  return { repository, service, controller, createRouter };
+  return {
+    repository,
+    service,
+    controller,
+    schemas: { createDocumentSchema, updateDocumentSchema, createLineSchema, completeSchema },
+    openApi: { basePath, tag, entityName },
+    permission,
+  };
 }
