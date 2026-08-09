@@ -1,12 +1,10 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { env, isProduction } from './config/env.js';
+import { env } from './config/env.js';
 import { swaggerSpec } from './config/swagger.js';
 import { logger } from './utils/logger.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
@@ -84,18 +82,6 @@ export function createApp() {
   app.use('/api/v1/print-forms', createPrintFormsRouter());
   app.use('/api/v1/barcodes', createBarcodeRouter());
   app.use('/api/v1/print-form-settings', createPrintFormSettingsRouter());
-
-  // Прод: единственный процесс отдаёт и API, и собранный фронтенд (client/dist)
-  // с одного порта/origin — упрощает постоянное развёртывание без отдельного
-  // Nginx/статик-сервера (см. HANDOFF.md, раздел "Деплой"). В dev фронтенд
-  // обслуживает отдельный процесс Vite (pnpm dev).
-  if (isProduction) {
-    const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
-    app.use(express.static(clientDist));
-    app.get(/^(?!\/api|\/api-docs|\/health).*/, (req, res) => {
-      res.sendFile(path.join(clientDist, 'index.html'));
-    });
-  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

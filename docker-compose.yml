@@ -11,8 +11,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
-    ports:
-      - '5432:5432'
+    expose:
+      - '5432'
+    networks:
+      - database
     healthcheck:
       test:
         [
@@ -32,8 +34,9 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      HOST: 0.0.0.0
       PORT: 4000
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Укажите LAN-адрес системы в .env}
       DATABASE_URL: postgres://${POSTGRES_USER:-workwear_app}:${POSTGRES_PASSWORD:?Укажите POSTGRES_PASSWORD в .env}@postgres:5432/${POSTGRES_DB:-workwear_erp}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Укажите JWT_ACCESS_SECRET в .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Укажите JWT_REFRESH_SECRET в .env}
@@ -41,10 +44,13 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
       BOOTSTRAP_ADMIN_LOGIN: ${BOOTSTRAP_ADMIN_LOGIN:-admin}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Укажите BOOTSTRAP_ADMIN_PASSWORD в .env}
-    ports:
-      - '4000:4000'
+    expose:
+      - '4000'
     volumes:
       - server_uploads:/app/uploads
+    networks:
+      - database
+      - application
     healthcheck:
       test:
         [
@@ -68,7 +74,9 @@ services:
       server:
         condition: service_healthy
     ports:
-      - '80:80'
+      - '${LAN_BIND_ADDRESS:?Укажите постоянный LAN IPv4 сервера в .env}:80:80'
+    networks:
+      - application
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost/ >/dev/null || exit 1']
       interval: 10s
@@ -78,3 +86,8 @@ services:
 volumes:
   postgres_data:
   server_uploads:
+
+networks:
+  database:
+    internal: true
+  application:

@@ -2,7 +2,7 @@ import { authService } from './auth.service.js';
 import { loginSchema } from './auth.validation.js';
 import { success } from '../../utils/respond.js';
 import { ApiError } from '../../utils/api-error.js';
-import { isProduction } from '../../config/env.js';
+import { useSecureCookies } from '../../config/env.js';
 import { refreshTtlToDate } from '../../utils/tokens.js';
 
 const REFRESH_COOKIE = 'refresh_token';
@@ -12,7 +12,7 @@ function refreshCookieOptions() {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProduction,
+    secure: useSecureCookies,
     path: REFRESH_COOKIE_PATH,
     maxAge: refreshTtlToDate().getTime() - Date.now(),
   };
@@ -23,7 +23,9 @@ function setRefreshCookie(res, value) {
 }
 
 function clearRefreshCookie(res) {
-  res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
+  const options = refreshCookieOptions();
+  delete options.maxAge;
+  res.clearCookie(REFRESH_COOKIE, options);
 }
 
 export const authController = {

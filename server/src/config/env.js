@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  HOST: z.string().min(1, 'HOST обязателен').default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(4000),
-  CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
+  CLIENT_ORIGIN: z
+    .string()
+    .url('CLIENT_ORIGIN должен быть полным URL')
+    .default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL обязателен'),
   DATABASE_SCHEMA: z
     .string()
@@ -32,3 +36,4 @@ function loadEnv() {
 export const env = loadEnv();
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+export const useSecureCookies = new URL(env.CLIENT_ORIGIN).protocol === 'https:';

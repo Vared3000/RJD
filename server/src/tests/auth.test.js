@@ -22,6 +22,11 @@ test('логин -> me -> refresh -> logout', async (t) => {
   assert.equal(loginRes.status, 200);
   assert.ok(loginRes.body.data.accessToken);
   assert.equal(loginRes.body.data.user.role.code, 'admin');
+  const refreshCookie = loginRes.headers['set-cookie']?.find((cookie) =>
+    cookie.startsWith('refresh_token='),
+  );
+  assert.ok(refreshCookie);
+  assert.equal(refreshCookie.includes('Secure'), new URL(env.CLIENT_ORIGIN).protocol === 'https:');
 
   const { accessToken } = loginRes.body.data;
 

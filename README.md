@@ -106,12 +106,14 @@ pnpm --filter @workwear/client build
 ## Запуск через Docker Compose (для сервера предприятия)
 
 ```bash
-cp .env.example .env      # заменить все пароли и секреты
+cp .env.example .env      # заменить пароли, секреты и LAN_BIND_ADDRESS
 docker compose up -d --build
 ```
 
 Миграции и начальные роли применяются автоматически при старте backend.
-Frontend доступен на порту 80, backend — на 4000. Полная инструкция:
+Frontend доступен на порту 80 только на заданном LAN-IP. Backend и PostgreSQL
+не публикуются на хосте и доступны frontend через внутренние Docker-сети.
+Полная инструкция: [docs/LAN_DEPLOYMENT.md](docs/LAN_DEPLOYMENT.md) и
 [docs/operations.md](docs/operations.md).
 
 ## Резервное копирование БД

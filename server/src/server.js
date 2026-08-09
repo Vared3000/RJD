@@ -8,9 +8,9 @@ async function main() {
   logger.info('Подключение к базе данных установлено');
 
   const app = createApp();
-  app.listen(env.PORT, () => {
-    logger.info(`Сервер запущен: http://localhost:${env.PORT} (${env.NODE_ENV})`);
-    logger.info(`Swagger UI: http://localhost:${env.PORT}/api-docs`);
+  app.listen(env.PORT, env.HOST, () => {
+    logger.info(`Сервер запущен: http://${env.HOST}:${env.PORT} (${env.NODE_ENV})`);
+    logger.info(`Swagger UI: http://${env.HOST}:${env.PORT}/api-docs`);
   });
 }
 
