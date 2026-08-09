@@ -37,15 +37,11 @@ const kitItemSchema = z.object({
 
 const kitItemFields = [
   {
-    name: 'modelId',
-    label: 'Вещь',
+    name: 'gender',
+    label: 'Вариант комплекта',
     type: 'select',
-    searchable: true,
-    serverSearch: true,
-    optionsResource: 'nomenclature-models',
-    optionValue: 'id',
-    optionLabel: 'name',
-    placeholder: 'Введите название вещи…',
+    placeholder: 'Унисекс',
+    options: Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label })),
   },
   {
     name: 'season',
@@ -57,11 +53,15 @@ const kitItemFields = [
     ],
   },
   {
-    name: 'gender',
-    label: 'Вариант комплекта',
+    name: 'modelId',
+    label: 'Вещь',
     type: 'select',
-    placeholder: 'Унисекс',
-    options: Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label })),
+    searchable: true,
+    serverSearch: true,
+    optionsResource: 'nomenclature-models',
+    optionValue: 'id',
+    optionLabel: 'name',
+    placeholder: 'Введите название вещи…',
   },
   { name: 'quantity', label: 'Количество', type: 'number', defaultValue: 1 },
   {
