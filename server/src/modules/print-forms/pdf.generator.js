@@ -19,6 +19,7 @@ const fonts = {
 const POINTS_PER_INCH = 72;
 const EXCEL_WIDTH_TO_POINTS = 5.25;
 const DEFAULT_ROW_HEIGHT = 15;
+const PDF_FOOTER_HEIGHT = 9;
 
 function collectPdf(doc) {
   return new Promise((resolve, reject) => {
@@ -183,20 +184,26 @@ function registerFonts(doc) {
   doc.registerFont('SerifBoldItalic', fonts.serifBoldItalic);
 }
 
-function rowPages(sheet, bounds, availableHeight, scale) {
+function printTitleRows(sheet) {
+  const match = String(sheet.pageSetup.printTitlesRow ?? '').match(/\$?(\d+):\$?(\d+)/);
+  if (!match) return null;
+  return { start: Number(match[1]), end: Number(match[2]) };
+}
+
+function rowPages(sheet, bounds, availableHeight, scale, titles) {
   const pages = [];
   let start = bounds.firstRow;
   let used = 0;
   for (let rowNumber = bounds.firstRow; rowNumber <= bounds.lastRow; rowNumber += 1) {
     const height = rowPoints(sheet, rowNumber) * scale;
     if (rowNumber > start && used + height > availableHeight) {
-      pages.push({ start, end: rowNumber - 1 });
+      pages.push({ start, end: rowNumber - 1, repeatTitles: pages.length > 0 });
       start = rowNumber;
-      used = 0;
+      used = titles ? heightBetween(sheet, titles.start, titles.end, scale) : 0;
     }
     used += height;
   }
-  pages.push({ start, end: bounds.lastRow });
+  pages.push({ start, end: bounds.lastRow, repeatTitles: pages.length > 0 });
   return pages;
 }
 
@@ -390,10 +397,9 @@ function drawPage({
   }
 }
 
-export async function generatePdf(data) {
-  if (data.form === 'upd') return generateUpdPdf(data);
+export async function generatePdfFromExcel(excelBuffer, data) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await generateExcel(data));
+  await workbook.xlsx.load(excelBuffer);
   const sheet = workbook.worksheets[0];
   const bounds = printBounds(sheet);
   const margins = pageMargins(sheet);
@@ -416,7 +422,9 @@ export async function generatePdf(data) {
     (_, index) => columnPoints(sheet, bounds.firstColumn + index),
   ).reduce((sum, width) => sum + width, 0);
   const availableWidth = pageWidth - margins.left - margins.right;
-  const availableHeight = pageHeight - margins.top - margins.bottom;
+  // Keep the generated-at footer inside PDFKit's writable area. Drawing it below
+  // the bottom margin makes PDFKit silently append an otherwise empty page.
+  const availableHeight = pageHeight - margins.top - margins.bottom - PDF_FOOTER_HEIGHT;
   const configuredScale = Number(sheet.pageSetup.scale);
   const naturalHeight = Array.from({ length: bounds.lastRow - bounds.firstRow + 1 }, (_, index) =>
     rowPoints(sheet, bounds.firstRow + index),
@@ -427,12 +435,29 @@ export async function generatePdf(data) {
     data.form === 'personal-card' ? availableHeight / naturalHeight : 1,
   );
   const positions = positionMaps(sheet, bounds, scale);
-  const pages = rowPages(sheet, bounds, availableHeight, scale);
+  const titles = printTitleRows(sheet);
+  const pages = rowPages(sheet, bounds, availableHeight, scale, titles);
   const merges = mergeModels(sheet);
 
-  for (const pageRows of pages) {
+  for (const [pageIndex, pageRows] of pages.entries()) {
     doc.addPage({ size: 'A4', layout, margins });
     const originX = margins.left + Math.max(0, (availableWidth - positions.totalWidth) / 2);
+    let originY = margins.top;
+    if (pageRows.repeatTitles && titles) {
+      drawPage({
+        doc,
+        sheet,
+        bounds,
+        pageRows: titles,
+        merges,
+        scale,
+        originX,
+        originY,
+        columnWidths: positions.columnWidths,
+        columnX: positions.columnX,
+      });
+      originY += heightBetween(sheet, titles.start, titles.end, scale);
+    }
     drawPage({
       doc,
       sheet,
@@ -441,7 +466,7 @@ export async function generatePdf(data) {
       merges,
       scale,
       originX,
-      originY: margins.top,
+      originY,
       columnWidths: positions.columnWidths,
       columnX: positions.columnX,
     });
@@ -450,13 +475,18 @@ export async function generatePdf(data) {
       .fontSize(5)
       .fillColor('#555')
       .text(
-        `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
+        `Страница ${pageIndex + 1} из ${pages.length} · сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
         margins.left,
-        pageHeight - 14,
+        pageHeight - margins.bottom - PDF_FOOTER_HEIGHT,
         { width: pageWidth - margins.left - margins.right, align: 'right', lineBreak: false },
       );
   }
 
   doc.end();
   return output;
+}
+
+export async function generatePdf(data) {
+  if (data.form === 'upd') return generateUpdPdf(data);
+  return generatePdfFromExcel(await generateExcel(data), data);
 }

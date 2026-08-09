@@ -513,7 +513,14 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   assert.equal(monthlyExcel.body.subarray(0, 2).toString(), 'PK');
   const monthlyWorkbook = new ExcelJS.Workbook();
   await monthlyWorkbook.xlsx.load(monthlyExcel.body);
-  assert.ok(monthlyWorkbook.worksheets[0].rowCount > 5);
+  const monthlySheet = monthlyWorkbook.worksheets[0];
+  assert.ok(monthlySheet.rowCount > 5);
+  assert.match(String(monthlySheet.getCell('A1').value ?? ''), /АКТ/);
+  assert.match(String(monthlySheet.getCell('A1').value ?? ''), /аренде форменной одежды/);
+  assert.equal(monthlySheet.getCell('A1').font.name, 'Times New Roman');
+  assert.equal(monthlySheet.getCell('A8').value, '№\nп/п');
+  if (qaDirectory)
+    await writeFile(path.join(qaDirectory, 'monthly-rental.xlsx'), monthlyExcel.body);
 
   const fixedPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
     dpoId: state.dpoId,
@@ -538,6 +545,7 @@ test('печатные формы: ФПУ-26 и приложения 1.5/1.7 ф�
   assert.equal(monthlyPdf.status, 200);
   assert.equal(monthlyPdf.body.subarray(0, 4).toString(), '%PDF');
   assert.ok(monthlyPdf.body.length > 5000);
+  if (qaDirectory) await writeFile(path.join(qaDirectory, 'monthly-rental.pdf'), monthlyPdf.body);
 
   await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
   await models.ReturnDocument.destroy({ where: { id: state.returnId } });
