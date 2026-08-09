@@ -147,6 +147,8 @@ test('выдача: автоподбор комплекта -> проведен�
   });
   assert.equal(issuanceDraft.status, 201);
   assert.match(issuanceDraft.body.data.number, /^В-\d{6}$/);
+  assert.equal(issuanceDraft.body.data.employee.clothingSize.value, unique);
+  assert.equal(issuanceDraft.body.data.employee.heightSize, null);
   const issuanceId = issuanceDraft.body.data.id;
   state.issuanceDocIds.push(issuanceId);
 

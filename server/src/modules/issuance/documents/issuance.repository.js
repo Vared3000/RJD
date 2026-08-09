@@ -4,18 +4,34 @@ import { Op } from 'sequelize';
 const { IssuanceDocument, IssuanceLine, Instance, StockMovement, PositionKitItem, Employee } =
   models;
 
+const employeeListInclude = {
+  model: models.Employee,
+  as: 'employee',
+  attributes: ['id', 'fullName'],
+  include: [{ model: models.Position, as: 'position', attributes: ['id', 'name'] }],
+};
+
+const employeeDetailInclude = {
+  ...employeeListInclude,
+  include: [
+    ...employeeListInclude.include,
+    { model: models.Size, as: 'clothingSize', attributes: ['id', 'value'] },
+    { model: models.Size, as: 'heightSize', attributes: ['id', 'value'] },
+    { model: models.Size, as: 'shoeSize', attributes: ['id', 'value'] },
+    { model: models.Size, as: 'headwearSize', attributes: ['id', 'value'] },
+    { model: models.Size, as: 'beltSize', attributes: ['id', 'value'] },
+    { model: models.Size, as: 'glovesSize', attributes: ['id', 'value'] },
+  ],
+};
+
 const listInclude = [
-  {
-    model: models.Employee,
-    as: 'employee',
-    attributes: ['id', 'fullName'],
-    include: [{ model: models.Position, as: 'position', attributes: ['id', 'name'] }],
-  },
+  employeeListInclude,
   { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
 ];
 
 const detailInclude = [
-  ...listInclude,
+  employeeDetailInclude,
+  { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
   { model: models.User, as: 'responsibleUser', attributes: ['id', 'fullName'] },
   { model: models.User, as: 'postedByUser', attributes: ['id', 'fullName'] },
   {

@@ -175,6 +175,34 @@ export function IssuanceEditorPage() {
         )}
       </div>
 
+      <h2 className={styles.linesTitle}>Размеры работника</h2>
+      <div className={styles.summary}>
+        <div>
+          <span className={styles.label}>Одежда</span>
+          <span>{document.employee?.clothingSize?.value ?? 'Не указан'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Рост</span>
+          <span>{document.employee?.heightSize?.value ?? 'Не указан'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Обувь</span>
+          <span>{document.employee?.shoeSize?.value ?? 'Не указан'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Головной убор</span>
+          <span>{document.employee?.headwearSize?.value ?? 'Не указан'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Ремень</span>
+          <span>{document.employee?.beltSize?.value ?? 'Не указан'}</span>
+        </div>
+        <div>
+          <span className={styles.label}>Перчатки</span>
+          <span>{document.employee?.glovesSize?.value ?? 'Не указан'}</span>
+        </div>
+      </div>
+
       {previewKit.isError && <p className={catalogStyles.formError}>{errorMessage(previewKit)}</p>}
       {kitPreview && (
         <KitPreviewPanel
