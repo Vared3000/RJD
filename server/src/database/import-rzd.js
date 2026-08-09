@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import { Op } from 'sequelize';
 import { models, sequelize } from './models/index.js';
-import { normalizePositionName } from '../modules/catalogs/positions/normalize-position-name.js';
+import { parsePositionVariant } from '../modules/catalogs/positions/normalize-position-name.js';
 
 const inputPath = process.argv.slice(2).find((argument) => argument !== '--');
 if (!inputPath) {
@@ -271,7 +271,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
 
   const positions = new Set();
   for (const candidate of data.candidates) {
-    const position = normalizePositionName(asText(candidate.position, 255));
+    const position = parsePositionVariant(asText(candidate.position, 255)).name;
     if (position && !/^(должность|итого|всего)/i.test(position)) positions.add(position);
   }
   const positionByName = new Map();
@@ -363,7 +363,7 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       if (size) primarySizes[field] = size.id;
     }
     const position = candidate.position
-      ? positionByName.get(normalizePositionName(asText(candidate.position, 255)))
+      ? positionByName.get(parsePositionVariant(asText(candidate.position, 255)).name)
       : null;
     const incoming = {
       organizationId: organization.id,
@@ -434,12 +434,32 @@ async function importNormalized(data, sourceIdByKey, transaction) {
 
   const kitQuantityByKey = new Map();
   const priceRows = [];
+  const gendersByPositionModel = new Map();
+  for (const candidate of nomenclatureCandidates) {
+    const positionVariant = parsePositionVariant(asText(candidate.position, 255));
+    const modelName = asText(candidate.name, 255);
+    const quantity = Math.trunc(Number(candidate.quantity));
+    if (
+      !positionVariant.name ||
+      !positionVariant.gender ||
+      !modelName ||
+      candidate.formType === 'fpu-26' ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0
+    ) {
+      continue;
+    }
+    const key = `${positionVariant.name}\u0000${modelName}`;
+    const genders = gendersByPositionModel.get(key) ?? new Set();
+    genders.add(positionVariant.gender);
+    gendersByPositionModel.set(key, genders);
+  }
+
   for (const candidate of nomenclatureCandidates) {
     const model = modelByName.get(asText(candidate.name, 255));
     if (!model) continue;
-    const position = candidate.position
-      ? positionByName.get(normalizePositionName(asText(candidate.position, 255)))
-      : null;
+    const positionVariant = parsePositionVariant(asText(candidate.position, 255));
+    const position = candidate.position ? positionByName.get(positionVariant.name) : null;
     const quantity = Math.trunc(Number(candidate.quantity));
     // ФПУ-26 — акт с суммарным количеством по позиции за период по всей ДПО
     // (сколько единиц реально отгружено/оплачено), а не норма на одного
@@ -447,11 +467,16 @@ async function importNormalized(data, sourceIdByKey, transaction) {
     // Норму на одного работника даёт только Прил. 1.7/личная карточка
     // (per-employee строки, formType !== 'fpu-26').
     if (position && candidate.formType !== 'fpu-26' && Number.isFinite(quantity) && quantity > 0) {
-      const key = `${position.id}\u0000${model.id}`;
+      const sourceGenders = gendersByPositionModel.get(
+        `${positionVariant.name}\u0000${model.name}`,
+      );
+      const gender = sourceGenders?.size > 1 ? null : positionVariant.gender;
+      const key = `${position.id}\u0000${model.id}\u0000${gender ?? ''}`;
       const importedServiceLife = Math.trunc(Number(candidate.serviceLifeYears));
       kitQuantityByKey.set(key, {
         positionId: position.id,
         modelId: model.id,
+        gender,
         quantity: Math.max(quantity, kitQuantityByKey.get(key)?.quantity ?? 0),
         serviceLifeYears:
           Number.isFinite(importedServiceLife) && importedServiceLife > 0
@@ -482,7 +507,12 @@ async function importNormalized(data, sourceIdByKey, transaction) {
 
   for (const item of kitQuantityByKey.values()) {
     const [record, created] = await models.PositionKitItem.findOrCreate({
-      where: { positionId: item.positionId, modelId: item.modelId },
+      where: {
+        positionId: item.positionId,
+        modelId: item.modelId,
+        season: null,
+        gender: item.gender,
+      },
       defaults: item,
       transaction,
     });

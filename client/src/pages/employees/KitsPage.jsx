@@ -13,7 +13,12 @@ import styles from './KitsPage.module.css';
 const positionsHooks = createCatalogHooks('positions');
 const kitsHooks = createCatalogHooks('kits');
 const SEASON_LABELS = { summer: 'Летний', winter: 'Зимний' };
-const KIT_VARIANT_LABELS = { ...GENDER_LABELS, unisex: 'Унисекс', all: 'Все варианты' };
+const KIT_VARIANT_LABELS = {
+  male: 'Мужской + унисекс',
+  female: 'Женский + унисекс',
+  unisex: 'Унисекс',
+  all: 'Все варианты',
+};
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
 
 const kitItemSchema = z.object({
@@ -82,7 +87,16 @@ function tabItems(items, tab) {
 function genderItems(items, gender) {
   if (gender === 'all') return items;
   if (gender === 'unisex') return items.filter((item) => !item.gender);
-  return items.filter((item) => item.gender === gender);
+
+  const selectedByModel = new Map();
+  for (const item of items) {
+    if (item.gender && item.gender !== gender) continue;
+    const selected = selectedByModel.get(item.modelId);
+    if (!selected || (item.gender === gender && selected.gender !== gender)) {
+      selectedByModel.set(item.modelId, item);
+    }
+  }
+  return [...selectedByModel.values()];
 }
 
 export function KitsPage() {
@@ -311,8 +325,8 @@ export function KitsPage() {
               <span className={styles.filterLabel}>Вариант комплекта</span>
               <div className={styles.variantTabs} role="tablist" aria-label="Пол комплекта">
                 {[
-                  ['male', 'Мужской'],
-                  ['female', 'Женский'],
+                  ['male', 'Мужской + унисекс'],
+                  ['female', 'Женский + унисекс'],
                   ['unisex', 'Унисекс'],
                   ['all', 'Все варианты'],
                 ].map(([value, label]) => (
@@ -329,8 +343,8 @@ export function KitsPage() {
                 ))}
               </div>
               <p className={styles.variantHint}>
-                Мужские и женские вещи подбираются работникам соответствующего пола. Унисекс
-                подходит всем.
+                В мужской набор входят мужские вещи и унисекс, в женский — женские вещи и унисекс.
+                Если для одной вещи есть оба варианта, используется вариант нужного пола.
               </p>
             </div>
           )}
