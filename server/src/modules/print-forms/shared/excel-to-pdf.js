@@ -1,8 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { createRequire } from 'node:module';
-import { generateExcel } from './excel.generator.js';
-import { generateUpdPdf } from './upd.generator.js';
 
 const require = createRequire(import.meta.url);
 const fonts = {
@@ -397,6 +395,10 @@ function drawPage({
   }
 }
 
+// Рендерит уже заполненный Excel-лист (шаблонный акт или собранный "с нуля"
+// вроде ежемесячного акта аренды) в PDF, копируя размеры колонок/строк,
+// объединения, границы, заливку и перенос текста, с постраничной разбивкой
+// и повтором строки заголовка на каждой странице.
 export async function generatePdfFromExcel(excelBuffer, data) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(excelBuffer);
@@ -484,9 +486,4 @@ export async function generatePdfFromExcel(excelBuffer, data) {
 
   doc.end();
   return output;
-}
-
-export async function generatePdf(data) {
-  if (data.form === 'upd') return generateUpdPdf(data);
-  return generatePdfFromExcel(await generateExcel(data), data);
 }

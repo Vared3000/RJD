@@ -1,6 +1,6 @@
 import { printFormsService } from './print-forms.service.js';
 import { printFormQuerySchema } from './print-forms.validation.js';
-import { monthlyRentalService } from './monthly-rental/monthly-rental.service.js';
+import { monthlyRentalService } from './monthly-rental-act/monthly-rental-act.service.js';
 import { success } from '../../utils/respond.js';
 
 function attachmentHeader(fileName) {

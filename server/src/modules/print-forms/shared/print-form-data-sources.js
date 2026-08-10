@@ -43,8 +43,12 @@ export function archiveSourceEntry({ dpo, source, candidate }) {
   };
 }
 
+// Ключ строится через JSON.stringify массива, а не конкатенацией через
+// разделитель: реальные значения (ФИО, наименования) содержат пробелы, и
+// текстовый разделитель мог бы случайно совпасть с частью значения.
+// JSON.stringify однозначно кодирует границы каждого поля.
 function strictKey(entry) {
-  return [
+  return JSON.stringify([
     entry.dpoKey,
     entry.employeeKey,
     entry.documentKey,
@@ -52,7 +56,7 @@ function strictKey(entry) {
     entry.operationDate,
     entry.quantity,
     entry.sourceKey,
-  ].join('\u0000');
+  ]);
 }
 
 function businessKeys(entry) {
@@ -62,8 +66,10 @@ function businessKeys(entry) {
     entry.modelKey,
     entry.operationDate,
     entry.quantity,
-  ].join('\u0000');
-  return entry.documentKey ? [`${base}\u0000${entry.documentKey}`, base] : [base];
+  ];
+  return entry.documentKey
+    ? [JSON.stringify([...base, entry.documentKey]), JSON.stringify(base)]
+    : [JSON.stringify(base)];
 }
 
 // Живые строки имеют приоритет. Строгое равенство учитывает исходный ключ

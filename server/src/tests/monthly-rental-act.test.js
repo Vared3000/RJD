@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   calculateMonthlyRentalRows,
   resolveMonth,
-} from '../modules/print-forms/monthly-rental/monthly-rental.service.js';
+} from '../modules/print-forms/monthly-rental-act/monthly-rental-act.service.js';
 
 function row(overrides = {}) {
   return {

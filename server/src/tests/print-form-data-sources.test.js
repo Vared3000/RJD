@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeSourceEntries } from '../modules/print-forms/print-form-data-sources.js';
+import { mergeSourceEntries } from '../modules/print-forms/shared/print-form-data-sources.js';
 
 test('печатные формы: живые строки имеют приоритет, уникальные архивные сохраняются', () => {
   const base = {

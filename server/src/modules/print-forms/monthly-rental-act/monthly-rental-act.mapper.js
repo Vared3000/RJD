@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { generatePdfFromExcel } from '../pdf.generator.js';
+import { generatePdfFromExcel } from '../shared/excel-to-pdf.js';
 
 const MONTHS_PREPOSITIONAL = [
   'январе',

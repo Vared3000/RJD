@@ -2,11 +2,11 @@ import { Op } from 'sequelize';
 import { ApiError } from '../../../utils/api-error.js';
 import { models, sequelize } from '../../../database/models/index.js';
 import { printFormSettingsService } from '../settings/print-form-settings.service.js';
-import { monthlyRentalRepository } from './monthly-rental.repository.js';
+import { monthlyRentalRepository } from './monthly-rental-act.repository.js';
 import {
   generateMonthlyRentalExcel,
   generateMonthlyRentalPdf,
-} from './monthly-rental.generator.js';
+} from './monthly-rental-act.mapper.js';
 
 const round = (value) => Number(Number(value ?? 0).toFixed(4));
 const dateText = (value) =>
