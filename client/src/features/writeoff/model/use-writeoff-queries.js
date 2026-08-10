@@ -31,8 +31,13 @@ export function useWriteoffMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => writeoffApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => writeoffApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => writeoffApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => writeoffApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -41,7 +46,11 @@ export function useWriteoffMutations(id) {
     mutationFn: (lineId) => writeoffApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const post = useMutation({ mutationFn: () => writeoffApi.post(id), onSuccess: invalidate });
+  const post = useMutation({
+    mutationFn: () => writeoffApi.post(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ проведён' },
+  });
 
   return { create, update, remove, addLine, removeLine, post };
 }

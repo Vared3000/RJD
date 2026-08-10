@@ -20,13 +20,26 @@ export function createCatalogHooks(resource) {
     const queryClient = useQueryClient();
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [resource] });
 
-    const create = useMutation({ mutationFn: api.create, onSuccess: invalidate });
+    const create = useMutation({
+      mutationFn: api.create,
+      onSuccess: invalidate,
+      meta: { successMessage: 'Запись создана' },
+    });
     const update = useMutation({
       mutationFn: ({ id, payload }) => api.update(id, payload),
       onSuccess: invalidate,
+      meta: { successMessage: 'Изменения сохранены' },
     });
-    const archive = useMutation({ mutationFn: api.archive, onSuccess: invalidate });
-    const restore = useMutation({ mutationFn: api.restore, onSuccess: invalidate });
+    const archive = useMutation({
+      mutationFn: api.archive,
+      onSuccess: invalidate,
+      meta: { successMessage: 'Запись перемещена в архив' },
+    });
+    const restore = useMutation({
+      mutationFn: api.restore,
+      onSuccess: invalidate,
+      meta: { successMessage: 'Запись восстановлена из архива' },
+    });
 
     return { create, update, archive, restore };
   }

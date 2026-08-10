@@ -3,6 +3,8 @@ import {
   useInstance,
   useInstanceHistory,
 } from '../../features/instances/model/use-instance-history.js';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { parseApiError } from '../../shared/lib/parse-api-error.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './InstanceCardPage.module.css';
 
@@ -70,10 +72,14 @@ function documentLink(event) {
 
 export function InstanceCardPage() {
   const { id } = useParams();
-  const { data: instance, isLoading: instanceLoading } = useInstance(id);
-  const { data: history, isLoading: historyLoading } = useInstanceHistory(id);
+  const instanceQuery = useInstance(id);
+  const { data: instance, isLoading: instanceLoading } = instanceQuery;
+  const historyQuery = useInstanceHistory(id);
+  const { data: history, isLoading: historyLoading } = historyQuery;
 
-  if (instanceLoading || !instance) return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (instanceLoading || instanceQuery.isError || !instance) {
+    return <QueryState query={instanceQuery} />;
+  }
 
   return (
     <div className={catalogStyles.page}>
@@ -134,7 +140,23 @@ export function InstanceCardPage() {
                   </td>
                 </tr>
               )}
-              {!historyLoading && history?.length === 0 && (
+              {historyQuery.isError && (
+                <tr>
+                  <td colSpan={5}>
+                    <div className={catalogStyles.errorRow}>
+                      <span>{parseApiError(historyQuery.error).message}</span>
+                      <button
+                        type="button"
+                        className={catalogStyles.linkButton}
+                        onClick={() => historyQuery.refetch()}
+                      >
+                        Повторить
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!historyLoading && !historyQuery.isError && history?.length === 0 && (
                 <tr>
                   <td colSpan={5} className={catalogStyles.hint}>
                     Событий пока нет

@@ -14,20 +14,20 @@ import {
 } from '../../features/employees/model/employee-form.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import {
+  mutationErrorMessage as errorMessage,
+  parseBlobApiError,
+} from '../../shared/lib/parse-api-error.js';
 import { EmployeePropertyTable } from '../../features/employees/ui/EmployeePropertyTable.jsx';
 import { EmployeeHistoryTable } from '../../features/employees/ui/EmployeeHistoryTable.jsx';
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './EmployeeCardPage.module.css';
 
 const { useCatalogMutations } = createCatalogHooks('employees');
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 const SIZE_TYPE_LABELS = {
   clothing: 'одежда',
@@ -43,7 +43,8 @@ export function EmployeeCardPage() {
   const [printPending, setPrintPending] = useState('');
   const [printError, setPrintError] = useState('');
   const [editing, setEditing] = useState(false);
-  const { data: employee, isLoading: isLoadingEmployee } = useEmployee(id);
+  const employeeQuery = useEmployee(id);
+  const { data: employee, isLoading: isLoadingEmployee } = employeeQuery;
   const { data: property, isLoading: isLoadingProperty } = useEmployeeProperty(id);
   const { data: issuanceDocuments } = useIssuanceList(id);
   const { data: returnDocuments } = useReturnList(id);
@@ -52,8 +53,8 @@ export function EmployeeCardPage() {
     state.user?.permissions?.includes('employees.manage'),
   );
 
-  if (isLoadingEmployee || !employee) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoadingEmployee || employeeQuery.isError || !employee) {
+    return <QueryState query={employeeQuery} />;
   }
 
   async function handleEditSubmit(values) {
@@ -83,9 +84,7 @@ export function EmployeeCardPage() {
     try {
       await downloadPrintForm('personal-card', { employeeId: id, format });
     } catch (requestError) {
-      setPrintError(
-        requestError.response?.data?.message ?? 'Не удалось сформировать личную карточку',
-      );
+      setPrintError(await parseBlobApiError(requestError));
     } finally {
       setPrintPending('');
     }

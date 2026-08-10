@@ -1,7 +1,7 @@
 import { CONDITION_LABELS } from '../../service-documents/model/labels.js';
 import catalogStyles from '../../catalogs/ui/CatalogPage.module.css';
 
-export function LaundryLinesTable({ lines, isDraft, canManage, onRemoveLine }) {
+export function LaundryLinesTable({ lines, isDraft, canManage, onRemoveLine, isRemoving }) {
   return (
     <div className={catalogStyles.tableWrap}>
       <table className={catalogStyles.table}>
@@ -39,6 +39,7 @@ export function LaundryLinesTable({ lines, isDraft, canManage, onRemoveLine }) {
                   <button
                     type="button"
                     className={catalogStyles.linkButton}
+                    disabled={isRemoving}
                     onClick={() => onRemoveLine(line.id)}
                   >
                     Удалить

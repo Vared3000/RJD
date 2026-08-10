@@ -11,6 +11,8 @@ import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
 import { TextField } from '../../shared/ui/TextField.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
@@ -18,11 +20,6 @@ import styles from '../purchases/ReceivingEditorPage.module.css';
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 
 const { useList: useInstancesList } = createCatalogHooks('instances');
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 function AddLineModal({ warehouseId, existingInstanceIds, onSubmit, onClose, isSaving, error }) {
   const { data: instances, isLoading } = useInstancesList();
@@ -83,7 +80,8 @@ function AddLineModal({ warehouseId, existingInstanceIds, onSubmit, onClose, isS
 export function WriteoffEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useWriteoffDocument(id);
+  const documentQuery = useWriteoffDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, removeLine, post } = useWriteoffMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
@@ -92,8 +90,8 @@ export function WriteoffEditorPage() {
     state.user?.permissions?.includes('writeoff.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -201,6 +199,7 @@ export function WriteoffEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

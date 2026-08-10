@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../shared/ui/Button.jsx';
 import { downloadLabels, findInstanceByBarcode } from '../../features/barcodes/api/barcode-api.js';
+import { parseApiError, parseBlobApiError } from '../../shared/lib/parse-api-error.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './BarcodeLabelsPage.module.css';
 
@@ -23,7 +24,7 @@ export function BarcodeLabelsPage() {
       );
       setBarcode('');
     } catch (requestError) {
-      setError(requestError.response?.data?.error?.message ?? 'Экземпляр не найден');
+      setError(parseApiError(requestError).message);
     } finally {
       setPending(false);
     }
@@ -38,7 +39,7 @@ export function BarcodeLabelsPage() {
         labelType,
       );
     } catch (requestError) {
-      setError(requestError.response?.data?.error?.message ?? 'Не удалось сформировать этикетки');
+      setError(await parseBlobApiError(requestError));
     } finally {
       setPending(false);
     }

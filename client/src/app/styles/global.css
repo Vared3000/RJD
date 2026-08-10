@@ -46,6 +46,12 @@ a {
   --color-primary-hover: #1d4ed8;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
+  --color-success: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-info: #1d4ed8;
+  --color-info-bg: #eff6ff;
 
   --space-1: 4px;
   --space-2: 8px;

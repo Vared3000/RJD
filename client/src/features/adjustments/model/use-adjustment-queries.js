@@ -32,12 +32,18 @@ export function useAdjustmentMutations(id) {
     mutationFn: ({ inventoryDocumentId, payload }) =>
       adjustmentApi.createFromInventory(inventoryDocumentId, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Черновик корректировки создан' },
   });
   const update = useMutation({
     mutationFn: (payload) => adjustmentApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => adjustmentApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => adjustmentApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => adjustmentApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -50,7 +56,11 @@ export function useAdjustmentMutations(id) {
     mutationFn: (lineId) => adjustmentApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const post = useMutation({ mutationFn: () => adjustmentApi.post(id), onSuccess: invalidate });
+  const post = useMutation({
+    mutationFn: () => adjustmentApi.post(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ проведён' },
+  });
 
   return { create, createFromInventory, update, remove, addLine, updateLine, removeLine, post };
 }

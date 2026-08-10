@@ -14,16 +14,13 @@ import { lineFields, lineSchema } from '../../features/adjustments/model/line-sc
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 function lineSubject(line) {
   if (line.adjustmentType === 'surplus') {
@@ -48,7 +45,8 @@ function lineDetails(line) {
 export function AdjustmentEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useAdjustmentDocument(id);
+  const documentQuery = useAdjustmentDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, updateLine, removeLine, post } = useAdjustmentMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [editingLine, setEditingLine] = useState(null);
@@ -57,8 +55,8 @@ export function AdjustmentEditorPage() {
     state.user?.permissions?.includes('adjustments.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -173,6 +171,7 @@ export function AdjustmentEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

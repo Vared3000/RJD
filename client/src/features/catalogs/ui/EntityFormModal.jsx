@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CatalogFormField } from './CatalogFormField.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
 import { Modal } from '../../../shared/ui/Modal.jsx';
+import { useUnsavedChangesWarning } from '../../../shared/lib/use-unsaved-changes-warning.js';
 import styles from './CatalogPage.module.css';
 
 // Ни одно поле не должно стартовать как undefined: для select (Controller)
@@ -40,15 +41,30 @@ export function EntityFormModal({
     shouldUnregister: true,
   });
 
+  useUnsavedChangesWarning(form.formState.isDirty);
+
+  // Общая защита от случайной потери введённых данных (задача 20 плана):
+  // срабатывает на Отмену и на Escape — Modal вызывает переданный onClose
+  // напрямую по Escape, клик по фону уже отключён через closeOnOverlayClick=false.
+  function handleClose() {
+    if (
+      form.formState.isDirty &&
+      !window.confirm('Есть несохранённые изменения. Закрыть форму без сохранения?')
+    ) {
+      return;
+    }
+    onClose();
+  }
+
   return (
-    <Modal title={title} onClose={onClose} closeOnOverlayClick={false}>
+    <Modal title={title} onClose={handleClose} closeOnOverlayClick={false}>
       <form className={styles.form} onSubmit={form.handleSubmit(onSubmit)} noValidate>
         {fields.map((field) => (
           <CatalogFormField key={field.name} field={field} form={form} />
         ))}
         {error && <p className={styles.formError}>{error}</p>}
         <div className={styles.formActions}>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={handleClose}>
             Отмена
           </Button>
           <Button type="submit" disabled={isSaving}>

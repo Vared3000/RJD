@@ -1,9 +1,13 @@
 import { ApiError } from '../../utils/api-error.js';
 import { loadContext } from './shared/load-context.js';
-import { generateExcelFromTemplate } from './shared/excel-template-engine.js';
+import {
+  generateExcelFromTemplate,
+  generateExcelFromMarkedTemplate,
+} from './shared/excel-template-engine.js';
 import { generatePdfFromExcel } from './shared/excel-to-pdf.js';
 import { buildFpu26 } from './fpu-26/fpu-26.builder.js';
 import { fpu26ExcelMapper } from './fpu-26/fpu-26.excel-mapper.js';
+import { printFormTemplatesRepository } from './templates/print-form-templates.repository.js';
 import { buildAppendix15 } from './appendix-1-5/appendix-1-5.builder.js';
 import { appendix15ExcelMapper } from './appendix-1-5/appendix-1-5.excel-mapper.js';
 import { buildAppendix17 } from './appendix-1-7/appendix-1-7.builder.js';
@@ -28,6 +32,26 @@ const BUILDERS = {
   },
   upd: { build: buildUpd, loadContext: loadUpdContext, excelMapper: null },
 };
+
+// Формы, переведённые на маркерную разметку (задача 19): шаблон приходит
+// буфером из активной версии в БД, а не с диска по статическому пути.
+// Остальные формы продолжают работать через старый бандл-путь без изменений.
+const MARKER_BASED_FORMS = new Set(['fpu-26']);
+
+async function generateFormExcel(form, data, excelMapper) {
+  if (MARKER_BASED_FORMS.has(form)) {
+    const activeVersion = await printFormTemplatesRepository.findActive(form);
+    if (!activeVersion)
+      throw ApiError.badRequest(`Для формы «${form}» нет активной версии шаблона`);
+    data.templateVersion = activeVersion.versionNumber;
+    return generateExcelFromMarkedTemplate(data, {
+      templateBuffer: activeVersion.fileData,
+      spec: excelMapper.spec,
+      fill: excelMapper.fill,
+    });
+  }
+  return generateExcelFromTemplate(data, excelMapper);
+}
 
 function fileName(form, extension, context, data) {
   if (form === 'personal-card') {
@@ -64,10 +88,10 @@ export const printFormsService = {
         ? await generateUpdPdf(data)
         : extension === 'pdf'
           ? await generatePdfFromExcel(
-              await generateExcelFromTemplate(data, definition.excelMapper),
+              await generateFormExcel(form, data, definition.excelMapper),
               data,
             )
-          : await generateExcelFromTemplate(data, definition.excelMapper);
+          : await generateFormExcel(form, data, definition.excelMapper);
     return {
       buffer,
       contentType:

@@ -8,5 +8,8 @@ export function useLogin() {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => setSession(data),
+    // Ошибка уже показывается инлайн прямо под формой (LoginForm.jsx) —
+    // глобальный тост здесь был бы дублирующим шумом на самом заметном месте.
+    meta: { silent: true },
   });
 }

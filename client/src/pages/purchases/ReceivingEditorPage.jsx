@@ -12,6 +12,8 @@ import { lineFields, lineSchema } from '../../features/purchases/receiving/model
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './ReceivingEditorPage.module.css';
@@ -26,15 +28,11 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
-
 export function ReceivingEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: receivingDocument, isLoading } = useReceivingDocument(id);
+  const documentQuery = useReceivingDocument(id);
+  const { data: receivingDocument, isLoading } = documentQuery;
   const { update, remove, addLine, updateLine, removeLine, post } = useReceivingMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [editingLine, setEditingLine] = useState(null);
@@ -43,8 +41,8 @@ export function ReceivingEditorPage() {
     state.user?.permissions?.includes('purchases.manage'),
   );
 
-  if (isLoading || !receivingDocument) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !receivingDocument) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = receivingDocument.status === 'draft';
@@ -197,6 +195,7 @@ export function ReceivingEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

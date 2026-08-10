@@ -26,8 +26,13 @@ export function useInventoryMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => inventoryApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => inventoryApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => inventoryApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const updateLine = useMutation({
     mutationFn: ({ lineId, payload }) => inventoryApi.updateLine(id, lineId, payload),
     onSuccess: invalidate,
@@ -39,6 +44,7 @@ export function useInventoryMutations(id) {
   const complete = useMutation({
     mutationFn: () => inventoryApi.complete(id),
     onSuccess: invalidate,
+    meta: { successMessage: 'Инвентаризация завершена' },
   });
 
   return { create, update, remove, updateLine, removeLine, complete };

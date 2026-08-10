@@ -30,8 +30,13 @@ export function useIssuanceMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => issuanceApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => issuanceApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => issuanceApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => issuanceApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -51,7 +56,11 @@ export function useIssuanceMutations(id) {
   const previewKit = useMutation({
     mutationFn: (season) => issuanceApi.previewKit(id, season),
   });
-  const post = useMutation({ mutationFn: () => issuanceApi.post(id), onSuccess: invalidate });
+  const post = useMutation({
+    mutationFn: () => issuanceApi.post(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ проведён' },
+  });
 
   return { create, update, remove, addLine, updateLine, removeLine, applyKit, previewKit, post };
 }

@@ -10,6 +10,8 @@ import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx'
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
@@ -17,11 +19,6 @@ import styles from '../purchases/ReceivingEditorPage.module.css';
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 
 const { useList: useInstancesList } = createCatalogHooks('instances');
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 // См. AddLineModal в LaundryEditorPage.jsx — тот же приём: список ограничен
 // экземплярами, реально в наличии на складе-отправителе документа.
@@ -77,7 +74,8 @@ function AddLineModal({ warehouseId, existingInstanceIds, onSubmit, onClose, isS
 export function TransferEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useTransferDocument(id);
+  const documentQuery = useTransferDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, removeLine, post } = useTransferMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
@@ -86,8 +84,8 @@ export function TransferEditorPage() {
     state.user?.permissions?.includes('transfers.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -199,6 +197,7 @@ export function TransferEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

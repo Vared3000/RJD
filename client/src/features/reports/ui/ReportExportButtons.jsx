@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../../shared/ui/Button.jsx';
 import { downloadReport } from '../api/reports-api.js';
+import { parseBlobApiError } from '../../../shared/lib/parse-api-error.js';
 import styles from './ReportExportButtons.module.css';
 
 export function ReportExportButtons({ report, params }) {
@@ -13,7 +14,7 @@ export function ReportExportButtons({ report, params }) {
     try {
       await downloadReport(report, params, format);
     } catch (requestError) {
-      setError(requestError.response?.data?.message ?? 'Не удалось сформировать отчёт');
+      setError(await parseBlobApiError(requestError));
     } finally {
       setPending('');
     }

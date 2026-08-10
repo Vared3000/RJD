@@ -31,8 +31,13 @@ export function useLaundryMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => laundryApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => laundryApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => laundryApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => laundryApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -41,10 +46,15 @@ export function useLaundryMutations(id) {
     mutationFn: (lineId) => laundryApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const send = useMutation({ mutationFn: () => laundryApi.send(id), onSuccess: invalidate });
+  const send = useMutation({
+    mutationFn: () => laundryApi.send(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ отправлен' },
+  });
   const complete = useMutation({
     mutationFn: (payload) => laundryApi.complete(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Стирка завершена' },
   });
 
   return { create, update, remove, addLine, removeLine, send, complete };

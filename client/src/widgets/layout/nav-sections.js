@@ -98,6 +98,7 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/admin/users', label: 'Пользователи' },
       { to: '/admin/print-form-settings', label: 'Реквизиты печатных форм' },
+      { to: '/admin/print-form-templates', label: 'Конструктор макетов' },
     ],
   },
 ];

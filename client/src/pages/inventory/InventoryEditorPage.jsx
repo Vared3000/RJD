@@ -12,21 +12,19 @@ import { useAdjustmentMutations } from '../../features/adjustments/model/use-adj
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', completed: 'Завершена' };
 
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
-
 export function InventoryEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useInventoryDocument(id);
+  const documentQuery = useInventoryDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, updateLine, removeLine, complete } = useInventoryMutations(id);
   const { createFromInventory } = useAdjustmentMutations();
   const [editingHeader, setEditingHeader] = useState(false);
@@ -38,8 +36,8 @@ export function InventoryEditorPage() {
     state.user?.permissions?.includes('adjustments.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -100,10 +98,7 @@ export function InventoryEditorPage() {
         )}
       </div>
       {createFromInventory.isError && (
-        <p className={catalogStyles.formError}>
-          {createFromInventory.error?.response?.data?.error?.message ||
-            'Не удалось создать корректировку'}
-        </p>
+        <p className={catalogStyles.formError}>{errorMessage(createFromInventory)}</p>
       )}
 
       <div className={styles.summary}>
@@ -162,7 +157,7 @@ export function InventoryEditorPage() {
                   <input
                     type="checkbox"
                     checked={line.confirmed}
-                    disabled={!isDraft || !canManage}
+                    disabled={!isDraft || !canManage || updateLine.isPending}
                     onChange={(event) =>
                       updateLine.mutate({
                         lineId: line.id,
@@ -185,6 +180,7 @@ export function InventoryEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

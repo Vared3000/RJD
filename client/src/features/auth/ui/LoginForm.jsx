@@ -4,6 +4,7 @@ import { useLogin } from '../model/use-login.js';
 import { loginSchema } from '../model/login-schema.js';
 import { TextField } from '../../../shared/ui/TextField.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
+import { mutationErrorMessage } from '../../../shared/lib/parse-api-error.js';
 import styles from './LoginForm.module.css';
 
 export function LoginForm() {
@@ -34,7 +35,7 @@ export function LoginForm() {
       />
       {login.isError && (
         <p className={styles.formError}>
-          {login.error?.response?.data?.error?.message || 'Не удалось войти. Попробуйте ещё раз.'}
+          {mutationErrorMessage(login) || 'Не удалось войти. Попробуйте ещё раз.'}
         </p>
       )}
       <Button type="submit" disabled={login.isPending}>

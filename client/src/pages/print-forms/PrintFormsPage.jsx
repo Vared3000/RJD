@@ -6,6 +6,7 @@ import {
 } from '../../features/print-forms/api/print-forms-api.js';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
+import { parseApiError, parseBlobApiError } from '../../shared/lib/parse-api-error.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { SearchableSelect } from '../../shared/ui/SearchableSelect.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -76,10 +77,7 @@ export function PrintFormsPage() {
     try {
       await downloadPrintForm(form, { dpoId, employeeId, ...range, format });
     } catch (requestError) {
-      setError(
-        requestError.response?.data?.message ??
-          'Не удалось сформировать файл. Проверьте период и реквизиты ДПО.',
-      );
+      setError(await parseBlobApiError(requestError));
     } finally {
       setPending('');
     }
@@ -95,7 +93,7 @@ export function PrintFormsPage() {
     try {
       setRentalPreview(await previewMonthlyRental({ dpoId, month: rentalMonth }));
     } catch (requestError) {
-      setError(requestError.response?.data?.message ?? 'Не удалось рассчитать ежемесячный акт.');
+      setError(parseApiError(requestError).message);
     } finally {
       setPending('');
     }
@@ -113,7 +111,7 @@ export function PrintFormsPage() {
       await downloadPrintForm('monthly-rental', { dpoId, month: rentalMonth, format });
       setRentalPreview(await previewMonthlyRental({ dpoId, month: rentalMonth }));
     } catch (requestError) {
-      setError(requestError.response?.data?.message ?? 'Не удалось зафиксировать ежемесячный акт.');
+      setError(await parseBlobApiError(requestError));
     } finally {
       setPending('');
     }

@@ -11,6 +11,8 @@ import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
 import { TextField } from '../../shared/ui/TextField.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
@@ -18,11 +20,6 @@ import styles from '../purchases/ReceivingEditorPage.module.css';
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const CONDITION_LABELS = { new: 'Новое', good: 'Хорошее', worn: 'Изношено', damaged: 'Повреждено' };
 const ROUTE_TO_LABELS = { in_stock: 'На склад', laundry: 'В стирку', repair: 'В ремонт' };
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 // Строка возврата — не универсальная форма-конструктор (EntityFormModal):
 // выбор ограничен экземплярами, реально выданными работнику из шапки
@@ -98,7 +95,8 @@ function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSa
 export function ReturnEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useReturnDocument(id);
+  const documentQuery = useReturnDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, removeLine, post } = useReturnMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
@@ -107,8 +105,8 @@ export function ReturnEditorPage() {
     state.user?.permissions?.includes('issuance.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -229,6 +227,7 @@ export function ReturnEditorPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
+                      disabled={removeLine.isPending}
                       onClick={() => removeLine.mutate(line.id)}
                     >
                       Удалить

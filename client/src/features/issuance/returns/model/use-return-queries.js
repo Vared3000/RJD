@@ -38,8 +38,13 @@ export function useReturnMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => returnApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => returnApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => returnApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => returnApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -48,7 +53,11 @@ export function useReturnMutations(id) {
     mutationFn: (lineId) => returnApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const post = useMutation({ mutationFn: () => returnApi.post(id), onSuccess: invalidate });
+  const post = useMutation({
+    mutationFn: () => returnApi.post(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ проведён' },
+  });
 
   return { create, update, remove, addLine, removeLine, post };
 }

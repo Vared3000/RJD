@@ -105,6 +105,61 @@ app → pages → widgets → features → shared
   кнопки с одинаковым текстом (например, "Провести" и в шапке, и в модалке
   подтверждения), различать их по этому атрибуту, а не только по тексту.
 
+## Уведомления и обработка ошибок (задача 20)
+
+Единый слой в `client/src/shared/`, покрывающий все запросы без правки
+каждого места вызова:
+
+- `shared/lib/parse-api-error.js` — `parseApiError(error)` нормализует
+  backend-ошибку (`{ error: { message, details? } }`, см.
+  `server/src/middlewares/error.middleware.js`) до `{ status, message,
+  fieldErrors }`; `mutationErrorMessage(mutation)` — короткий помощник для
+  инлайновых сообщений формы (замена прежних 11 копий локальной функции
+  `errorMessage()`). `parseBlobApiError(error)` — отдельная **асинхронная**
+  версия для запросов с `responseType: 'blob'` (скачивание печатных форм,
+  отчётов, шаблонов, этикеток): при ошибке axios парсит тело как `Blob`, а не
+  JSON, поэтому `error.response.data.error` не существует — тело перечитывается
+  через `Blob.text()` и разбирается как обычный JSON. Использовать
+  `parseBlobApiError` в любом новом месте, где `downloadX()`-функция дергает
+  `httpClient` с `responseType: 'blob'`.
+- `shared/notifications/` — `notification-store.js` (Zustand, тот же паттерн
+  `getState()`/`setState()` вне React, что и `session-store.js`) +
+  `NotificationCenter.jsx` (тосты, монтируется один раз в `AppProviders`,
+  поэтому виден и на `/login`). Не хук: `notify.success(msg)` /
+  `notify.error(msg)` можно звать откуда угодно, включая конфиг `QueryClient`.
+- **Глобальная обвязка `QueryClient`** (`app/providers/AppProviders.jsx`) —
+  `QueryCache`/`MutationCache` с `onError`, вызывающим `notify.error(...)` для
+  **любого** упавшего запроса/мутации без изменений в местах вызова.
+  Индивидуальная мутация/запрос может передать `meta: { silent: true }`,
+  чтобы отключить тост (например, там, где ошибка уже обрабатывается
+  отдельным UI). Успех **не** уведомляется по умолчанию (иначе шум на 90+
+  мутациях без осмысленного текста) — только когда мутация явно передаёт
+  `meta: { successMessage: '...' }`. Для справочников это одна точка —
+  `features/catalogs/model/use-catalog-queries.js` (`createCatalogHooks`),
+  для документов — `update`/`remove`/`post`/`send`/`complete` в каждом
+  `use-<domain>-queries.js`.
+- `shared/ui/QueryState.jsx` — замена бесхозного `if (isLoading) return
+  <p>Загрузка…</p>` без ветки ошибки (страница раньше зависала на заглушке
+  навсегда при сбое запроса). Принимает результат `useQuery`/`useList`
+  напрямую (нужны `isLoading`/`isError`/`error`/`refetch`), при ошибке
+  показывает сообщение и кнопку "Повторить" (`query.refetch()`). Для таблиц,
+  где нужна ошибка строкой (не блоком) — свой инлайн-рендер по образцу
+  `CatalogPage.jsx` (`styles.errorRow`), а не `QueryState`.
+- `shared/ui/ErrorBoundary.jsx` — классовый компонент (хуковой альтернативы
+  Error Boundary в React нет), оборачивает всё приложение в `App.jsx` —
+  крах рендера одной страницы не должен ронять всё дерево до белого экрана.
+- `shared/lib/use-unsaved-changes-warning.js` — `beforeunload` при
+  `isDirty=true`. Встроен в `EntityFormModal.jsx` (значит работает
+  автоматически везде, где используется общая форма-в-модалке — справочники,
+  шапки/строки документов) через `form.formState.isDirty`: закрытие модалки
+  (Отмена/Escape — оба идут через один `handleClose`) с несохранёнными
+  правками спрашивает `window.confirm`. **Известное ограничение**: не
+  блокирует навигацию **внутри** приложения (клик по пункту меню) — для этого
+  нужен data-router (`createBrowserRouter` + `useBlocker`), а здесь
+  используется декларативный `<BrowserRouter>`/`<Routes>`
+  (`app/router.jsx`); миграция на data-router — отдельная задача, если это
+  станет проблемой на практике.
+
 ## Документы (Поступление и далее): шапка + строки + проведение
 
 Первый пример — `server/src/modules/purchases/receiving/`. Следующие

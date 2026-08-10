@@ -14,16 +14,13 @@ import { IssuanceLinesTable } from '../../features/issuance/documents/ui/Issuanc
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
 
 function lineKey(modelId, sizeId, heightSizeId) {
   return `${modelId}:${sizeId ?? ''}:${heightSizeId ?? ''}`;
@@ -32,7 +29,8 @@ function lineKey(modelId, sizeId, heightSizeId) {
 export function IssuanceEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useIssuanceDocument(id);
+  const documentQuery = useIssuanceDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, updateLine, removeLine, previewKit, post } =
     useIssuanceMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
@@ -43,8 +41,8 @@ export function IssuanceEditorPage() {
     state.user?.permissions?.includes('issuance.manage'),
   );
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -232,6 +230,7 @@ export function IssuanceEditorPage() {
         canManage={canManage}
         onEditLine={setEditingLine}
         onRemoveLine={(lineId) => removeLine.mutate(lineId)}
+        isRemoving={removeLine.isPending}
       />
 
       {editingHeader && (

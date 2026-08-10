@@ -16,15 +16,14 @@ import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx'
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
+import {
+  mutationErrorMessage as errorMessage,
+  parseApiError,
+} from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 
 const { useList: useRolesList } = createCatalogHooks('admin/roles');
-
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось выполнить действие';
-}
 
 function formatDateTime(value) {
   if (!value) return 'ещё не входил';
@@ -35,11 +34,12 @@ export function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [roleId, setRoleId] = useState('');
   const [isActive, setIsActive] = useState('');
-  const { data: users, isLoading } = useAdminUsersList({
+  const usersQuery = useAdminUsersList({
     search: search || undefined,
     roleId: roleId || undefined,
     isActive: isActive === '' ? undefined : isActive === 'true',
   });
+  const { data: users, isLoading } = usersQuery;
   const { data: roles } = useRolesList(false);
   const { create, update, resetPassword, revokeSessions } = useAdminUserMutations();
 
@@ -138,7 +138,19 @@ export function AdminUsersPage() {
                 </td>
               </tr>
             )}
-            {!isLoading && users?.length === 0 && (
+            {usersQuery.isError && (
+              <tr>
+                <td colSpan={6}>
+                  <div className={styles.errorRow}>
+                    <span>{parseApiError(usersQuery.error).message}</span>
+                    <Button variant="secondary" onClick={() => usersQuery.refetch()}>
+                      Повторить
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {!isLoading && !usersQuery.isError && users?.length === 0 && (
               <tr>
                 <td className={styles.hint} colSpan={6}>
                   Пользователи не найдены

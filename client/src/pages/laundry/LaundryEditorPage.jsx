@@ -12,19 +12,17 @@ import { SERVICE_DOCUMENT_STATUS_LABELS } from '../../features/service-documents
 import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
+import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
-function errorMessage(mutation) {
-  if (!mutation?.isError) return null;
-  return mutation.error?.response?.data?.error?.message || 'Не удалось сохранить';
-}
-
 export function LaundryEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: document, isLoading } = useLaundryDocument(id);
+  const documentQuery = useLaundryDocument(id);
+  const { data: document, isLoading } = documentQuery;
   const { update, remove, addLine, removeLine, send, complete } = useLaundryMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
@@ -32,8 +30,8 @@ export function LaundryEditorPage() {
   const [completing, setCompleting] = useState(false);
   const canManage = useSessionStore((state) => state.user?.permissions?.includes('laundry.manage'));
 
-  if (isLoading || !document) {
-    return <p className={catalogStyles.hint}>Загрузка…</p>;
+  if (isLoading || documentQuery.isError || !document) {
+    return <QueryState query={documentQuery} />;
   }
 
   const isDraft = document.status === 'draft';
@@ -121,6 +119,7 @@ export function LaundryEditorPage() {
         isDraft={isDraft}
         canManage={canManage}
         onRemoveLine={(lineId) => removeLine.mutate(lineId)}
+        isRemoving={removeLine.isPending}
       />
 
       {editingHeader && (

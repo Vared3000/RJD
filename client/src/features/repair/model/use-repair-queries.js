@@ -31,8 +31,13 @@ export function useRepairMutations(id) {
   const update = useMutation({
     mutationFn: (payload) => repairApi.update(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Шапка документа сохранена' },
   });
-  const remove = useMutation({ mutationFn: () => repairApi.remove(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: () => repairApi.remove(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Черновик удалён' },
+  });
   const addLine = useMutation({
     mutationFn: (payload) => repairApi.addLine(id, payload),
     onSuccess: invalidate,
@@ -41,10 +46,15 @@ export function useRepairMutations(id) {
     mutationFn: (lineId) => repairApi.removeLine(id, lineId),
     onSuccess: invalidate,
   });
-  const send = useMutation({ mutationFn: () => repairApi.send(id), onSuccess: invalidate });
+  const send = useMutation({
+    mutationFn: () => repairApi.send(id),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Документ отправлен' },
+  });
   const complete = useMutation({
     mutationFn: (payload) => repairApi.complete(id, payload),
     onSuccess: invalidate,
+    meta: { successMessage: 'Ремонт завершён' },
   });
 
   return { create, update, remove, addLine, removeLine, send, complete };

@@ -96,6 +96,16 @@
   text-align: center;
 }
 
+.errorRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  color: var(--color-danger);
+  white-space: normal;
+}
+
 .active {
   color: #16a34a;
   font-weight: 600;

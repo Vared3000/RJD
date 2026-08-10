@@ -35,6 +35,7 @@ import { createReportsRouter } from './modules/reports/reports.routes.js';
 import { createPrintFormsRouter } from './modules/print-forms/print-forms.routes.js';
 import { createBarcodeRouter } from './modules/barcodes/barcode.routes.js';
 import { createPrintFormSettingsRouter } from './modules/print-forms/settings/print-form-settings.routes.js';
+import { createPrintFormTemplatesRouter } from './modules/print-forms/templates/print-form-templates.routes.js';
 
 export function createApp() {
   const app = express();
@@ -79,6 +80,7 @@ export function createApp() {
   app.use('/api/v1/dpo', createDpoRouter());
   app.use('/api/v1/admin', createAdminRouter());
   app.use('/api/v1/reports', createReportsRouter());
+  app.use('/api/v1/print-forms/templates', createPrintFormTemplatesRouter());
   app.use('/api/v1/print-forms', createPrintFormsRouter());
   app.use('/api/v1/barcodes', createBarcodeRouter());
   app.use('/api/v1/print-form-settings', createPrintFormSettingsRouter());

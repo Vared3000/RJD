@@ -4,6 +4,7 @@ import { createCatalogHooks } from '../model/use-catalog-queries.js';
 import { EntityFormModal } from './EntityFormModal.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
 import { useSessionStore } from '../../../shared/session/session-store.js';
+import { parseApiError } from '../../../shared/lib/parse-api-error.js';
 import styles from './CatalogPage.module.css';
 
 // resource — сегмент REST-пути ('organizations', 'subdivisions', ...).
@@ -31,6 +32,9 @@ export function CatalogPage({
     data: items,
     meta,
     isLoading,
+    isError,
+    error: listError,
+    refetch,
   } = useList(showArchived, {
     ...(searchable ? { search: debouncedSearch } : {}),
     page,
@@ -144,7 +148,19 @@ export function CatalogPage({
                 </td>
               </tr>
             )}
-            {!isLoading && items?.length === 0 && (
+            {isError && (
+              <tr>
+                <td colSpan={columns.length + 2}>
+                  <div className={styles.errorRow}>
+                    <span>{parseApiError(listError).message}</span>
+                    <Button variant="secondary" onClick={() => refetch()}>
+                      Повторить
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {!isLoading && !isError && items?.length === 0 && (
               <tr>
                 <td className={styles.hint} colSpan={columns.length + 2}>
                   Ничего не найдено
@@ -180,6 +196,7 @@ export function CatalogPage({
                       <button
                         type="button"
                         className={styles.linkButton}
+                        disabled={archive.isPending}
                         onClick={() => archive.mutate(item.id)}
                       >
                         В архив
@@ -189,6 +206,7 @@ export function CatalogPage({
                       <button
                         type="button"
                         className={styles.linkButton}
+                        disabled={restore.isPending}
                         onClick={() => restore.mutate(item.id)}
                       >
                         Восстановить
@@ -233,9 +251,7 @@ export function CatalogPage({
           onSubmit={handleSubmit}
           onClose={closeModal}
           isSaving={isSaving}
-          error={
-            saveError ? saveError?.response?.data?.error?.message || 'Не удалось сохранить' : null
-          }
+          error={saveError ? parseApiError(saveError).message : null}
         />
       )}
     </div>

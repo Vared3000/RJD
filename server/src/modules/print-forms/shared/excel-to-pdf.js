@@ -477,7 +477,7 @@ export async function generatePdfFromExcel(excelBuffer, data) {
       .fontSize(5)
       .fillColor('#555')
       .text(
-        `Страница ${pageIndex + 1} из ${pages.length} · сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}`,
+        `Страница ${pageIndex + 1} из ${pages.length} · сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}${data.templateVersion ? ` · шаблон v${data.templateVersion}` : ''}`,
         margins.left,
         pageHeight - margins.bottom - PDF_FOOTER_HEIGHT,
         { width: pageWidth - margins.left - margins.right, align: 'right', lineBreak: false },

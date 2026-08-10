@@ -6,6 +6,7 @@ import { EntityFormModal } from '../../features/catalogs/ui/EntityFormModal.jsx'
 import { GENDER_LABELS } from '../../features/employees/model/employee-form.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Modal } from '../../shared/ui/Modal.jsx';
+import { parseApiError } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './KitsPage.module.css';
@@ -74,7 +75,7 @@ const kitItemFields = [
 
 function mutationError(...mutations) {
   const failed = mutations.find((mutation) => mutation?.isError);
-  return failed?.error?.response?.data?.error?.message ?? null;
+  return failed ? parseApiError(failed.error).message : null;
 }
 
 function tabItems(items, tab) {
@@ -116,6 +117,9 @@ export function KitsPage() {
     data: positions,
     meta: positionsMeta,
     isLoading: positionsLoading,
+    isError: positionsError,
+    error: positionsErrorDetail,
+    refetch: refetchPositions,
   } = positionsHooks.useList(false, {
     search: debouncedSearch,
     page,
@@ -230,7 +234,15 @@ export function KitsPage() {
 
       <div className={styles.positionList} aria-live="polite">
         {positionsLoading && <p className={catalogStyles.hint}>Загрузка…</p>}
-        {!positionsLoading && positions?.length === 0 && (
+        {positionsError && (
+          <div className={catalogStyles.errorRow}>
+            <span>{parseApiError(positionsErrorDetail).message}</span>
+            <Button variant="secondary" onClick={() => refetchPositions()}>
+              Повторить
+            </Button>
+          </div>
+        )}
+        {!positionsLoading && !positionsError && positions?.length === 0 && (
           <p className={catalogStyles.hint}>Должности не найдены</p>
         )}
         {positions?.map((position) => (

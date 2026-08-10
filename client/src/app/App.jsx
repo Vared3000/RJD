@@ -2,6 +2,7 @@ import { AppProviders } from './providers/AppProviders.jsx';
 import { AppRouter } from './router.jsx';
 import { useBootstrapSession } from '../features/auth/model/use-bootstrap-session.js';
 import { useSessionStore } from '../shared/session/session-store.js';
+import { ErrorBoundary } from '../shared/ui/ErrorBoundary.jsx';
 
 function SessionGate({ children }) {
   useBootstrapSession();
@@ -15,10 +16,12 @@ function SessionGate({ children }) {
 
 export function App() {
   return (
-    <AppProviders>
-      <SessionGate>
-        <AppRouter />
-      </SessionGate>
-    </AppProviders>
+    <ErrorBoundary>
+      <AppProviders>
+        <SessionGate>
+          <AppRouter />
+        </SessionGate>
+      </AppProviders>
+    </ErrorBoundary>
   );
 }

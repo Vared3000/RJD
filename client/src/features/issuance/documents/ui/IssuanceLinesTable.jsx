@@ -9,7 +9,14 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
-export function IssuanceLinesTable({ lines, isDraft, canManage, onEditLine, onRemoveLine }) {
+export function IssuanceLinesTable({
+  lines,
+  isDraft,
+  canManage,
+  onEditLine,
+  onRemoveLine,
+  isRemoving,
+}) {
   return (
     <div className={catalogStyles.tableWrap}>
       <table className={catalogStyles.table}>
@@ -52,6 +59,7 @@ export function IssuanceLinesTable({ lines, isDraft, canManage, onEditLine, onRe
                   <button
                     type="button"
                     className={catalogStyles.linkButton}
+                    disabled={isRemoving}
                     onClick={() => onRemoveLine(line.id)}
                   >
                     Удалить

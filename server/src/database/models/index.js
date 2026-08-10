@@ -44,6 +44,7 @@ import { defineEmployeeMeasurement } from './employee-measurement.model.js';
 import { definePrintFormParty } from './print-form-party.model.js';
 import { defineEmployeeDpoAssignment } from './employee-dpo-assignment.model.js';
 import { defineMonthlyRentalAct } from './monthly-rental-act.model.js';
+import { definePrintFormTemplate } from './print-form-template.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -90,6 +91,7 @@ const EmployeeMeasurement = defineEmployeeMeasurement(sequelize);
 const PrintFormParty = definePrintFormParty(sequelize);
 const EmployeeDpoAssignment = defineEmployeeDpoAssignment(sequelize);
 const MonthlyRentalAct = defineMonthlyRentalAct(sequelize);
+const PrintFormTemplate = definePrintFormTemplate(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -343,6 +345,8 @@ EmployeeMeasurement.belongsTo(SourceImportRecord, {
   as: 'sourceRecord',
 });
 
+PrintFormTemplate.belongsTo(User, { foreignKey: 'uploadedByUserId', as: 'uploadedByUser' });
+
 export const models = {
   Role,
   Permission,
@@ -389,6 +393,7 @@ export const models = {
   PrintFormParty,
   EmployeeDpoAssignment,
   MonthlyRentalAct,
+  PrintFormTemplate,
 };
 
 export { sequelize };
