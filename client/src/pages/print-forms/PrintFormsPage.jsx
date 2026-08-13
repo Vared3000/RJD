@@ -56,6 +56,9 @@ export function PrintFormsPage() {
   const [rentalMonth, setRentalMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [rentalPreview, setRentalPreview] = useState(null);
   const [rentalReason, setRentalReason] = useState('');
+  const [preservationDate, setPreservationDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
   const canReopenMonth = useSessionStore((state) =>
     state.user?.permissions?.includes('admin.manage'),
   );
@@ -136,6 +139,28 @@ export function PrintFormsPage() {
     setError('');
     try {
       await downloadMonthlyRentalVersion(rentalPreview.actId, versionNumber, format);
+    } catch (requestError) {
+      setError(await parseBlobApiError(requestError));
+    } finally {
+      setPending('');
+    }
+  }
+
+  async function downloadPreservationReceipt(format) {
+    if (!dpoId) {
+      setError('Сначала выберите ДПО');
+      return;
+    }
+    const key = `preservation-receipt:${format}`;
+    setPending(key);
+    setError('');
+    try {
+      await downloadPrintForm('preservation-receipt', {
+        dpoId,
+        from: preservationDate,
+        to: preservationDate,
+        format,
+      });
     } catch (requestError) {
       setError(await parseBlobApiError(requestError));
     } finally {
@@ -302,6 +327,36 @@ export function PrintFormsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className={`${styles.card} ${styles.monthlyCard}`}>
+        <div>
+          <h2>Сохранная расписка</h2>
+          <p>
+            Список работников и форменной одежды из проведённых выдач выбранного ДПО за один день. В
+            форме предусмотрено место для подписи каждого работника.
+          </p>
+        </div>
+        <div className={styles.monthlyControls}>
+          <label className={styles.monthField}>
+            <span>Дата передачи</span>
+            <input
+              type="date"
+              value={preservationDate}
+              onChange={(event) => setPreservationDate(event.target.value)}
+            />
+          </label>
+          <Button onClick={() => downloadPreservationReceipt('xlsx')} disabled={Boolean(pending)}>
+            {pending === 'preservation-receipt:xlsx' ? 'Формирование…' : 'Скачать Excel'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => downloadPreservationReceipt('pdf')}
+            disabled={Boolean(pending)}
+          >
+            {pending === 'preservation-receipt:pdf' ? 'Формирование…' : 'Скачать PDF'}
+          </Button>
+        </div>
       </section>
 
       <div className={styles.grid}>

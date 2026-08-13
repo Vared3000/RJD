@@ -20,6 +20,8 @@ import { personalCardExcelMapper } from './personal-card/personal-card.excel-map
 import { loadUpdContext, buildUpd } from './upd/upd.builder.js';
 import { generateUpdPdf } from './upd/upd.pdf-mapper.js';
 import { monthlyRentalService } from './monthly-rental-act/monthly-rental-act.service.js';
+import { buildPreservationReceipt } from './preservation-receipt/preservation-receipt.builder.js';
+import { preservationReceiptExcelMapper } from './preservation-receipt/preservation-receipt.excel-mapper.js';
 
 const BUILDERS = {
   'fpu-26': { build: buildFpu26, loadContext, excelMapper: fpu26ExcelMapper },
@@ -31,12 +33,17 @@ const BUILDERS = {
     excelMapper: personalCardExcelMapper,
   },
   upd: { build: buildUpd, loadContext: loadUpdContext, excelMapper: null },
+  'preservation-receipt': {
+    build: buildPreservationReceipt,
+    loadContext,
+    excelMapper: preservationReceiptExcelMapper,
+  },
 };
 
 // Формы, переведённые на маркерную разметку (задача 19): шаблон приходит
 // буфером из активной версии в БД, а не с диска по статическому пути.
 // Остальные формы продолжают работать через старый бандл-путь без изменений.
-const MARKER_BASED_FORMS = new Set(['fpu-26']);
+const MARKER_BASED_FORMS = new Set(['fpu-26', 'preservation-receipt']);
 
 async function generateFormExcel(form, data, excelMapper) {
   if (MARKER_BASED_FORMS.has(form)) {
@@ -74,6 +81,9 @@ export const printFormsService = {
     if (!definition) throw ApiError.notFound('Печатная форма не найдена');
     if (form !== 'personal-card' && (!query.dpoId || !query.from || !query.to)) {
       throw ApiError.badRequest('Выберите ДПО и период');
+    }
+    if (form === 'preservation-receipt' && query.from !== query.to) {
+      throw ApiError.badRequest('Для сохранной расписки выберите один день');
     }
     if (form === 'upd' && query.format !== 'pdf') {
       throw ApiError.badRequest('УПД формируется только в PDF');

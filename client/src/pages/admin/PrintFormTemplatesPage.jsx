@@ -14,7 +14,10 @@ import { Select } from '../../shared/ui/Select.jsx';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './PrintFormTemplatesPage.module.css';
 
-const FORM_TYPE = 'fpu-26';
+const FORM_TYPES = [
+  { value: 'fpu-26', label: 'ФПУ-26' },
+  { value: 'preservation-receipt', label: 'Сохранная расписка' },
+];
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -28,18 +31,19 @@ export function PrintFormTemplatesPage() {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState('');
+  const [formType, setFormType] = useState(FORM_TYPES[0].value);
   const fileInputRef = useRef(null);
 
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
   const versionsQuery = useQuery({
-    queryKey: ['print-form-templates', FORM_TYPE],
-    queryFn: () => printFormTemplatesApi.list(FORM_TYPE),
+    queryKey: ['print-form-templates', formType],
+    queryFn: () => printFormTemplatesApi.list(formType),
   });
   const { data: versions, isLoading } = versionsQuery;
 
   const upload = useMutation({
     mutationFn: () =>
-      printFormTemplatesApi.upload(FORM_TYPE, {
+      printFormTemplatesApi.upload(formType, {
         file: fileInputRef.current.files[0],
         dpoId,
         from: range.from,
@@ -47,7 +51,7 @@ export function PrintFormTemplatesPage() {
         comment,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['print-form-templates', FORM_TYPE] });
+      queryClient.invalidateQueries({ queryKey: ['print-form-templates', formType] });
       setComment('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
@@ -57,7 +61,7 @@ export function PrintFormTemplatesPage() {
   const activate = useMutation({
     mutationFn: (id) => printFormTemplatesApi.activate(id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['print-form-templates', FORM_TYPE] }),
+      queryClient.invalidateQueries({ queryKey: ['print-form-templates', formType] }),
     meta: { successMessage: 'Версия активирована' },
   });
 
@@ -91,11 +95,10 @@ export function PrintFormTemplatesPage() {
     <div className={catalogStyles.page}>
       <div className={catalogStyles.header}>
         <div>
-          <h1 className={catalogStyles.title}>Конструктор макетов: ФПУ-26</h1>
+          <h1 className={catalogStyles.title}>Конструктор макетов печатных форм</h1>
           <p className={styles.subtitle}>
             Загрузите свою версию шаблона .xlsx с маркерами <code>{'{{ИМЯ}}'}</code> вместо
-            фиксированных ячеек. Приложение 1.5, Приложение 1.7 и личная карточка появятся в
-            конструкторе позже.
+            фиксированных ячеек. Активная версия применяется при следующем формировании формы.
           </p>
         </div>
       </div>
@@ -107,6 +110,17 @@ export function PrintFormTemplatesPage() {
           только если по этим данным реально строится документ.
         </p>
         <div className={styles.uploadFields}>
+          <Select
+            label="Печатная форма"
+            value={formType}
+            onChange={(event) => {
+              setFormType(event.target.value);
+              setError('');
+              setComment('');
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+            options={FORM_TYPES}
+          />
           <Select
             label="ДПО"
             value={dpoId}

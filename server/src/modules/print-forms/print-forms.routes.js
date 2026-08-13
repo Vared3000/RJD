@@ -34,6 +34,7 @@ export function createPrintFormsRouter() {
                 'personal-card',
                 'upd',
                 'monthly-rental',
+                'preservation-receipt',
               ],
             },
           },

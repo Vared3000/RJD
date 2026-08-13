@@ -11,6 +11,8 @@ import { generatePdfFromExcel } from '../shared/excel-to-pdf.js';
 import { loadContext } from '../shared/load-context.js';
 import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 import { fpu26ExcelMapper } from '../fpu-26/fpu-26.excel-mapper.js';
+import { buildPreservationReceipt } from '../preservation-receipt/preservation-receipt.builder.js';
+import { preservationReceiptExcelMapper } from '../preservation-receipt/preservation-receipt.excel-mapper.js';
 
 // Формы, уже переведённые на маркерную разметку (задача 19) — каждая знает,
 // как построить пробные данные (loadContext/build) и как разложить их по
@@ -18,6 +20,11 @@ import { fpu26ExcelMapper } from '../fpu-26/fpu-26.excel-mapper.js';
 // следующим релизом.
 const GENERATORS = {
   'fpu-26': { loadContext, build: buildFpu26, mapper: fpu26ExcelMapper },
+  'preservation-receipt': {
+    loadContext,
+    build: buildPreservationReceipt,
+    mapper: preservationReceiptExcelMapper,
+  },
 };
 
 function generatorFor(formType) {
