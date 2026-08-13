@@ -8,6 +8,12 @@ import {
   instanceEventsRepository,
 } from '../../nomenclature/instances/instance-events.repository.js';
 import { priceRepository } from '../../nomenclature/prices/price.repository.js';
+import {
+  findTouchedInstanceIds,
+  assertNoBlockingDocuments,
+} from '../../nomenclature/instances/instance-dependency-check.js';
+import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
+import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -91,6 +97,25 @@ function assertNoDuplicateLine(lines, { modelId, sizeId, heightSizeId }, exclude
   }
 }
 
+// Для revise(): кандидаты строятся в памяти до вставки в БД и ещё не имеют
+// id, поэтому assertNoDuplicateLine(..., excludeLineId=undefined) молча не
+// сработал бы (undefined !== undefined → false для каждой уже накопленной
+// строки). Отдельная функция без параметра исключения — сравнивает кандидата
+// только с уже собранными в текущем цикле строками.
+function assertNoDuplicateAmongNewLines(lines, candidate) {
+  const duplicate = lines.some(
+    (line) =>
+      line.modelId === candidate.modelId &&
+      line.sizeId === candidate.sizeId &&
+      (line.heightSizeId ?? null) === (candidate.heightSizeId ?? null),
+  );
+  if (duplicate) {
+    throw ApiError.badRequest(
+      'В документе уже есть строка с такой же моделью, размером и ростом — измените количество в ней',
+    );
+  }
+}
+
 function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
 }
@@ -140,6 +165,83 @@ async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
   }
 
   return { ...data, sizeId, heightSizeId: null };
+}
+
+// Подбирает под каждую строку доступные экземпляры (FIFO), переводит их в
+// issued с привязкой к работнику, создаёт движения/события и снимок цены.
+// Переиспользуется post() (первое проведение) и revise() (редакция).
+async function applyIssuanceSideEffects(document, lines, { userId, transaction }) {
+  const allInstanceIds = [];
+  const movementRows = [];
+  const eventRows = [];
+  const employee = await issuanceRepository.findEmployeeDpo(document.employeeId, { transaction });
+
+  for (const line of lines) {
+    const applicablePrice = await priceRepository.findApplicable(
+      {
+        modelId: line.modelId,
+        dpoId: employee?.dpoId ?? null,
+        operationDate: document.documentDate,
+      },
+      { transaction },
+    );
+    const snapshot = priceSnapshot(applicablePrice);
+    if (snapshot) {
+      await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
+    }
+
+    const instances = await issuanceRepository.findAvailableInstances(
+      {
+        modelId: line.modelId,
+        sizeId: line.sizeId,
+        heightSizeId: line.heightSizeId ?? null,
+        warehouseId: document.warehouseId,
+        limit: line.quantity,
+      },
+      { transaction },
+    );
+
+    if (instances.length < line.quantity) {
+      const modelName = line.model?.name ?? line.modelId;
+      const sizeDescription = line.size?.value ? `, размер ${line.size.value}` : ', без размера';
+      throw ApiError.badRequest(
+        `Недостаточно на складе: «${modelName}»${sizeDescription} — ` +
+          `доступно ${instances.length} из ${line.quantity}`,
+      );
+    }
+
+    for (const instance of instances) {
+      allInstanceIds.push(instance.id);
+      eventRows.push(
+        buildInstanceEvent({
+          instance,
+          eventType: 'issuance',
+          to: { status: 'issued', warehouseId: null, employeeId: document.employeeId },
+          documentType: 'issuance',
+          documentId: document.id,
+          occurredAt: document.documentDate,
+          userId,
+          details: { documentNumber: document.number },
+        }),
+      );
+      movementRows.push({
+        instanceId: instance.id,
+        fromWarehouseId: document.warehouseId,
+        toWarehouseId: null,
+        documentType: 'issuance',
+        documentId: document.id,
+        occurredAt: document.documentDate,
+        note: `Выдача ${document.number}`,
+      });
+    }
+  }
+
+  await issuanceRepository.markInstancesIssued(allInstanceIds, document.employeeId, {
+    transaction,
+  });
+  await issuanceRepository.bulkCreateMovements(movementRows, { transaction });
+  await instanceEventsRepository.bulkCreate(eventRows, { transaction });
+  return { instanceIds: allInstanceIds };
 }
 
 export const issuanceService = {
@@ -363,80 +465,106 @@ export const issuanceService = {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }
 
-      const allInstanceIds = [];
-      const movementRows = [];
-      const eventRows = [];
-      const employee = await issuanceRepository.findEmployeeDpo(document.employeeId, {
-        transaction,
-      });
+      await applyIssuanceSideEffects(document, document.lines, { userId, transaction });
 
-      for (const line of document.lines) {
-        const applicablePrice = await priceRepository.findApplicable(
-          {
-            modelId: line.modelId,
-            dpoId: employee?.dpoId ?? null,
-            operationDate: document.documentDate,
-          },
-          { transaction },
+      await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
+    });
+
+    return issuanceRepository.findById(documentId);
+  },
+
+  // Задача 22: контролируемое перепроведение уже проведённой Выдачи.
+  // Экземпляры не удаляются (в отличие от receiving) — освобождаются на
+  // склад ДО правки, затем свежий FIFO-подбор применяет новые строки к
+  // новому работнику/дате/складу/составу с пересчётом цены. Устаревание
+  // затронутых месячных актов помечается внутри той же транзакции — иначе
+  // сбой на этом шаге оставил бы редакцию зафиксированной, а акт
+  // непомеченным (частичное состояние).
+  async revise(documentId, { header, lines, reason }, { userId }) {
+    await sequelize.transaction(async (transaction) => {
+      const document = await issuanceRepository.findLocked(documentId, { transaction });
+      if (!document) throw ApiError.notFound('Документ не найден');
+      if (document.status !== 'posted') {
+        throw ApiError.conflict(
+          'Редактировать через эту команду можно только проведённый документ',
         );
-        const snapshot = priceSnapshot(applicablePrice);
-        if (snapshot) {
-          await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
-        }
-        const instances = await issuanceRepository.findAvailableInstances(
-          {
-            modelId: line.modelId,
-            sizeId: line.sizeId,
-            heightSizeId: line.heightSizeId ?? null,
-            warehouseId: document.warehouseId,
-            limit: line.quantity,
-          },
-          { transaction },
-        );
-
-        if (instances.length < line.quantity) {
-          const modelName = line.model?.name ?? line.modelId;
-          const sizeDescription = line.size?.value
-            ? `, размер ${line.size.value}`
-            : ', без размера';
-          throw ApiError.badRequest(
-            `Недостаточно на складе: «${modelName}»${sizeDescription} — ` +
-              `доступно ${instances.length} из ${line.quantity}`,
-          );
-        }
-
-        for (const instance of instances) {
-          allInstanceIds.push(instance.id);
-          eventRows.push(
-            buildInstanceEvent({
-              instance,
-              eventType: 'issuance',
-              to: { status: 'issued', warehouseId: null, employeeId: document.employeeId },
-              documentType: 'issuance',
-              documentId: document.id,
-              occurredAt: document.documentDate,
-              userId,
-              details: { documentNumber: document.number },
-            }),
-          );
-          movementRows.push({
-            instanceId: instance.id,
-            fromWarehouseId: document.warehouseId,
-            toWarehouseId: null,
-            documentType: 'issuance',
-            documentId: document.id,
-            occurredAt: document.documentDate,
-            note: `Выдача ${document.number}`,
-          });
-        }
       }
 
-      await issuanceRepository.markInstancesIssued(allInstanceIds, document.employeeId, {
-        transaction,
-      });
-      await issuanceRepository.bulkCreateMovements(movementRows, { transaction });
-      await instanceEventsRepository.bulkCreate(eventRows, { transaction });
-      await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
+      const instanceIds = await findTouchedInstanceIds(
+        { documentType: 'issuance', documentId },
+        { transaction },
+      );
+      if (instanceIds.length > 0) {
+        await issuanceRepository.lockInstances(instanceIds, { transaction });
+        await assertNoBlockingDocuments(
+          { instanceIds, ownDocumentType: 'issuance', ownDocumentId: documentId },
+          { transaction },
+        );
+      }
+
+      const { lines: previousLines, ...headerSnapshot } = document;
+      const previousData = { header: headerSnapshot, lines: previousLines };
+
+      await issuanceRepository.deleteOwnInstanceEvents(documentId, { transaction });
+      await issuanceRepository.deleteOwnMovements(documentId, { transaction });
+      if (instanceIds.length > 0) {
+        // Освобождаем на СТАРЫЙ склад (document.warehouseId) — физически
+        // вещи всё ещё там, даже если склад в редакции меняется.
+        await issuanceRepository.releaseInstances(instanceIds, document.warehouseId, {
+          transaction,
+        });
+      }
+
+      const normalizedLines = [];
+      for (const line of lines) {
+        const normalized = await normalizeLineSizes(line, null, { transaction });
+        assertNoDuplicateAmongNewLines(normalizedLines, normalized);
+        normalizedLines.push(normalized);
+      }
+
+      await issuanceRepository.deleteAllLines(documentId, { transaction });
+      const createdLines = (
+        await issuanceRepository.bulkCreateLines(documentId, normalizedLines, { transaction })
+      ).map((line) => line.get({ plain: true }));
+
+      await issuanceRepository.updateHeaderFields(documentId, header, { transaction });
+      const updatedDocument = { ...document, ...header, id: documentId, number: document.number };
+
+      await applyIssuanceSideEffects(updatedDocument, createdLines, { userId, transaction });
+
+      const nextRevision = document.revisionNumber + 1;
+      await issuanceRepository.markRevised(
+        documentId,
+        { revisionNumber: nextRevision, revisedByUserId: userId },
+        { transaction },
+      );
+
+      await documentRevisionsRepository.create(
+        {
+          documentType: 'issuance',
+          documentId,
+          revisionNumber: nextRevision,
+          previousData,
+          newData: { header, lines: createdLines },
+          reason: reason || null,
+          revisedByUserId: userId,
+          revisedAt: new Date(),
+        },
+        { transaction },
+      );
+
+      // Раздел "Связь с актами" задачи 22: только помечает stale, не
+      // пересчитывает (пересчёт — задача 24).
+      await flagStaleForIssuanceRevision(
+        {
+          before: { employeeId: document.employeeId, documentDate: document.documentDate },
+          after: {
+            employeeId: updatedDocument.employeeId,
+            documentDate: updatedDocument.documentDate,
+          },
+        },
+        { transaction },
+      );
     });
 
     return issuanceRepository.findById(documentId);

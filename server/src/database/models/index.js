@@ -45,6 +45,7 @@ import { definePrintFormParty } from './print-form-party.model.js';
 import { defineEmployeeDpoAssignment } from './employee-dpo-assignment.model.js';
 import { defineMonthlyRentalAct } from './monthly-rental-act.model.js';
 import { definePrintFormTemplate } from './print-form-template.model.js';
+import { defineDocumentRevision } from './document-revision.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -92,6 +93,7 @@ const PrintFormParty = definePrintFormParty(sequelize);
 const EmployeeDpoAssignment = defineEmployeeDpoAssignment(sequelize);
 const MonthlyRentalAct = defineMonthlyRentalAct(sequelize);
 const PrintFormTemplate = definePrintFormTemplate(sequelize);
+const DocumentRevision = defineDocumentRevision(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -162,6 +164,7 @@ ReceivingDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehou
 ReceivingDocument.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
 ReceivingDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
 ReceivingDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+ReceivingDocument.belongsTo(User, { foreignKey: 'lastRevisedByUserId', as: 'lastRevisedByUser' });
 
 ReceivingDocument.hasMany(ReceivingLine, { foreignKey: 'documentId', as: 'lines' });
 ReceivingLine.belongsTo(ReceivingDocument, { foreignKey: 'documentId', as: 'document' });
@@ -207,6 +210,7 @@ IssuanceDocument.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' 
 IssuanceDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
 IssuanceDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
 IssuanceDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+IssuanceDocument.belongsTo(User, { foreignKey: 'lastRevisedByUserId', as: 'lastRevisedByUser' });
 
 IssuanceDocument.hasMany(IssuanceLine, { foreignKey: 'documentId', as: 'lines' });
 IssuanceLine.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'document' });
@@ -340,6 +344,11 @@ EmployeeDpoAssignment.belongsTo(User, { foreignKey: 'changedByUserId', as: 'chan
 Dpo.hasMany(MonthlyRentalAct, { foreignKey: 'dpoId', as: 'monthlyRentalActs' });
 MonthlyRentalAct.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
 MonthlyRentalAct.belongsTo(User, { foreignKey: 'generatedByUserId', as: 'generatedByUser' });
+
+// document_revisions — полиморфный журнал редакций проведённых документов
+// (задача 22), по образцу document_id у stock_movements/instance_events —
+// без FK на сам документ, только на пользователя.
+DocumentRevision.belongsTo(User, { foreignKey: 'revisedByUserId', as: 'revisedByUser' });
 EmployeeMeasurement.belongsTo(SourceImportRecord, {
   foreignKey: 'sourceRecordId',
   as: 'sourceRecord',
@@ -394,6 +403,7 @@ export const models = {
   EmployeeDpoAssignment,
   MonthlyRentalAct,
   PrintFormTemplate,
+  DocumentRevision,
 };
 
 export { sequelize };

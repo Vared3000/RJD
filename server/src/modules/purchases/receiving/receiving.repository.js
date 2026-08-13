@@ -12,6 +12,7 @@ const detailInclude = [
   ...listInclude,
   { model: models.User, as: 'responsibleUser', attributes: ['id', 'fullName'] },
   { model: models.User, as: 'postedByUser', attributes: ['id', 'fullName'] },
+  { model: models.User, as: 'lastRevisedByUser', attributes: ['id', 'fullName'] },
   { model: models.Batch, as: 'batch', attributes: ['id', 'code'] },
   {
     model: ReceivingLine,
@@ -152,6 +153,64 @@ export const receivingRepository = {
     return ReceivingDocument.update(
       { status: 'posted', postedAt: new Date(), postedByUserId, batchId },
       { where: { id }, transaction },
+    );
+  },
+
+  updateBatch(batchId, data, { transaction }) {
+    return Batch.update(data, { where: { id: batchId }, transaction });
+  },
+
+  // Задача 22 (редактирование проведённого документа) — ниже.
+
+  lockInstances(instanceIds, { transaction }) {
+    if (instanceIds.length === 0) return Promise.resolve([]);
+    return Instance.findAll({
+      where: { id: instanceIds },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  },
+
+  deleteOwnInstanceEvents(documentId, { transaction }) {
+    return models.InstanceEvent.destroy({
+      where: { documentType: 'receiving', documentId },
+      transaction,
+    });
+  },
+
+  deleteOwnMovements(documentId, { transaction }) {
+    return StockMovement.destroy({ where: { documentType: 'receiving', documentId }, transaction });
+  },
+
+  // instance_events.instance_id — ON DELETE CASCADE, но удаляем явно и первыми:
+  // порядок должен читаться независимо от знания конкретных onDelete в схеме
+  // (тот же порядок копируется в задачу 23). stock_movements.instance_id —
+  // ON DELETE RESTRICT, поэтому Instance физически нельзя удалить, пока не
+  // удалены её движения — deleteOwnMovements обязателен перед этим методом.
+  bulkDeleteInstances(instanceIds, { transaction }) {
+    if (instanceIds.length === 0) return Promise.resolve(0);
+    return Instance.destroy({ where: { id: instanceIds }, transaction });
+  },
+
+  deleteAllLines(documentId, { transaction }) {
+    return ReceivingLine.destroy({ where: { documentId }, transaction });
+  },
+
+  bulkCreateLines(documentId, lines, { transaction }) {
+    return ReceivingLine.bulkCreate(
+      lines.map((line, index) => ({ ...line, documentId, sortOrder: index })),
+      { transaction, returning: true },
+    );
+  },
+
+  updateHeaderFields(documentId, data, { transaction }) {
+    return ReceivingDocument.update(data, { where: { id: documentId }, transaction });
+  },
+
+  markRevised(documentId, { batchId, revisionNumber, revisedByUserId }, { transaction }) {
+    return ReceivingDocument.update(
+      { batchId, revisionNumber, lastRevisedAt: new Date(), lastRevisedByUserId: revisedByUserId },
+      { where: { id: documentId }, transaction },
     );
   },
 };

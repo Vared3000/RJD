@@ -9,10 +9,23 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
+function defaultDisplay(line) {
+  return {
+    modelName: line.model?.name,
+    sizeLabel: line.size
+      ? `${SIZE_TYPE_LABELS[line.size.type] ?? line.size.type}: ${line.size.value}`
+      : '—',
+    heightLabel: line.heightSize?.value ?? '—',
+  };
+}
+
+// resolveDisplay — переопределяется задачей 22 в режиме редакции проведённого
+// документа: draftLines хранят только id модели/размера (без populated
+// подобъектов с сервера), нужен резолв по id из кэшированных справочников.
 export function IssuanceLinesTable({
   lines,
-  isDraft,
-  canManage,
+  editable,
+  resolveDisplay = defaultDisplay,
   onEditLine,
   onRemoveLine,
   isRemoving,
@@ -26,7 +39,7 @@ export function IssuanceLinesTable({
             <th>Размер</th>
             <th>Рост</th>
             <th>Кол-во</th>
-            {isDraft && canManage && <th aria-label="Действия" />}
+            {editable && <th aria-label="Действия" />}
           </tr>
         </thead>
         <tbody>
@@ -37,37 +50,36 @@ export function IssuanceLinesTable({
               </td>
             </tr>
           )}
-          {lines.map((line) => (
-            <tr key={line.id}>
-              <td>{line.model?.name}</td>
-              <td>
-                {line.size
-                  ? `${SIZE_TYPE_LABELS[line.size.type] ?? line.size.type}: ${line.size.value}`
-                  : '—'}
-              </td>
-              <td>{line.heightSize?.value ?? '—'}</td>
-              <td>{line.quantity}</td>
-              {isDraft && canManage && (
-                <td className={catalogStyles.actions}>
-                  <button
-                    type="button"
-                    className={catalogStyles.linkButton}
-                    onClick={() => onEditLine(line)}
-                  >
-                    Изменить
-                  </button>
-                  <button
-                    type="button"
-                    className={catalogStyles.linkButton}
-                    disabled={isRemoving}
-                    onClick={() => onRemoveLine(line.id)}
-                  >
-                    Удалить
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
+          {lines.map((line, index) => {
+            const display = resolveDisplay(line);
+            return (
+              <tr key={line.id ?? index}>
+                <td>{display.modelName}</td>
+                <td>{display.sizeLabel}</td>
+                <td>{display.heightLabel}</td>
+                <td>{line.quantity}</td>
+                {editable && (
+                  <td className={catalogStyles.actions}>
+                    <button
+                      type="button"
+                      className={catalogStyles.linkButton}
+                      onClick={() => onEditLine(line, index)}
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      type="button"
+                      className={catalogStyles.linkButton}
+                      disabled={isRemoving}
+                      onClick={() => onRemoveLine(line, index)}
+                    >
+                      Удалить
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

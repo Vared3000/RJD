@@ -240,6 +240,36 @@ async function getOrCreate(dpoId, month, userId) {
   }
 }
 
+// Задача 22 ("Связь с актами"): вызывается из issuance.service.js#revise()
+// внутри той же транзакции, что и сама редакция — только помечает уже
+// существующие акты как устаревшие, ничего не пересчитывает (пересчёт и
+// версионирование — задача 24) и ничего не создаёт, если акта ещё нет.
+// Строки Выдачи не хранят свой employeeId/documentDate (это поля шапки,
+// общие для всех строк), поэтому достаточно одной пары "было"/"стало" на
+// весь документ, без обхода строк.
+export async function flagStaleForIssuanceRevision({ before, after }, { transaction } = {}) {
+  const candidates = [before, after].filter(
+    (candidate) => candidate.employeeId && candidate.documentDate,
+  );
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const reportMonth = `${String(candidate.documentDate).slice(0, 7)}-01`;
+    const dpoRows = await monthlyRentalRepository.findAssignedDpoIds(
+      { employeeId: candidate.employeeId, onDate: candidate.documentDate },
+      { transaction },
+    );
+    for (const { dpoId } of dpoRows) {
+      const key = `${dpoId}:${reportMonth}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await monthlyRentalRepository.markStale(
+        { dpoId, reportMonth, reason: 'Изменена проведённая выдача, затрагивающая этот период' },
+        { transaction },
+      );
+    }
+  }
+}
+
 export const monthlyRentalService = {
   async preview({ dpoId, month }) {
     if (!dpoId) throw ApiError.badRequest('Выберите ДПО');

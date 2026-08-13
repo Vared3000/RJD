@@ -18,6 +18,18 @@ export function defineIssuanceDocument(sequelize) {
       postedAt: { type: DataTypes.DATE, allowNull: true, field: 'posted_at' },
       postedByUserId: { type: DataTypes.UUID, allowNull: true, field: 'posted_by_user_id' },
       note: { type: DataTypes.STRING(1000), allowNull: true },
+      revisionNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+        field: 'revision_number',
+      },
+      lastRevisedAt: { type: DataTypes.DATE, allowNull: true, field: 'last_revised_at' },
+      lastRevisedByUserId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'last_revised_by_user_id',
+      },
     },
     { tableName: 'issuance_documents' },
   );

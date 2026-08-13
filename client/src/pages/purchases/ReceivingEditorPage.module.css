@@ -72,3 +72,19 @@
   color: var(--color-danger);
   font-weight: 600;
 }
+
+.reviseReason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 14px;
+}
+
+.reviseTextarea {
+  min-height: 60px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  resize: vertical;
+}

@@ -61,6 +61,22 @@ export function useIssuanceMutations(id) {
     onSuccess: invalidate,
     meta: { successMessage: 'Документ проведён' },
   });
+  const revise = useMutation({
+    mutationFn: (payload) => issuanceApi.revise(id, payload),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Редакция документа сохранена и проведена' },
+  });
 
-  return { create, update, remove, addLine, updateLine, removeLine, applyKit, previewKit, post };
+  return {
+    create,
+    update,
+    remove,
+    addLine,
+    updateLine,
+    removeLine,
+    applyKit,
+    previewKit,
+    post,
+    revise,
+  };
 }

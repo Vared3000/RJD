@@ -99,4 +99,27 @@ export const monthlyRentalRepository = {
   createAct(data, { transaction } = {}) {
     return models.MonthlyRentalAct.create(data, { transaction });
   },
+
+  // Задача 22: ДПО работника, действующие на конкретную дату — та же таблица,
+  // что использует findOwnershipRows для построения самого акта (см. JOIN
+  // выше), чтобы критерий "какой ДПО задет" был согласован с тем, как акт
+  // реально строится.
+  findAssignedDpoIds({ employeeId, onDate }, { transaction } = {}) {
+    return sequelize.query(
+      `SELECT dpo_id AS "dpoId"
+       FROM employee_dpo_assignments
+       WHERE employee_id = :employeeId
+         AND valid_from <= :onDate
+         AND (valid_to IS NULL OR valid_to >= :onDate)`,
+      { replacements: { employeeId, onDate }, type: QueryTypes.SELECT, transaction },
+    );
+  },
+
+  async markStale({ dpoId, reportMonth, reason }, { transaction } = {}) {
+    const [count] = await models.MonthlyRentalAct.update(
+      { isStale: true, staleReason: reason, staleAt: new Date() },
+      { where: { dpoId, reportMonth }, transaction },
+    );
+    return count > 0;
+  },
 };

@@ -44,6 +44,14 @@ export function mutationErrorMessage(mutation) {
   return parseApiError(mutation.error).message;
 }
 
+// Структурированные details (например { blockingDocuments } из задачи 22) —
+// в отличие от parseApiError/mutationErrorMessage, которые сохраняют только
+// message и плоские fieldErrors из zod-issues. Использовать там, где нужно
+// отрисовать не просто текст ошибки, а список/ссылки из details.
+export function apiErrorDetails(error) {
+  return error?.response?.data?.error?.details ?? null;
+}
+
 // Запросы скачивания файлов (печатные формы, отчёты, шаблоны, этикетки)
 // вызываются с axios { responseType: 'blob' } — при ошибке axios парсит тело
 // ответа как Blob, а не JSON, поэтому обычный parseApiError(error).message

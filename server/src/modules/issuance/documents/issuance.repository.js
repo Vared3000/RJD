@@ -34,6 +34,7 @@ const detailInclude = [
   { model: models.Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
   { model: models.User, as: 'responsibleUser', attributes: ['id', 'fullName'] },
   { model: models.User, as: 'postedByUser', attributes: ['id', 'fullName'] },
+  { model: models.User, as: 'lastRevisedByUser', attributes: ['id', 'fullName'] },
   {
     model: IssuanceLine,
     as: 'lines',
@@ -246,6 +247,62 @@ export const issuanceRepository = {
       transaction,
     });
     return { employee, kitItems };
+  },
+
+  // Задача 22 (редактирование проведённого документа) — ниже.
+
+  lockInstances(instanceIds, { transaction }) {
+    if (instanceIds.length === 0) return Promise.resolve([]);
+    return Instance.findAll({
+      where: { id: instanceIds },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  },
+
+  deleteOwnInstanceEvents(documentId, { transaction }) {
+    return models.InstanceEvent.destroy({
+      where: { documentType: 'issuance', documentId },
+      transaction,
+    });
+  },
+
+  deleteOwnMovements(documentId, { transaction }) {
+    return StockMovement.destroy({ where: { documentType: 'issuance', documentId }, transaction });
+  },
+
+  // В отличие от receiving — экземпляры НЕ удаляются, а возвращаются в
+  // свободный остаток на указанный склад (склад документа ДО правки — вещи
+  // физически всё ещё там; новые строки на новом складе подбираются свежим
+  // FIFO внутри applyIssuanceSideEffects).
+  releaseInstances(instanceIds, warehouseId, { transaction }) {
+    if (instanceIds.length === 0) return Promise.resolve([0]);
+    return Instance.update(
+      { status: 'in_stock', employeeId: null, warehouseId },
+      { where: { id: instanceIds }, transaction },
+    );
+  },
+
+  deleteAllLines(documentId, { transaction }) {
+    return IssuanceLine.destroy({ where: { documentId }, transaction });
+  },
+
+  bulkCreateLines(documentId, lines, { transaction }) {
+    return IssuanceLine.bulkCreate(
+      lines.map((line, index) => ({ ...line, documentId, sortOrder: index })),
+      { transaction, returning: true },
+    );
+  },
+
+  updateHeaderFields(documentId, data, { transaction }) {
+    return IssuanceDocument.update(data, { where: { id: documentId }, transaction });
+  },
+
+  markRevised(documentId, { revisionNumber, revisedByUserId }, { transaction }) {
+    return IssuanceDocument.update(
+      { revisionNumber, lastRevisedAt: new Date(), lastRevisedByUserId: revisedByUserId },
+      { where: { id: documentId }, transaction },
+    );
   },
 
   // Остаток на конкретном складе под конкретные модель/размер/рост — для

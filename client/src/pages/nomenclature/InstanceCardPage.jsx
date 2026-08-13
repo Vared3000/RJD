@@ -5,6 +5,7 @@ import {
 } from '../../features/instances/model/use-instance-history.js';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
 import { parseApiError } from '../../shared/lib/parse-api-error.js';
+import { DOCUMENT_PATHS } from '../../shared/lib/document-type-labels.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './InstanceCardPage.module.css';
 
@@ -35,17 +36,6 @@ const EVENT_LABELS = {
   inventory_discrepancy: 'Расхождение инвентаризации',
   adjustment: 'Корректировка',
   writeoff: 'Списание',
-};
-
-const DOCUMENT_PATHS = {
-  receiving: '/purchases/receiving',
-  issuance: '/issuance/documents',
-  return: '/issuance/returns',
-  laundry: '/laundry/documents',
-  repair: '/repair/documents',
-  transfer: '/transfers/documents',
-  inventory: '/inventory/documents',
-  writeoff: '/writeoff/documents',
 };
 
 function stateText(status, condition) {

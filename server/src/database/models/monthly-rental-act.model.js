@@ -14,6 +14,14 @@ export function defineMonthlyRentalAct(sequelize) {
         allowNull: true,
         field: 'generated_by_user_id',
       },
+      isStale: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'is_stale',
+      },
+      staleReason: { type: DataTypes.STRING(255), allowNull: true, field: 'stale_reason' },
+      staleAt: { type: DataTypes.DATE, allowNull: true, field: 'stale_at' },
     },
     { tableName: 'monthly_rental_acts' },
   );

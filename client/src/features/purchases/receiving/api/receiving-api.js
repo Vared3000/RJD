@@ -38,4 +38,8 @@ export const receivingApi = {
     const { data } = await httpClient.post(`${BASE}/${id}/post`);
     return data.data;
   },
+  async revise(id, payload) {
+    const { data } = await httpClient.post(`${BASE}/${id}/revise`, payload);
+    return data.data;
+  },
 };

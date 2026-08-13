@@ -9,6 +9,7 @@ import {
   updateDocumentSchema,
   createLineSchema,
   updateLineSchema,
+  reviseDocumentSchema,
 } from './issuance.validation.js';
 
 const PERMISSION = 'issuance.manage';
@@ -182,6 +183,39 @@ export function createIssuanceRouter() {
    *       400: { description: Уже проведён, нет позиций или недостаточно остатка }
    */
   router.post('/:id/post', asyncHandler(issuanceController.post));
+
+  /**
+   * @openapi
+   * /issuance/documents/{id}/revise:
+   *   post:
+   *     tags: [Выдача/Возврат: Выдача]
+   *     summary: >
+   *       Редактировать проведённый документ (задача 22): освобождает старые
+   *       экземпляры, сохраняет новую шапку/строки, перепроводит свежим
+   *       FIFO-подбором с пересчётом цены в одной транзакции, увеличивает
+   *       номер редакции и помечает затронутые месячные акты как требующие
+   *       пересчёта. Блокируется 409, если по затронутым экземплярам уже
+   *       есть более поздние операции.
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: header (как при создании), lines (непустой массив), reason (необязательно)
+   *     responses:
+   *       200: { description: Редакция сохранена и проведена }
+   *       404: { description: Документ не найден }
+   *       400: { description: Документ ещё черновик, ошибка валидации или недостаточно остатка }
+   *       409: { description: Найдены зависимые более поздние документы }
+   */
+  router.post(
+    '/:id/revise',
+    validateBody(reviseDocumentSchema),
+    asyncHandler(issuanceController.revise),
+  );
 
   return router;
 }

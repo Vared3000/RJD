@@ -58,4 +58,11 @@ export const receivingController = {
     const item = await receivingService.post(req.params.id, { userId: req.user.sub });
     return success(res, item);
   },
+
+  async revise(req, res) {
+    const item = await receivingService.revise(req.params.id, req.validatedBody, {
+      userId: req.user.sub,
+    });
+    return success(res, item);
+  },
 };

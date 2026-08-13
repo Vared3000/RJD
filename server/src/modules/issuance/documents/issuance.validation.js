@@ -23,3 +23,11 @@ export const createLineSchema = z.object({
 });
 
 export const updateLineSchema = createLineSchema.partial();
+
+// Задача 22: полная замена шапки и строк уже проведённого документа одной
+// командой.
+export const reviseDocumentSchema = z.object({
+  header: createDocumentSchema,
+  lines: z.array(createLineSchema).min(1, 'В документе должна быть хотя бы одна позиция'),
+  reason: z.preprocess(emptyToNull, z.string().max(500).nullable()).optional(),
+});

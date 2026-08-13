@@ -9,6 +9,7 @@ import {
   updateDocumentSchema,
   createLineSchema,
   updateLineSchema,
+  reviseDocumentSchema,
 } from './receiving.validation.js';
 
 const PERMISSION = 'purchases.manage';
@@ -141,6 +142,37 @@ export function createReceivingRouter() {
    *       400: { description: Уже проведён или нет позиций }
    */
   router.post('/:id/post', asyncHandler(receivingController.post));
+
+  /**
+   * @openapi
+   * /purchases/receiving/{id}/revise:
+   *   post:
+   *     tags: [Закупки: Поступление]
+   *     summary: >
+   *       Редактировать проведённый документ (задача 22): отменяет старые
+   *       экземпляры/движения, сохраняет новую шапку/строки, перепроводит в
+   *       одной транзакции, увеличивает номер редакции. Блокируется 409, если
+   *       по затронутым экземплярам уже есть более поздние операции.
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: header (как при создании), lines (непустой массив), reason (необязательно)
+   *     responses:
+   *       200: { description: Редакция сохранена и проведена }
+   *       404: { description: Документ не найден }
+   *       400: { description: Документ ещё черновик или ошибка валидации строк }
+   *       409: { description: Найдены зависимые более поздние документы }
+   */
+  router.post(
+    '/:id/revise',
+    validateBody(reviseDocumentSchema),
+    asyncHandler(receivingController.revise),
+  );
 
   return router;
 }

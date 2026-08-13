@@ -49,6 +49,11 @@ export function useReceivingMutations(id) {
     onSuccess: invalidate,
     meta: { successMessage: 'Документ проведён' },
   });
+  const revise = useMutation({
+    mutationFn: (payload) => receivingApi.revise(id, payload),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Редакция документа сохранена и проведена' },
+  });
 
-  return { create, update, remove, addLine, updateLine, removeLine, post };
+  return { create, update, remove, addLine, updateLine, removeLine, post, revise };
 }
