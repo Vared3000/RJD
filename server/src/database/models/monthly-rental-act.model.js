@@ -14,6 +14,12 @@ export function defineMonthlyRentalAct(sequelize) {
         allowNull: true,
         field: 'generated_by_user_id',
       },
+      currentVersionNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+        field: 'current_version_number',
+      },
       isStale: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

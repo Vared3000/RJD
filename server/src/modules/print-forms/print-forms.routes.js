@@ -9,6 +9,10 @@ export function createPrintFormsRouter() {
   const router = Router();
   router.use(requireAuth, requirePermission('print_forms.use'));
   router.get('/monthly-rental/preview', asyncHandler(printFormsController.previewMonthlyRental));
+  router.get(
+    '/monthly-rental/:actId/versions/:versionNumber/:format',
+    asyncHandler(printFormsController.downloadMonthlyRentalVersion),
+  );
   router.get('/:form', asyncHandler(printFormsController.generate));
 
   extendSwaggerPaths({

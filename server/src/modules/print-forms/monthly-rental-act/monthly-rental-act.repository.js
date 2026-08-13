@@ -96,8 +96,85 @@ export const monthlyRentalRepository = {
     return models.MonthlyRentalAct.findOne({ where: { dpoId, reportMonth } });
   },
 
+  findActById(id) {
+    return models.MonthlyRentalAct.findByPk(id, {
+      include: [{ model: models.Dpo, as: 'dpo', attributes: ['id', 'name'] }],
+    });
+  },
+
+  findActLocked(dpoId, reportMonth, { transaction }) {
+    return models.MonthlyRentalAct.findOne({
+      where: { dpoId, reportMonth },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  },
+
   createAct(data, { transaction } = {}) {
     return models.MonthlyRentalAct.create(data, { transaction });
+  },
+
+  createVersion(data, { transaction } = {}) {
+    return models.MonthlyRentalActVersion.create(data, { transaction });
+  },
+
+  findVersion(actId, versionNumber) {
+    return models.MonthlyRentalActVersion.findOne({
+      where: { actId, versionNumber },
+      include: [
+        { model: models.User, as: 'generatedByUser', attributes: ['id', 'fullName'] },
+        {
+          model: models.PrintFormTemplate,
+          as: 'template',
+          attributes: ['id', 'formType', 'versionNumber', 'originalFileName'],
+        },
+      ],
+    });
+  },
+
+  listVersions(actId) {
+    return models.MonthlyRentalActVersion.findAll({
+      where: { actId },
+      attributes: {
+        exclude: ['snapshot', 'excelFileData', 'pdfFileData'],
+      },
+      include: [
+        { model: models.User, as: 'generatedByUser', attributes: ['id', 'fullName'] },
+        {
+          model: models.PrintFormTemplate,
+          as: 'template',
+          attributes: ['id', 'formType', 'versionNumber', 'originalFileName'],
+        },
+      ],
+      order: [['versionNumber', 'DESC']],
+    });
+  },
+
+  updateVersionFile(id, format, { fileName, fileData, checksum }, { transaction } = {}) {
+    const fields =
+      format === 'pdf'
+        ? { pdfFileName: fileName, pdfFileData: fileData, pdfChecksum: checksum }
+        : { excelFileName: fileName, excelFileData: fileData, excelChecksum: checksum };
+    return models.MonthlyRentalActVersion.update(fields, { where: { id }, transaction });
+  },
+
+  updateCurrentVersion(
+    id,
+    { snapshot, versionNumber, generatedAt, generatedByUserId },
+    { transaction },
+  ) {
+    return models.MonthlyRentalAct.update(
+      {
+        snapshot,
+        currentVersionNumber: versionNumber,
+        generatedAt,
+        generatedByUserId,
+        isStale: false,
+        staleReason: null,
+        staleAt: null,
+      },
+      { where: { id }, transaction },
+    );
   },
 
   // Задача 22: ДПО работника, действующие на конкретную дату — та же таблица,

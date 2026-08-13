@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import {
   downloadPrintForm,
+  downloadMonthlyRentalVersion,
   previewMonthlyRental,
 } from '../../features/print-forms/api/print-forms-api.js';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
@@ -10,6 +11,8 @@ import { parseApiError, parseBlobApiError } from '../../shared/lib/parse-api-err
 import { Button } from '../../shared/ui/Button.jsx';
 import { SearchableSelect } from '../../shared/ui/SearchableSelect.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
+import { TextField } from '../../shared/ui/TextField.jsx';
+import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './PrintFormsPage.module.css';
 
@@ -52,6 +55,10 @@ export function PrintFormsPage() {
   const [error, setError] = useState('');
   const [rentalMonth, setRentalMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [rentalPreview, setRentalPreview] = useState(null);
+  const [rentalReason, setRentalReason] = useState('');
+  const canReopenMonth = useSessionStore((state) =>
+    state.user?.permissions?.includes('admin.manage'),
+  );
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedEmployeeSearch(employeeSearch), 250);
@@ -108,8 +115,27 @@ export function PrintFormsPage() {
     setPending(key);
     setError('');
     try {
-      await downloadPrintForm('monthly-rental', { dpoId, month: rentalMonth, format });
+      await downloadPrintForm('monthly-rental', {
+        dpoId,
+        month: rentalMonth,
+        format,
+        reason: rentalReason,
+      });
       setRentalPreview(await previewMonthlyRental({ dpoId, month: rentalMonth }));
+      setRentalReason('');
+    } catch (requestError) {
+      setError(await parseBlobApiError(requestError));
+    } finally {
+      setPending('');
+    }
+  }
+
+  async function downloadRentalVersion(versionNumber, format) {
+    const key = `monthly-rental:v${versionNumber}:${format}`;
+    setPending(key);
+    setError('');
+    try {
+      await downloadMonthlyRentalVersion(rentalPreview.actId, versionNumber, format);
     } catch (requestError) {
       setError(await parseBlobApiError(requestError));
     } finally {
@@ -185,21 +211,54 @@ export function PrintFormsPage() {
           <Button onClick={previewRental} disabled={Boolean(pending)} variant="secondary">
             {pending === 'monthly-rental:preview' ? 'Расчёт…' : 'Предпросмотр'}
           </Button>
-          <Button onClick={() => downloadRental('xlsx')} disabled={Boolean(pending)}>
-            {pending === 'monthly-rental:xlsx' ? 'Фиксация…' : 'Зафиксировать и скачать Excel'}
+          <Button
+            onClick={() => downloadRental('xlsx')}
+            disabled={Boolean(pending) || (rentalPreview?.needsNewVersion && !canReopenMonth)}
+          >
+            {pending === 'monthly-rental:xlsx'
+              ? 'Фиксация…'
+              : rentalPreview?.needsNewVersion
+                ? `Зафиксировать версию ${rentalPreview.versionNumber + 1} и скачать Excel`
+                : rentalPreview?.finalized
+                  ? 'Скачать текущий Excel'
+                  : 'Зафиксировать и скачать Excel'}
           </Button>
           <Button
             onClick={() => downloadRental('pdf')}
-            disabled={Boolean(pending)}
+            disabled={Boolean(pending) || (rentalPreview?.needsNewVersion && !canReopenMonth)}
             variant="secondary"
           >
-            {pending === 'monthly-rental:pdf' ? 'Фиксация…' : 'Зафиксировать и скачать PDF'}
+            {pending === 'monthly-rental:pdf'
+              ? 'Фиксация…'
+              : rentalPreview?.needsNewVersion
+                ? `Зафиксировать версию ${rentalPreview.versionNumber + 1} и скачать PDF`
+                : rentalPreview?.finalized
+                  ? 'Скачать текущий PDF'
+                  : 'Зафиксировать и скачать PDF'}
           </Button>
         </div>
+        {rentalPreview?.needsNewVersion && (
+          <div className={styles.staleNotice}>
+            <strong>Исходные документы изменились — требуется новая версия акта.</strong>
+            <span>{rentalPreview.staleReason}</span>
+            {canReopenMonth ? (
+              <TextField
+                id="rentalRevisionReason"
+                label="Причина новой версии (необязательно)"
+                value={rentalReason}
+                onChange={(event) => setRentalReason(event.target.value)}
+              />
+            ) : (
+              <span>Повторно зафиксировать закрытый месяц может только администратор.</span>
+            )}
+          </div>
+        )}
         {rentalPreview && (
           <div className={styles.previewSummary}>
             <strong>
-              {rentalPreview.finalized ? 'Акт уже зафиксирован' : 'Предварительный расчёт'}
+              {rentalPreview.finalized
+                ? `Акт зафиксирован · версия ${rentalPreview.versionNumber}`
+                : 'Предварительный расчёт'}
             </strong>
             <span>Работников: {rentalPreview.employeeGroups.length}</span>
             <span>Экземпляров/строк: {rentalPreview.rows.length}</span>
@@ -211,6 +270,36 @@ export function PrintFormsPage() {
                 Предупреждений: {rentalPreview.warnings.length}
               </span>
             )}
+          </div>
+        )}
+        {rentalPreview?.versions?.length > 0 && (
+          <div className={styles.versionHistory}>
+            <h3>История версий</h3>
+            {rentalPreview.versions.map((version) => (
+              <div className={styles.versionRow} key={version.id}>
+                <div>
+                  <strong>Версия {version.versionNumber}</strong>
+                  <span>{new Date(version.generatedAt).toLocaleString('ru-RU')}</span>
+                  {version.reason && <span>{version.reason}</span>}
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    variant="secondary"
+                    disabled={Boolean(pending)}
+                    onClick={() => downloadRentalVersion(version.versionNumber, 'xlsx')}
+                  >
+                    Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={Boolean(pending)}
+                    onClick={() => downloadRentalVersion(version.versionNumber, 'pdf')}
+                  >
+                    PDF
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

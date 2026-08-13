@@ -68,7 +68,15 @@ test('ежемесячный акт аренды: предпросмотр, фи
     month: '2026-08',
   });
   assert.equal(fixedPreview.body.data.finalized, true);
+  assert.equal(fixedPreview.body.data.versionNumber, 1);
+  assert.equal(fixedPreview.body.data.versions.length, 1);
   state.monthlyActIds.push(fixedPreview.body.data.actId);
+
+  const storedAfterExcel = await models.MonthlyRentalActVersion.findOne({
+    where: { actId: fixedPreview.body.data.actId, versionNumber: 1 },
+  });
+  assert.ok(storedAfterExcel.excelFileData.length > 1000);
+  assert.equal(storedAfterExcel.excelChecksum.length, 64);
 
   await models.NomenclaturePrice.update(
     { priceWithoutVat: 1234, priceWithVat: 1295.7 },
@@ -87,4 +95,65 @@ test('ежемесячный акт аренды: предпросмотр, фи
   assert.equal(monthlyPdf.status, 200);
   assert.equal(monthlyPdf.body.subarray(0, 4).toString(), '%PDF');
   assert.ok(monthlyPdf.body.length > 5000);
+
+  const storedAfterPdf = await storedAfterExcel.reload();
+  assert.ok(storedAfterPdf.pdfFileData.length > 5000);
+  assert.equal(storedAfterPdf.pdfChecksum.length, 64);
+
+  await models.MonthlyRentalAct.update(
+    {
+      isStale: true,
+      staleReason: 'Изменена исходная выдача',
+      staleAt: new Date(),
+    },
+    { where: { id: fixedPreview.body.data.actId } },
+  );
+
+  const recalculatedPreview = await auth(
+    agent.get('/api/v1/print-forms/monthly-rental/preview'),
+  ).query({ dpoId: state.dpoId, month: '2026-08' });
+  assert.equal(recalculatedPreview.body.data.needsNewVersion, true);
+  assert.equal(recalculatedPreview.body.data.versionNumber, 1);
+  assert.equal(recalculatedPreview.body.data.totals.costWithoutVat, 3702);
+  assert.equal(recalculatedPreview.body.data.versions.length, 1);
+
+  const versionTwoExcel = await auth(agent.get('/api/v1/print-forms/monthly-rental'))
+    .query({
+      dpoId: state.dpoId,
+      month: '2026-08',
+      format: 'xlsx',
+      reason: 'Пересчёт после исправления выдачи',
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(versionTwoExcel.status, 200);
+  assert.equal(versionTwoExcel.body.subarray(0, 2).toString(), 'PK');
+
+  const versionedPreview = await auth(
+    agent.get('/api/v1/print-forms/monthly-rental/preview'),
+  ).query({ dpoId: state.dpoId, month: '2026-08' });
+  assert.equal(versionedPreview.body.data.needsNewVersion, false);
+  assert.equal(versionedPreview.body.data.versionNumber, 2);
+  assert.deepEqual(
+    versionedPreview.body.data.versions.map((version) => version.versionNumber),
+    [2, 1],
+  );
+
+  const historicalPdf = await auth(
+    agent.get(`/api/v1/print-forms/monthly-rental/${fixedPreview.body.data.actId}/versions/1/pdf`),
+  )
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(historicalPdf.status, 200);
+  assert.deepEqual(historicalPdf.body, monthlyPdf.body);
+
+  const versionOne = await models.MonthlyRentalActVersion.findOne({
+    where: { actId: fixedPreview.body.data.actId, versionNumber: 1 },
+  });
+  const versionTwo = await models.MonthlyRentalActVersion.findOne({
+    where: { actId: fixedPreview.body.data.actId, versionNumber: 2 },
+  });
+  assert.equal(versionOne.snapshot.totals.costWithoutVat, 6000);
+  assert.equal(versionTwo.snapshot.totals.costWithoutVat, 3702);
+  assert.equal(versionTwo.reason, 'Пересчёт после исправления выдачи');
 });

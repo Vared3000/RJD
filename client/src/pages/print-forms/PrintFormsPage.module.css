@@ -95,3 +95,43 @@
   color: var(--color-warning, #9a6700);
   font-weight: 600;
 }
+
+.staleNotice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-warning, #9a6700);
+  border-radius: var(--radius);
+  background: #fff8db;
+  color: #6f4e00;
+}
+
+.versionHistory {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.versionHistory h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.versionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.versionRow > div:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.versionRow span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}

@@ -20,4 +20,5 @@ export const printFormQuerySchema = z.object({
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
       .optional(),
   ),
+  reason: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
 });

@@ -64,7 +64,11 @@ function fileName(form, extension, context, data) {
 export const printFormsService = {
   async generate(form, query, requestContext = {}) {
     if (form === 'monthly-rental') {
-      return monthlyRentalService.generate({ ...query, userId: requestContext.userId });
+      return monthlyRentalService.generate({
+        ...query,
+        userId: requestContext.userId,
+        permissions: requestContext.permissions,
+      });
     }
     const definition = BUILDERS[form];
     if (!definition) throw ApiError.notFound('Печатная форма не найдена');

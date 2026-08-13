@@ -44,6 +44,7 @@ import { defineEmployeeMeasurement } from './employee-measurement.model.js';
 import { definePrintFormParty } from './print-form-party.model.js';
 import { defineEmployeeDpoAssignment } from './employee-dpo-assignment.model.js';
 import { defineMonthlyRentalAct } from './monthly-rental-act.model.js';
+import { defineMonthlyRentalActVersion } from './monthly-rental-act-version.model.js';
 import { definePrintFormTemplate } from './print-form-template.model.js';
 import { defineDocumentRevision } from './document-revision.model.js';
 
@@ -92,6 +93,7 @@ const EmployeeMeasurement = defineEmployeeMeasurement(sequelize);
 const PrintFormParty = definePrintFormParty(sequelize);
 const EmployeeDpoAssignment = defineEmployeeDpoAssignment(sequelize);
 const MonthlyRentalAct = defineMonthlyRentalAct(sequelize);
+const MonthlyRentalActVersion = defineMonthlyRentalActVersion(sequelize);
 const PrintFormTemplate = definePrintFormTemplate(sequelize);
 const DocumentRevision = defineDocumentRevision(sequelize);
 
@@ -349,6 +351,16 @@ EmployeeDpoAssignment.belongsTo(User, { foreignKey: 'changedByUserId', as: 'chan
 Dpo.hasMany(MonthlyRentalAct, { foreignKey: 'dpoId', as: 'monthlyRentalActs' });
 MonthlyRentalAct.belongsTo(Dpo, { foreignKey: 'dpoId', as: 'dpo' });
 MonthlyRentalAct.belongsTo(User, { foreignKey: 'generatedByUserId', as: 'generatedByUser' });
+MonthlyRentalAct.hasMany(MonthlyRentalActVersion, { foreignKey: 'actId', as: 'versions' });
+MonthlyRentalActVersion.belongsTo(MonthlyRentalAct, { foreignKey: 'actId', as: 'act' });
+MonthlyRentalActVersion.belongsTo(User, {
+  foreignKey: 'generatedByUserId',
+  as: 'generatedByUser',
+});
+MonthlyRentalActVersion.belongsTo(PrintFormTemplate, {
+  foreignKey: 'templateId',
+  as: 'template',
+});
 
 // document_revisions — полиморфный журнал редакций проведённых документов
 // (задача 22), по образцу document_id у stock_movements/instance_events —
@@ -407,6 +419,7 @@ export const models = {
   PrintFormParty,
   EmployeeDpoAssignment,
   MonthlyRentalAct,
+  MonthlyRentalActVersion,
   PrintFormTemplate,
   DocumentRevision,
 };

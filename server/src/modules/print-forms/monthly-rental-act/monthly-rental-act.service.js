@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { createHash } from 'node:crypto';
 import { ApiError } from '../../../utils/api-error.js';
 import { models, sequelize } from '../../../database/models/index.js';
 import { printFormSettingsService } from '../settings/print-form-settings.service.js';
@@ -214,30 +215,110 @@ async function build(dpoId, month) {
   };
 }
 
-async function getOrCreate(dpoId, month, userId) {
+async function finalizeVersion(dpoId, month, userId, permissions = [], reason = null) {
   const period = resolveMonth(month);
   const existing = await monthlyRentalRepository.findAct(dpoId, period.monthStart);
-  if (existing) return { act: existing, snapshot: existing.snapshot };
+  if (existing && !existing.isStale) {
+    const version = await monthlyRentalRepository.findVersion(
+      existing.id,
+      existing.currentVersionNumber,
+    );
+    return { act: existing, version, snapshot: existing.snapshot, isNewVersion: false };
+  }
+
+  if (existing?.isStale && !permissions.includes('admin.manage')) {
+    throw ApiError.forbidden('Повторно зафиксировать закрытый месяц может только администратор');
+  }
+
   const snapshot = await build(dpoId, month);
   try {
-    const act = await sequelize.transaction((transaction) =>
-      monthlyRentalRepository.createAct(
+    return await sequelize.transaction(async (transaction) => {
+      const locked = await monthlyRentalRepository.findActLocked(dpoId, period.monthStart, {
+        transaction,
+      });
+      const generatedAt = new Date();
+
+      if (!locked) {
+        const act = await monthlyRentalRepository.createAct(
+          {
+            dpoId,
+            reportMonth: period.monthStart,
+            snapshot,
+            currentVersionNumber: 1,
+            generatedAt,
+            generatedByUserId: userId,
+          },
+          { transaction },
+        );
+        const version = await monthlyRentalRepository.createVersion(
+          {
+            actId: act.id,
+            versionNumber: 1,
+            snapshot,
+            reason,
+            generatedAt,
+            generatedByUserId: userId,
+          },
+          { transaction },
+        );
+        return { act, version, snapshot, isNewVersion: true };
+      }
+
+      if (!locked.isStale) {
+        const version = await models.MonthlyRentalActVersion.findOne({
+          where: { actId: locked.id, versionNumber: locked.currentVersionNumber },
+          transaction,
+        });
+        return { act: locked, version, snapshot: locked.snapshot, isNewVersion: false };
+      }
+
+      const versionNumber = locked.currentVersionNumber + 1;
+      const version = await monthlyRentalRepository.createVersion(
         {
-          dpoId,
-          reportMonth: period.monthStart,
+          actId: locked.id,
+          versionNumber,
           snapshot,
-          generatedAt: new Date(),
+          reason: reason || locked.staleReason,
+          generatedAt,
           generatedByUserId: userId,
         },
         { transaction },
-      ),
-    );
-    return { act, snapshot };
+      );
+      await monthlyRentalRepository.updateCurrentVersion(
+        locked.id,
+        { snapshot, versionNumber, generatedAt, generatedByUserId: userId },
+        { transaction },
+      );
+      return { act: locked, version, snapshot, isNewVersion: true };
+    });
   } catch (error) {
     if (error.name !== 'SequelizeUniqueConstraintError') throw error;
     const act = await monthlyRentalRepository.findAct(dpoId, period.monthStart);
-    return { act, snapshot: act.snapshot };
+    const version = await monthlyRentalRepository.findVersion(act.id, act.currentVersionNumber);
+    return { act, version, snapshot: act.snapshot, isNewVersion: false };
   }
+}
+
+function versionFileName(snapshot, versionNumber, format) {
+  return `monthly-rental_${snapshot.month}_${snapshot.dpo.name}_v${versionNumber}.${format}`;
+}
+
+async function renderAndStoreVersion(version, snapshot, format) {
+  const storedData = format === 'pdf' ? version.pdfFileData : version.excelFileData;
+  const storedName = format === 'pdf' ? version.pdfFileName : version.excelFileName;
+  if (storedData) return { buffer: Buffer.from(storedData), fileName: storedName };
+
+  const buffer =
+    format === 'pdf'
+      ? await generateMonthlyRentalPdf(snapshot)
+      : await generateMonthlyRentalExcel(snapshot);
+  const fileName = versionFileName(snapshot, version.versionNumber, format);
+  await monthlyRentalRepository.updateVersionFile(version.id, format, {
+    fileName,
+    fileData: buffer,
+    checksum: createHash('sha256').update(buffer).digest('hex'),
+  });
+  return { buffer, fileName };
 }
 
 // Задача 22 ("Связь с актами"): вызывается из issuance.service.js#revise()
@@ -275,25 +356,89 @@ export const monthlyRentalService = {
     if (!dpoId) throw ApiError.badRequest('Выберите ДПО');
     const period = resolveMonth(month);
     const existing = await monthlyRentalRepository.findAct(dpoId, period.monthStart);
-    if (existing) return { ...existing.snapshot, actId: existing.id, finalized: true };
-    return { ...(await build(dpoId, month)), actId: null, finalized: false };
+    if (existing) {
+      const [preview, versions] = await Promise.all([
+        existing.isStale ? build(dpoId, month) : Promise.resolve(existing.snapshot),
+        monthlyRentalRepository.listVersions(existing.id),
+      ]);
+      return {
+        ...preview,
+        actId: existing.id,
+        finalized: true,
+        versionNumber: existing.currentVersionNumber,
+        isStale: existing.isStale,
+        staleReason: existing.staleReason,
+        staleAt: existing.staleAt,
+        needsNewVersion: existing.isStale,
+        versions,
+      };
+    }
+    return {
+      ...(await build(dpoId, month)),
+      actId: null,
+      finalized: false,
+      versionNumber: null,
+      isStale: false,
+      needsNewVersion: false,
+      versions: [],
+    };
   },
 
-  async generate({ dpoId, month, format, userId }) {
+  async generate({ dpoId, month, format, userId, permissions, reason }) {
     if (!dpoId) throw ApiError.badRequest('Выберите ДПО');
-    const { act, snapshot } = await getOrCreate(dpoId, month, userId);
-    const data = { ...snapshot, actId: act.id, finalized: true };
-    const buffer =
-      format === 'pdf'
-        ? await generateMonthlyRentalPdf(data)
-        : await generateMonthlyRentalExcel(data);
+    const { act, version, snapshot, isNewVersion } = await finalizeVersion(
+      dpoId,
+      month,
+      userId,
+      permissions,
+      reason,
+    );
+    const data = {
+      ...snapshot,
+      actId: act.id,
+      finalized: true,
+      versionNumber: version.versionNumber,
+    };
+    let rendered;
+    if (isNewVersion) {
+      const [excel, pdf] = await Promise.all([
+        renderAndStoreVersion(version, data, 'xlsx'),
+        renderAndStoreVersion(version, data, 'pdf'),
+      ]);
+      rendered = format === 'pdf' ? pdf : excel;
+    } else {
+      rendered = await renderAndStoreVersion(version, data, format);
+    }
+    const { buffer, fileName } = rendered;
     return {
       buffer,
       contentType:
         format === 'pdf'
           ? 'application/pdf'
           : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: `monthly-rental_${data.month}_${data.dpo.name}.${format}`,
+      fileName,
+    };
+  },
+
+  async downloadVersion({ actId, versionNumber, format }) {
+    const act = await monthlyRentalRepository.findActById(actId);
+    if (!act) throw ApiError.notFound('Ежемесячный акт не найден');
+    const version = await monthlyRentalRepository.findVersion(actId, versionNumber);
+    if (!version) throw ApiError.notFound('Версия ежемесячного акта не найдена');
+    const data = {
+      ...version.snapshot,
+      actId: act.id,
+      finalized: true,
+      versionNumber: version.versionNumber,
+    };
+    const { buffer, fileName } = await renderAndStoreVersion(version, data, format);
+    return {
+      buffer,
+      contentType:
+        format === 'pdf'
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName,
     };
   },
 };
