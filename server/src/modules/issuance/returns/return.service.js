@@ -6,6 +6,13 @@ import {
   buildInstanceEvent,
   instanceEventsRepository,
 } from '../../nomenclature/instances/instance-events.repository.js';
+import { reverseDocumentEffects } from '../../nomenclature/instances/document-effect-reversal.js';
+import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
+
+function documentSnapshot(document, overrides = {}) {
+  const { lines, ...header } = document;
+  return { header: { ...header, ...overrides }, lines };
+}
 
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
@@ -174,7 +181,74 @@ export const returnService = {
 
       await returnRepository.bulkCreateMovements(movementRows, { transaction });
       await instanceEventsRepository.bulkCreate(eventRows, { transaction });
-      await returnRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
+      if (document.revisionNumber > 1) {
+        const nextRevision = document.revisionNumber + 1;
+        await returnRepository.markReposted(
+          documentId,
+          { revisionNumber: nextRevision, postedByUserId: userId },
+          { transaction },
+        );
+        await documentRevisionsRepository.create(
+          {
+            documentType: 'return',
+            documentId,
+            revisionNumber: nextRevision,
+            action: 'repost',
+            previousData: documentSnapshot(document),
+            newData: documentSnapshot(document, {
+              status: 'posted',
+              postedByUserId: userId,
+              revisionNumber: nextRevision,
+            }),
+            revisedByUserId: userId,
+            revisedAt: new Date(),
+          },
+          { transaction },
+        );
+      } else {
+        await returnRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
+      }
+    });
+
+    return returnRepository.findById(documentId);
+  },
+
+  async unpost(documentId, { reason }, { userId }) {
+    await sequelize.transaction(async (transaction) => {
+      const document = await returnRepository.findLocked(documentId, { transaction });
+      if (!document) throw ApiError.notFound('Документ не найден');
+      if (document.status !== 'posted') {
+        throw ApiError.conflict('Отменить проведение можно только у проведённого документа');
+      }
+
+      const previousData = documentSnapshot(document);
+      await reverseDocumentEffects({ documentType: 'return', documentId }, { transaction });
+
+      const nextRevision = document.revisionNumber + 1;
+      await returnRepository.markUnposted(
+        documentId,
+        { revisionNumber: nextRevision, revisedByUserId: userId },
+        { transaction },
+      );
+      await documentRevisionsRepository.create(
+        {
+          documentType: 'return',
+          documentId,
+          revisionNumber: nextRevision,
+          action: 'unpost',
+          previousData,
+          newData: documentSnapshot(document, {
+            status: 'draft',
+            postedAt: null,
+            postedByUserId: null,
+            revisionNumber: nextRevision,
+          }),
+          reason,
+          revisedByUserId: userId,
+          revisedAt: new Date(),
+        },
+        { transaction },
+      );
     });
 
     return returnRepository.findById(documentId);

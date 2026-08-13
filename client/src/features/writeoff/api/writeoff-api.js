@@ -36,4 +36,8 @@ export const writeoffApi = {
     const { data } = await httpClient.post(`${BASE}/${id}/post`);
     return data.data;
   },
+  async unpost(id, payload) {
+    const { data } = await httpClient.post(`${BASE}/${id}/unpost`, payload);
+    return data.data;
+  },
 };

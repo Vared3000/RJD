@@ -8,6 +8,7 @@ export function defineDocumentRevision(sequelize) {
       documentType: { type: DataTypes.STRING(32), allowNull: false, field: 'document_type' },
       documentId: { type: DataTypes.UUID, allowNull: false, field: 'document_id' },
       revisionNumber: { type: DataTypes.INTEGER, allowNull: false, field: 'revision_number' },
+      action: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'revise' },
       previousData: { type: DataTypes.JSONB, allowNull: false, field: 'previous_data' },
       newData: { type: DataTypes.JSONB, allowNull: false, field: 'new_data' },
       reason: { type: DataTypes.STRING(500), allowNull: true },

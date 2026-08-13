@@ -12,6 +12,7 @@ import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
 import { TextField } from '../../shared/ui/TextField.jsx';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { UnpostDocumentModal } from '../../shared/ui/UnpostDocumentModal.jsx';
 import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
@@ -97,12 +98,16 @@ export function ReturnEditorPage() {
   const navigate = useNavigate();
   const documentQuery = useReturnDocument(id);
   const { data: document, isLoading } = documentQuery;
-  const { update, remove, addLine, removeLine, post } = useReturnMutations(id);
+  const { update, remove, addLine, removeLine, post, unpost } = useReturnMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
   const [confirmingPost, setConfirmingPost] = useState(false);
+  const [unpostMode, setUnpostMode] = useState(null);
   const canManage = useSessionStore((state) =>
     state.user?.permissions?.includes('issuance.manage'),
+  );
+  const canRevise = useSessionStore((state) =>
+    state.user?.permissions?.includes('documents.revise'),
   );
 
   if (isLoading || documentQuery.isError || !document) {
@@ -125,6 +130,13 @@ export function ReturnEditorPage() {
   async function handlePost() {
     await post.mutateAsync();
     setConfirmingPost(false);
+  }
+
+  async function handleUnpost(values) {
+    const editAfter = unpostMode === 'edit';
+    await unpost.mutateAsync(values);
+    setUnpostMode(null);
+    if (editAfter) setEditingHeader(true);
   }
 
   async function handleDeleteDocument() {
@@ -154,6 +166,16 @@ export function ReturnEditorPage() {
             </Button>
             <Button onClick={() => setConfirmingPost(true)} disabled={lines.length === 0}>
               Провести
+            </Button>
+          </div>
+        )}
+        {!isDraft && canManage && canRevise && (
+          <div className={styles.headerActions}>
+            <Button variant="secondary" onClick={() => setUnpostMode('edit')}>
+              Редактировать
+            </Button>
+            <Button variant="danger" onClick={() => setUnpostMode('unpost')}>
+              Отменить проведение
             </Button>
           </div>
         )}
@@ -280,6 +302,15 @@ export function ReturnEditorPage() {
             </Button>
           </div>
         </Modal>
+      )}
+
+      {unpostMode && (
+        <UnpostDocumentModal
+          editAfter={unpostMode === 'edit'}
+          mutation={unpost}
+          onConfirm={handleUnpost}
+          onClose={() => setUnpostMode(null)}
+        />
       )}
     </div>
   );

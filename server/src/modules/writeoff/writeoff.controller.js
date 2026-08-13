@@ -57,4 +57,11 @@ export const writeoffController = {
     const item = await writeoffService.post(req.params.id, { userId: req.user.sub });
     return success(res, item);
   },
+
+  async unpost(req, res) {
+    const item = await writeoffService.unpost(req.params.id, req.validatedBody, {
+      userId: req.user.sub,
+    });
+    return success(res, item);
+  },
 };

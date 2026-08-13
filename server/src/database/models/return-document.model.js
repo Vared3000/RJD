@@ -15,6 +15,18 @@ export function defineReturnDocument(sequelize) {
       status: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'draft' },
       postedAt: { type: DataTypes.DATE, allowNull: true, field: 'posted_at' },
       postedByUserId: { type: DataTypes.UUID, allowNull: true, field: 'posted_by_user_id' },
+      revisionNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+        field: 'revision_number',
+      },
+      lastRevisedAt: { type: DataTypes.DATE, allowNull: true, field: 'last_revised_at' },
+      lastRevisedByUserId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'last_revised_by_user_id',
+      },
       note: { type: DataTypes.STRING(1000), allowNull: true },
     },
     { tableName: 'return_documents' },

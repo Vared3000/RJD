@@ -9,6 +9,7 @@ import {
   updateDocumentSchema,
   createLineSchema,
   updateLineSchema,
+  unpostDocumentSchema,
 } from './writeoff.validation.js';
 
 const PERMISSION = 'writeoff.manage';
@@ -138,6 +139,12 @@ export function createWriteoffRouter() {
    *       400: { description: Уже проведён, нет позиций или экземпляр недоступен на складе }
    */
   router.post('/:id/post', asyncHandler(writeoffController.post));
+  router.post(
+    '/:id/unpost',
+    requirePermission('documents.revise'),
+    validateBody(unpostDocumentSchema),
+    asyncHandler(writeoffController.unpost),
+  );
 
   return router;
 }

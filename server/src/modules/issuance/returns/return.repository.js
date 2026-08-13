@@ -18,6 +18,7 @@ const detailInclude = [
   ...listInclude,
   { model: models.User, as: 'responsibleUser', attributes: ['id', 'fullName'] },
   { model: models.User, as: 'postedByUser', attributes: ['id', 'fullName'] },
+  { model: models.User, as: 'lastRevisedByUser', attributes: ['id', 'fullName'] },
   {
     model: ReturnLine,
     as: 'lines',
@@ -158,6 +159,34 @@ export const returnRepository = {
   markPosted(id, { postedByUserId }, { transaction }) {
     return ReturnDocument.update(
       { status: 'posted', postedAt: new Date(), postedByUserId },
+      { where: { id }, transaction },
+    );
+  },
+
+  markUnposted(id, { revisionNumber, revisedByUserId }, { transaction }) {
+    return ReturnDocument.update(
+      {
+        status: 'draft',
+        postedAt: null,
+        postedByUserId: null,
+        revisionNumber,
+        lastRevisedAt: new Date(),
+        lastRevisedByUserId: revisedByUserId,
+      },
+      { where: { id }, transaction },
+    );
+  },
+
+  markReposted(id, { revisionNumber, postedByUserId }, { transaction }) {
+    return ReturnDocument.update(
+      {
+        status: 'posted',
+        postedAt: new Date(),
+        postedByUserId,
+        revisionNumber,
+        lastRevisedAt: new Date(),
+        lastRevisedByUserId: postedByUserId,
+      },
       { where: { id }, transaction },
     );
   },

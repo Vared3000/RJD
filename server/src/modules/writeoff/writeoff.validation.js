@@ -17,3 +17,7 @@ export const createLineSchema = z.object({
 });
 
 export const updateLineSchema = createLineSchema.partial();
+
+export const unpostDocumentSchema = z.object({
+  reason: z.preprocess(emptyToNull, z.string().max(500).nullable()).optional(),
+});

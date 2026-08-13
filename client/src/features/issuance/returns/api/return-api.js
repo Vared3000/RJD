@@ -36,6 +36,10 @@ export const returnApi = {
     const { data } = await httpClient.post(`${BASE}/${id}/post`);
     return data.data;
   },
+  async unpost(id, payload) {
+    const { data } = await httpClient.post(`${BASE}/${id}/unpost`, payload);
+    return data.data;
+  },
   async availableInstances(employeeId) {
     const { data } = await httpClient.get(`${BASE}/available`, { params: { employeeId } });
     return data.data;

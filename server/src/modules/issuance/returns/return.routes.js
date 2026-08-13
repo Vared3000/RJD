@@ -9,6 +9,7 @@ import {
   updateDocumentSchema,
   createLineSchema,
   updateLineSchema,
+  unpostDocumentSchema,
 } from './return.validation.js';
 
 const PERMISSION = 'issuance.manage';
@@ -147,6 +148,12 @@ export function createReturnRouter() {
    *       400: { description: Уже проведён, нет позиций или экземпляр не выдан работнику }
    */
   router.post('/:id/post', asyncHandler(returnController.post));
+  router.post(
+    '/:id/unpost',
+    requirePermission('documents.revise'),
+    validateBody(unpostDocumentSchema),
+    asyncHandler(returnController.unpost),
+  );
 
   return router;
 }

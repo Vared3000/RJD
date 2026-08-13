@@ -67,4 +67,11 @@ export const returnController = {
     const item = await returnService.post(req.params.id, { userId: req.user.sub });
     return success(res, item);
   },
+
+  async unpost(req, res) {
+    const item = await returnService.unpost(req.params.id, req.validatedBody, {
+      userId: req.user.sub,
+    });
+    return success(res, item);
+  },
 };

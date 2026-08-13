@@ -1,5 +1,9 @@
 // Единый каталог прав системы. При добавлении нового модуля — дополнять здесь.
 export const PERMISSIONS = [
+  {
+    code: 'documents.revise',
+    description: 'Отмена и исправление проведённых складских документов',
+  },
   { code: 'employees.view', description: 'Просмотр работников' },
   { code: 'employees.manage', description: 'Управление работниками' },
   { code: 'dpo.manage', description: 'Управление ДПО' },

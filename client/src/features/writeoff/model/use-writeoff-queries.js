@@ -51,6 +51,11 @@ export function useWriteoffMutations(id) {
     onSuccess: invalidate,
     meta: { successMessage: 'Документ проведён' },
   });
+  const unpost = useMutation({
+    mutationFn: (payload) => writeoffApi.unpost(id, payload),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Проведение документа отменено' },
+  });
 
-  return { create, update, remove, addLine, removeLine, post };
+  return { create, update, remove, addLine, removeLine, post, unpost };
 }

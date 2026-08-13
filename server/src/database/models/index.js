@@ -226,6 +226,7 @@ ReturnDocument.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' })
 ReturnDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
 ReturnDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
 ReturnDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+ReturnDocument.belongsTo(User, { foreignKey: 'lastRevisedByUserId', as: 'lastRevisedByUser' });
 
 ReturnDocument.hasMany(ReturnLine, { foreignKey: 'documentId', as: 'lines' });
 ReturnLine.belongsTo(ReturnDocument, { foreignKey: 'documentId', as: 'document' });
@@ -269,6 +270,10 @@ TransferLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
 WriteoffDocument.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
 WriteoffDocument.belongsTo(User, { foreignKey: 'responsibleUserId', as: 'responsibleUser' });
 WriteoffDocument.belongsTo(User, { foreignKey: 'postedByUserId', as: 'postedByUser' });
+WriteoffDocument.belongsTo(User, {
+  foreignKey: 'lastRevisedByUserId',
+  as: 'lastRevisedByUser',
+});
 
 WriteoffDocument.hasMany(WriteoffLine, { foreignKey: 'documentId', as: 'lines' });
 WriteoffLine.belongsTo(WriteoffDocument, { foreignKey: 'documentId', as: 'document' });

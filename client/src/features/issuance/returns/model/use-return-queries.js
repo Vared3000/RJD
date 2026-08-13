@@ -58,6 +58,11 @@ export function useReturnMutations(id) {
     onSuccess: invalidate,
     meta: { successMessage: 'Документ проведён' },
   });
+  const unpost = useMutation({
+    mutationFn: (payload) => returnApi.unpost(id, payload),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Проведение документа отменено' },
+  });
 
-  return { create, update, remove, addLine, removeLine, post };
+  return { create, update, remove, addLine, removeLine, post, unpost };
 }
