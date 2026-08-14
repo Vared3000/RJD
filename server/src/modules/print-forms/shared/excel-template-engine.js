@@ -117,11 +117,12 @@ export function mergeGroups(sheet, rows, dataStart, keyBuilder, columns) {
   }
 }
 
-function applyGeneratedFooter(workbook, sheet, data) {
+function applyGeneratedMetadata(workbook, sheet, data, { visibleFooter = true } = {}) {
   const sourceText = data.dataSources?.length ? data.dataSources.join(', ') : 'расчётные данные';
   const versionText = data.templateVersion ? ` · шаблон v${data.templateVersion}` : '';
   const generatedText = `Сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${sourceText}${versionText}`;
   workbook.subject = generatedText;
+  if (!visibleFooter) return;
   sheet.headerFooter = { ...(sheet.headerFooter ?? {}), oddFooter: `&L${generatedText}` };
   sheet.getCell('A1').note = generatedText;
 }
@@ -140,7 +141,7 @@ export async function generateExcelFromTemplate(data, mapper) {
   const positions = prepareDataRows(sheet, mapper, data.rows.length);
   mapper.fill(sheet, data, positions);
   sheet.views = [{ showGridLines: false }];
-  applyGeneratedFooter(workbook, sheet, data);
+  applyGeneratedMetadata(workbook, sheet, data);
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
@@ -149,7 +150,17 @@ export async function generateExcelFromTemplate(data, mapper) {
 // (боевая активная версия либо ещё не активированная версия на проверке), а
 // не путём к бандл-файлу; расположение данных и подвала определяется
 // сканированием {{МАРКЕРОВ}} самого шаблона, а не статическим конфигом.
-export async function generateExcelFromMarkedTemplate(data, { templateBuffer, spec, fill }) {
+export async function generateExcelFromMarkedTemplate(
+  data,
+  {
+    templateBuffer,
+    spec,
+    fill,
+    singleWorksheet = false,
+    preserveTemplateView = false,
+    visibleGeneratedFooter = true,
+  },
+) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
   workbook.creator = 'ERP Учёт спецодежды';
@@ -157,6 +168,11 @@ export async function generateExcelFromMarkedTemplate(data, { templateBuffer, sp
   workbook.calcProperties.fullCalcOnLoad = true;
 
   const sheet = workbook.worksheets[0];
+  if (singleWorksheet) {
+    for (const extraSheet of workbook.worksheets.slice(1)) {
+      workbook.removeWorksheet(extraSheet.id);
+    }
+  }
   const structure = scanTemplateStructure(sheet);
   const positions = prepareDataRows(
     sheet,
@@ -172,8 +188,10 @@ export async function generateExcelFromMarkedTemplate(data, { templateBuffer, sp
   const headerMarkers = resolveAddressMarkers(sheet, spec.header);
   fill(sheet, data, positions, { header: headerMarkers, row: structure.rowColumnMarkers });
 
-  sheet.views = [{ showGridLines: false }];
-  applyGeneratedFooter(workbook, sheet, data);
+  if (!preserveTemplateView) sheet.views = [{ showGridLines: false }];
+  applyGeneratedMetadata(workbook, sheet, data, {
+    visibleFooter: visibleGeneratedFooter,
+  });
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

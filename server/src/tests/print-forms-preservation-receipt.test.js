@@ -35,20 +35,24 @@ test('сохранная расписка строится по проведён
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(xlsx.body);
+  assert.equal(workbook.worksheets.length, 1);
   const sheet = workbook.worksheets[0];
-  assert.equal(sheet.getCell('A1').value, 'Сохранная расписка');
-  assert.equal(sheet.getCell('A3').value, dpo.fullName);
-  assert.equal(sheet.getCell('A4').value, dpo.name);
-  assert.match(String(sheet.getCell('E5').value), /15.*июля.*2026/);
-  assert.equal(sheet.getCell('A7').value, 1);
-  assert.equal(sheet.getCell('B7').value, employee.fullName);
-  assert.equal(sheet.getCell('C7').value, employee.personnelNumber);
-  assert.equal(sheet.getCell('D7').value, model.name);
-  assert.equal(sheet.getCell('E7').value, 'шт.');
-  assert.equal(sheet.getCell('F7').value, 2);
-  assert.equal(sheet.getCell('G7').value, null);
-  assert.match(workbook.subject, /шаблон v1/);
-  assert.equal(sheet.pageSetup.printArea, 'A1:G7');
+  assert.match(String(sheet.getCell('B1').value), /^Сохранная расписка\n/);
+  assert.match(String(sheet.getCell('B1').value), new RegExp(dpo.fullName));
+  assert.match(String(sheet.getCell('B1').value), new RegExp(`${dpo.name}$`));
+  assert.match(String(sheet.getCell('E2').value), /15.*июля.*2026/);
+  assert.equal(sheet.getCell('A5').value, 1);
+  assert.equal(sheet.getCell('B5').value, employee.fullName.replace(/^([^\s]+)\s+/, '$1\n'));
+  assert.equal(sheet.getCell('C5').value, employee.personnelNumber);
+  assert.equal(sheet.getCell('D5').value, model.name);
+  assert.equal(sheet.getCell('E5').value, 'шт');
+  assert.equal(sheet.getCell('F5').value, 2);
+  assert.equal(sheet.getCell('G5').value, null);
+  assert.match(workbook.subject, /шаблон v2/);
+  assert.equal(sheet.pageSetup.orientation, 'portrait');
+  assert.equal(sheet.pageSetup.scale, 60);
+  assert.equal(sheet.pageSetup.printArea, 'A1:G5');
+  assert.equal(sheet.headerFooter?.oddFooter, undefined);
 
   const pdf = await auth(agent.get('/api/v1/print-forms/preservation-receipt'))
     .query({ ...query, format: 'pdf' })
@@ -79,9 +83,9 @@ test('сохранная расписка строится по проведён
   const directWorkbook = new ExcelJS.Workbook();
   await directWorkbook.xlsx.load(directXlsx.body);
   const directSheet = directWorkbook.worksheets[0];
-  assert.equal(directSheet.getCell('B7').value, employee.fullName);
-  assert.equal(directSheet.getCell('F7').value, 2);
-  assert.equal(directSheet.getCell('D8').value, null);
+  assert.equal(directSheet.getCell('B5').value, employee.fullName.replace(/^([^\s]+)\s+/, '$1\n'));
+  assert.equal(directSheet.getCell('F5').value, 2);
+  assert.equal(directSheet.getCell('D6').value, null);
 
   const invalidPeriod = await auth(agent.get('/api/v1/print-forms/preservation-receipt')).query({
     ...query,

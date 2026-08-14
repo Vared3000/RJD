@@ -56,6 +56,9 @@ async function generateFormExcel(form, data, excelMapper) {
       templateBuffer: activeVersion.fileData,
       spec: excelMapper.spec,
       fill: excelMapper.fill,
+      singleWorksheet: excelMapper.singleWorksheet,
+      preserveTemplateView: excelMapper.preserveTemplateView,
+      visibleGeneratedFooter: excelMapper.visibleGeneratedFooter,
     });
   }
   return generateExcelFromTemplate(data, excelMapper);
