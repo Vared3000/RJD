@@ -13,6 +13,7 @@ import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 import { fpu26ExcelMapper } from '../fpu-26/fpu-26.excel-mapper.js';
 import { buildPreservationReceipt } from '../preservation-receipt/preservation-receipt.builder.js';
 import { preservationReceiptExcelMapper } from '../preservation-receipt/preservation-receipt.excel-mapper.js';
+import { buildTemplateFromLayout, readTemplateLayout } from './template-layout.js';
 
 // Формы, уже переведённые на маркерную разметку (задача 19) — каждая знает,
 // как построить пробные данные (loadContext/build) и как разложить их по
@@ -46,6 +47,26 @@ async function buildTrialData(formType, query) {
     ...new Set((data.rows ?? []).map((row) => row.dataSourceLabel).filter(Boolean)),
   ];
   return data;
+}
+
+function generatorOptions(generator, templateBuffer) {
+  return {
+    templateBuffer,
+    spec: generator.mapper.spec,
+    fill: generator.mapper.fill,
+    singleWorksheet: generator.mapper.singleWorksheet,
+    preserveTemplateView: generator.mapper.preserveTemplateView,
+    visibleGeneratedFooter: generator.mapper.visibleGeneratedFooter,
+  };
+}
+
+function allowedMarkers(generator) {
+  return [
+    'TABLE_START',
+    'TABLE_END',
+    ...generator.mapper.spec.header,
+    ...generator.mapper.spec.row.map((name) => `ROW.${name}`),
+  ];
 }
 
 // Пробная генерация вместо синтетических фикстур (см. план задачи 19):
@@ -87,11 +108,10 @@ async function validateBuffer(formType, buffer, query) {
 
   try {
     const data = await buildTrialData(formType, query);
-    const excelBuffer = await generateExcelFromMarkedTemplate(data, {
-      templateBuffer: buffer,
-      spec: generator.mapper.spec,
-      fill: generator.mapper.fill,
-    });
+    const excelBuffer = await generateExcelFromMarkedTemplate(
+      data,
+      generatorOptions(generator, buffer),
+    );
     await generatePdfFromExcel(excelBuffer, data);
   } catch (error) {
     errors.push(`Пробная генерация не удалась: ${error.message}`);
@@ -110,6 +130,20 @@ export const printFormTemplatesService = {
     const version = await printFormTemplatesRepository.findById(id);
     if (!version) throw ApiError.notFound('Версия шаблона не найдена');
     return version;
+  },
+
+  async editorLayout(id) {
+    const version = await printFormTemplatesService.findVersionOrThrow(id);
+    const generator = generatorFor(version.formType);
+    return {
+      version: {
+        id: version.id,
+        formType: version.formType,
+        versionNumber: version.versionNumber,
+        originalFileName: version.originalFileName,
+      },
+      layout: await readTemplateLayout(version.fileData, allowedMarkers(generator)),
+    };
   },
 
   async upload(formType, { buffer, originalFileName, comment, dpoId, from, to }, { userId }) {
@@ -133,16 +167,61 @@ export const printFormTemplatesService = {
     );
   },
 
+  async saveEditorLayout(id, { layout, comment, dpoId, from, to }, { userId }) {
+    const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
+    generatorFor(baseVersion.formType);
+    const buffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
+    const baseName = String(baseVersion.originalFileName || 'template.xlsx').replace(
+      /\.xlsx$/i,
+      '',
+    );
+    return printFormTemplatesService.upload(
+      baseVersion.formType,
+      {
+        buffer,
+        originalFileName: `${baseName.slice(0, 220)}-visual.xlsx`,
+        comment: comment || `Визуальная редакция версии ${baseVersion.versionNumber}`,
+        dpoId,
+        from,
+        to,
+      },
+      { userId },
+    );
+  },
+
+  async previewEditorLayout(id, { layout, format, dpoId, from, to }) {
+    const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
+    const generator = generatorFor(baseVersion.formType);
+    const templateBuffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
+    const data = await buildTrialData(baseVersion.formType, { dpoId, from, to });
+    data.templateVersion = `${baseVersion.versionNumber} (черновик)`;
+    const excelBuffer = await generateExcelFromMarkedTemplate(
+      data,
+      generatorOptions(generator, templateBuffer),
+    );
+    if (format === 'pdf') {
+      return {
+        buffer: await generatePdfFromExcel(excelBuffer, data),
+        contentType: 'application/pdf',
+        extension: 'pdf',
+      };
+    }
+    return {
+      buffer: excelBuffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extension: 'xlsx',
+    };
+  },
+
   async preview(id, { format, dpoId, from, to }) {
     const version = await printFormTemplatesService.findVersionOrThrow(id);
     const generator = generatorFor(version.formType);
     const data = await buildTrialData(version.formType, { dpoId, from, to });
     data.templateVersion = version.versionNumber;
-    const excelBuffer = await generateExcelFromMarkedTemplate(data, {
-      templateBuffer: version.fileData,
-      spec: generator.mapper.spec,
-      fill: generator.mapper.fill,
-    });
+    const excelBuffer = await generateExcelFromMarkedTemplate(
+      data,
+      generatorOptions(generator, version.fileData),
+    );
     if (format === 'pdf') {
       return {
         buffer: await generatePdfFromExcel(excelBuffer, data),

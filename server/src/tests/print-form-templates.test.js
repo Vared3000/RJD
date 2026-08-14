@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import AdmZip from 'adm-zip';
 import request from 'supertest';
+import { Op } from 'sequelize';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models } from '../database/models/index.js';
@@ -16,9 +17,9 @@ import {
 
 const FPU26_QUERY = { dpoId: null, from: '2026-07-01', to: '2026-07-31' };
 
-async function baseTemplateBuffer() {
+async function baseTemplateBuffer(formType = 'fpu-26') {
   const active = await models.PrintFormTemplate.findOne({
-    where: { formType: 'fpu-26' },
+    where: { formType, activatedAt: { [Op.ne]: null } },
     order: [['activatedAt', 'DESC']],
   });
   return { id: active.id, versionNumber: active.versionNumber, buffer: active.fileData };
@@ -81,14 +82,110 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   const { state } = await setupBaseFixture({ agent, auth, unique });
   FPU26_QUERY.dpoId = state.dpoId;
   const templateIds = [];
+  const otherTemplateIds = [];
   t.after(async () => {
-    if (templateIds.length > 0) {
-      await models.PrintFormTemplate.destroy({ where: { id: templateIds } });
+    if (templateIds.length + otherTemplateIds.length > 0) {
+      await models.PrintFormTemplate.destroy({
+        where: { id: [...templateIds, ...otherTemplateIds] },
+      });
     }
     await cleanupFixtureState(state);
   });
 
   const base = await baseTemplateBuffer();
+
+  // --- Визуальный редактор читает сетку и сохраняет правки отдельной версией ---
+  const editorResponse = await auth(
+    agent.get(`/api/v1/print-forms/templates/versions/${base.id}/layout`),
+  );
+  assert.equal(editorResponse.status, 200, JSON.stringify(editorResponse.body));
+  assert.equal(editorResponse.body.data.version.id, base.id);
+  assert.ok(editorResponse.body.data.layout.allowedMarkers.includes('CUSTOMER_NAME'));
+  assert.equal(
+    editorResponse.body.data.layout.cells.length,
+    editorResponse.body.data.layout.rowCount * editorResponse.body.data.layout.columnCount,
+  );
+
+  const editedLayout = structuredClone(editorResponse.body.data.layout);
+  editedLayout.columns[0].width += 2;
+  editedLayout.rows[0].height += 2;
+  editedLayout.pageSetup.orientation = 'landscape';
+  const customerCell = editedLayout.cells.find((cell) => cell.row === 7 && cell.column === 2);
+  const editedStyle = structuredClone(editedLayout.styles[customerCell.styleId] ?? {});
+  editedStyle.alignment = { ...editedStyle.alignment, horizontal: 'right' };
+  editedStyle.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFFF00' },
+  };
+  editedLayout.styles.push(editedStyle);
+  customerCell.styleId = editedLayout.styles.length - 1;
+
+  const visualPreview = await auth(
+    agent.post(`/api/v1/print-forms/templates/versions/${base.id}/layout/preview`),
+  )
+    .send({
+      dpoId: FPU26_QUERY.dpoId,
+      from: FPU26_QUERY.from,
+      to: FPU26_QUERY.to,
+      format: 'xlsx',
+      layout: editedLayout,
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(visualPreview.status, 200, visualPreview.body.toString());
+  assert.equal(visualPreview.body.subarray(0, 2).toString(), 'PK');
+
+  const visualSave = await auth(
+    agent.post(`/api/v1/print-forms/templates/versions/${base.id}/layout`),
+  ).send({
+    dpoId: FPU26_QUERY.dpoId,
+    from: FPU26_QUERY.from,
+    to: FPU26_QUERY.to,
+    comment: 'визуальная правка',
+    layout: editedLayout,
+  });
+  assert.equal(visualSave.status, 201, JSON.stringify(visualSave.body));
+  assert.equal(visualSave.body.data.validationResult.valid, true, JSON.stringify(visualSave.body));
+  templateIds.push(visualSave.body.data.id);
+
+  const visualDownload = await auth(
+    agent.get(`/api/v1/print-forms/templates/versions/${visualSave.body.data.id}/download`),
+  )
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(visualDownload.status, 200);
+  const visualWorkbook = new ExcelJS.Workbook();
+  await visualWorkbook.xlsx.load(visualDownload.body);
+  const visualSheet = visualWorkbook.worksheets[0];
+  assert.equal(visualSheet.pageSetup.orientation, 'landscape');
+  assert.equal(visualSheet.getColumn(1).width, editedLayout.columns[0].width);
+  assert.equal(visualSheet.getRow(1).height, editedLayout.rows[0].height);
+  assert.equal(visualSheet.getCell('B7').alignment.horizontal, 'right');
+  assert.equal(visualSheet.getCell('B7').fill.fgColor.argb, 'FFFFFF00');
+
+  // Тот же round-trip работает для второго поддерживаемого макета.
+  const preservationBase = await baseTemplateBuffer('preservation-receipt');
+  const preservationEditor = await auth(
+    agent.get(`/api/v1/print-forms/templates/versions/${preservationBase.id}/layout`),
+  );
+  assert.equal(preservationEditor.status, 200, JSON.stringify(preservationEditor.body));
+  const preservationSave = await auth(
+    agent.post(`/api/v1/print-forms/templates/versions/${preservationBase.id}/layout`),
+  ).send({
+    dpoId: FPU26_QUERY.dpoId,
+    from: FPU26_QUERY.from,
+    to: FPU26_QUERY.to,
+    comment: 'round-trip сохранной расписки',
+    layout: preservationEditor.body.data.layout,
+  });
+  assert.equal(preservationSave.status, 201, JSON.stringify(preservationSave.body));
+  assert.equal(
+    preservationSave.body.data.validationResult.valid,
+    true,
+    JSON.stringify(preservationSave.body),
+  );
+  otherTemplateIds.push(preservationSave.body.data.id);
 
   async function upload({ buffer, comment }) {
     const response = await auth(agent.post('/api/v1/print-forms/templates/fpu-26/versions'))
@@ -105,7 +202,7 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   const validClone = await upload({ buffer: base.buffer, comment: 'клон для теста' });
   assert.equal(validClone.status, 201);
   assert.equal(validClone.body.data.validationResult.valid, true, JSON.stringify(validClone.body));
-  assert.equal(validClone.body.data.versionNumber, base.versionNumber + 1);
+  assert.equal(validClone.body.data.versionNumber, base.versionNumber + 2);
 
   // --- Отсутствует обязательный маркер (CUSTOMER_NAME стёрт) ---
   const missingMarkerBuffer = await buildVariant(base.buffer, (sheet) => {
@@ -289,6 +386,11 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
     limitedAgent.post(`/api/v1/print-forms/templates/versions/${validClone.body.data.id}/activate`),
   );
   assert.equal(forbiddenActivate.status, 403);
+
+  const forbiddenEditor = await limitedAuth(
+    limitedAgent.get(`/api/v1/print-forms/templates/versions/${base.id}/layout`),
+  );
+  assert.equal(forbiddenEditor.status, 403);
 
   const stillWorks = await limitedAuth(limitedAgent.get('/api/v1/print-forms/fpu-26'))
     .query({ ...FPU26_QUERY, format: 'xlsx' })

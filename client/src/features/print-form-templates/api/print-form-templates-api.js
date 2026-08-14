@@ -40,6 +40,35 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
+  async layout(id) {
+    const { data } = await httpClient.get(`${BASE}/versions/${id}/layout`);
+    return data.data;
+  },
+
+  async saveLayout(id, { layout, dpoId, from, to, comment }) {
+    const { data } = await httpClient.post(`${BASE}/versions/${id}/layout`, {
+      layout,
+      dpoId,
+      from,
+      to,
+      comment,
+    });
+    return data.data;
+  },
+
+  async previewLayout(id, { layout, format, dpoId, from, to }) {
+    const response = await httpClient.post(
+      `${BASE}/versions/${id}/layout/preview`,
+      { layout, format, dpoId, from, to },
+      { responseType: 'blob' },
+    );
+    downloadBlob(
+      response.data,
+      fileNameFromResponse(response),
+      `print-form-layout-draft.${format}`,
+    );
+  },
+
   async download(id, fallbackName = 'template.xlsx') {
     const response = await httpClient.get(`${BASE}/versions/${id}/download`, {
       responseType: 'blob',

@@ -1,7 +1,12 @@
 import { success } from '../../../utils/respond.js';
 import { ApiError } from '../../../utils/api-error.js';
 import { printFormTemplatesService } from './print-form-templates.service.js';
-import { uploadTemplateSchema, previewQuerySchema } from './print-form-templates.validation.js';
+import {
+  uploadTemplateSchema,
+  previewQuerySchema,
+  saveEditorLayoutSchema,
+  previewEditorLayoutSchema,
+} from './print-form-templates.validation.js';
 
 function attachmentHeader(fileName) {
   const fallback = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -40,6 +45,30 @@ export const printFormTemplatesController = {
       { userId: req.user.sub },
     );
     return success(res, version, 201);
+  },
+
+  async editorLayout(req, res) {
+    return success(res, await printFormTemplatesService.editorLayout(req.params.id));
+  },
+
+  async saveEditorLayout(req, res) {
+    const body = saveEditorLayoutSchema.parse(req.body);
+    return success(
+      res,
+      await printFormTemplatesService.saveEditorLayout(req.params.id, body, {
+        userId: req.user.sub,
+      }),
+      201,
+    );
+  },
+
+  async previewEditorLayout(req, res) {
+    const body = previewEditorLayoutSchema.parse(req.body);
+    const file = await printFormTemplatesService.previewEditorLayout(req.params.id, body);
+    return sendFile(res, {
+      ...file,
+      fileName: `print-form-layout-draft.${file.extension}`,
+    });
   },
 
   async preview(req, res) {

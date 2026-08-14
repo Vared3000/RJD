@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { printFormTemplatesApi } from '../../features/print-form-templates/api/print-form-templates-api.js';
+import { TemplateVisualEditor } from '../../features/print-form-templates/ui/TemplateVisualEditor.jsx';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
@@ -32,6 +33,7 @@ export function PrintFormTemplatesPage() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState('');
   const [formType, setFormType] = useState(FORM_TYPES[0].value);
+  const [editorVersion, setEditorVersion] = useState(null);
   const fileInputRef = useRef(null);
 
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
@@ -89,6 +91,19 @@ export function PrintFormTemplatesPage() {
     } finally {
       setPending('');
     }
+  }
+
+  if (editorVersion) {
+    return (
+      <TemplateVisualEditor
+        version={editorVersion}
+        dpoId={dpoId}
+        from={range.from}
+        to={range.to}
+        onClose={() => setEditorVersion(null)}
+        onSaved={() => setEditorVersion(null)}
+      />
+    );
   }
 
   return (
@@ -229,6 +244,14 @@ export function PrintFormTemplatesPage() {
                     )}
                   </td>
                   <td className={catalogStyles.actions}>
+                    <button
+                      type="button"
+                      className={catalogStyles.linkButton}
+                      disabled={Boolean(pending)}
+                      onClick={() => setEditorVersion(version)}
+                    >
+                      Редактор
+                    </button>
                     <button
                       type="button"
                       className={catalogStyles.linkButton}

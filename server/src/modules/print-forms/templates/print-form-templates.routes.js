@@ -21,6 +21,12 @@ export function createPrintFormTemplatesRouter() {
     upload.single('file'),
     asyncHandler(printFormTemplatesController.upload),
   );
+  router.get('/versions/:id/layout', asyncHandler(printFormTemplatesController.editorLayout));
+  router.post(
+    '/versions/:id/layout/preview',
+    asyncHandler(printFormTemplatesController.previewEditorLayout),
+  );
+  router.post('/versions/:id/layout', asyncHandler(printFormTemplatesController.saveEditorLayout));
   router.get('/versions/:id/preview', asyncHandler(printFormTemplatesController.preview));
   router.get('/versions/:id/download', asyncHandler(printFormTemplatesController.download));
   router.post('/versions/:id/activate', asyncHandler(printFormTemplatesController.activate));
@@ -74,6 +80,36 @@ export function createPrintFormTemplatesRouter() {
           { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
         ],
         responses: { 200: { description: 'Файл предпросмотра' } },
+      },
+    },
+    '/print-forms/templates/versions/{id}/layout': {
+      get: {
+        tags: ['Конструктор макетов'],
+        summary: 'Получить JSON-представление листа для визуального редактора',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: { 200: { description: 'Ячейки, стили, объединения и параметры печати' } },
+      },
+      post: {
+        tags: ['Конструктор макетов'],
+        summary: 'Сохранить визуально отредактированный макет как новую версию',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        requestBody: { required: true, content: { 'application/json': {} } },
+        responses: { 201: { description: 'Новая проверенная версия шаблона' } },
+      },
+    },
+    '/print-forms/templates/versions/{id}/layout/preview': {
+      post: {
+        tags: ['Конструктор макетов'],
+        summary: 'Сформировать Excel/PDF из несохранённого визуального макета',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        requestBody: { required: true, content: { 'application/json': {} } },
+        responses: { 200: { description: 'Файл предпросмотра без создания версии' } },
       },
     },
     '/print-forms/templates/versions/{id}/download': {

@@ -1,0 +1,312 @@
+.editorPage {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.header h1 {
+  margin: 2px 0 var(--space-1);
+  font-size: 24px;
+}
+
+.header p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.eyebrow {
+  color: var(--color-primary) !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.headerActions,
+.toolbarGroup,
+.settingsPanel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toolbar {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgb(15 23 42 / 6%);
+}
+
+.toolbarGroup {
+  min-height: 34px;
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--color-border);
+}
+
+.toolbarGroup:last-child {
+  border-right: 0;
+}
+
+.toolbar select,
+.toolbar input,
+.settingsPanel select,
+.settingsPanel input {
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.selectionName {
+  width: 72px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.valueInput {
+  width: min(360px, 30vw);
+  padding: 0 var(--space-2);
+}
+
+.numberInput {
+  width: 62px;
+  padding: 0 6px;
+}
+
+.toolButton {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.toolButton:hover,
+.toolButtonActive {
+  border-color: var(--color-primary);
+  background: #eff6ff;
+  color: var(--color-primary);
+}
+
+.colorControl {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.colorControl input {
+  width: 28px;
+  height: 6px;
+  padding: 0;
+  border: 0;
+}
+
+.toolbarGroup label,
+.settingsPanel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.markerBar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius);
+  background: #eff6ff;
+}
+
+.markerBar > div:first-child {
+  display: flex;
+  min-width: 210px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.markerBar span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.markerList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.markerList button {
+  padding: 4px 7px;
+  border: 1px solid #93c5fd;
+  border-radius: 5px;
+  background: white;
+  color: #1d4ed8;
+  cursor: pointer;
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+
+.workspace {
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #dfe3e8;
+}
+
+.sheet {
+  table-layout: fixed;
+  min-width: max-content;
+  border-spacing: 0;
+  border-collapse: separate;
+  background: white;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 10%);
+}
+
+.rowNumbersColumn {
+  width: 42px;
+}
+
+.sheet th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  height: 25px;
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.sheet tbody th {
+  z-index: 1;
+  left: 0;
+}
+
+.corner {
+  z-index: 3 !important;
+  left: 0;
+}
+
+.sheet td {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 26px;
+  max-width: 700px;
+  padding: 2px 4px;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  cursor: cell;
+}
+
+.selectedCell::after {
+  position: absolute;
+  z-index: 1;
+  inset: -1px;
+  border: 2px solid #2563eb;
+  content: '';
+  pointer-events: none;
+}
+
+.lockedCell {
+  cursor: not-allowed !important;
+}
+
+.settingsPanel {
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.settingsPanel input,
+.settingsPanel select {
+  width: 130px;
+  padding: 0 var(--space-2);
+}
+
+.commentField {
+  flex: 1;
+  min-width: 270px;
+}
+
+.commentField input {
+  flex: 1;
+  width: auto;
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: #fef2f2;
+  color: var(--color-danger);
+}
+
+@media (max-width: 900px) {
+  .header,
+  .markerBar {
+    flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .toolbar {
+    position: static;
+  }
+
+  .toolbarGroup {
+    width: 100%;
+    flex-wrap: wrap;
+    border-right: 0;
+  }
+
+  .valueInput {
+    flex: 1;
+    width: auto;
+  }
+}
