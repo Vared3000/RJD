@@ -10,6 +10,7 @@ const optionalDate = (message) =>
 export const printFormQuerySchema = z.object({
   dpoId: optionalUuid('Выберите ДПО'),
   employeeId: optionalUuid('Выберите работника'),
+  issuanceId: optionalUuid('Некорректный документ выдачи'),
   from: optionalDate('Некорректная дата начала'),
   to: optionalDate('Некорректная дата окончания'),
   format: z.enum(['xlsx', 'pdf']).default('xlsx'),

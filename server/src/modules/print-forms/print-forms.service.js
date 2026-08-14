@@ -22,6 +22,7 @@ import { generateUpdPdf } from './upd/upd.pdf-mapper.js';
 import { monthlyRentalService } from './monthly-rental-act/monthly-rental-act.service.js';
 import { buildPreservationReceipt } from './preservation-receipt/preservation-receipt.builder.js';
 import { preservationReceiptExcelMapper } from './preservation-receipt/preservation-receipt.excel-mapper.js';
+import { loadPreservationReceiptContext } from './preservation-receipt/preservation-receipt.context.js';
 
 const BUILDERS = {
   'fpu-26': { build: buildFpu26, loadContext, excelMapper: fpu26ExcelMapper },
@@ -35,7 +36,7 @@ const BUILDERS = {
   upd: { build: buildUpd, loadContext: loadUpdContext, excelMapper: null },
   'preservation-receipt': {
     build: buildPreservationReceipt,
-    loadContext,
+    loadContext: loadPreservationReceiptContext,
     excelMapper: preservationReceiptExcelMapper,
   },
 };
@@ -65,6 +66,9 @@ function fileName(form, extension, context, data) {
     return `${form}_${context.employee.personnelNumber || context.employee.id}.${extension}`;
   }
   if (form === 'upd') return `${form}_${data.documentNumber}_${data.documentDate}.${extension}`;
+  if (form === 'preservation-receipt' && context.issuanceDocument) {
+    return `${form}_${context.issuanceDocument.number}.${extension}`;
+  }
   return `${form}_${context.fromText}_${context.toText}.${extension}`;
 }
 
@@ -79,10 +83,15 @@ export const printFormsService = {
     }
     const definition = BUILDERS[form];
     if (!definition) throw ApiError.notFound('Печатная форма не найдена');
-    if (form !== 'personal-card' && (!query.dpoId || !query.from || !query.to)) {
+    const directPreservationReceipt = form === 'preservation-receipt' && query.issuanceId;
+    if (
+      form !== 'personal-card' &&
+      !directPreservationReceipt &&
+      (!query.dpoId || !query.from || !query.to)
+    ) {
       throw ApiError.badRequest('Выберите ДПО и период');
     }
-    if (form === 'preservation-receipt' && query.from !== query.to) {
+    if (form === 'preservation-receipt' && !directPreservationReceipt && query.from !== query.to) {
       throw ApiError.badRequest('Для сохранной расписки выберите один день');
     }
     if (form === 'upd' && query.format !== 'pdf') {

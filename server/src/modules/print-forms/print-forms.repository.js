@@ -71,6 +71,35 @@ export const printFormsRepository = {
     });
   },
 
+  findIssuanceDocument(id) {
+    return models.IssuanceDocument.findOne({
+      where: { id, status: 'posted' },
+      include: [
+        {
+          model: models.Employee,
+          as: 'employee',
+          required: true,
+          attributes: ['id', 'fullName', 'personnelNumber', 'positionId', 'dpoId'],
+          include: [{ model: models.Position, as: 'position', attributes: ['id', 'name'] }],
+        },
+        {
+          model: models.IssuanceLine,
+          as: 'lines',
+          include: [
+            {
+              model: models.NomenclatureModel,
+              as: 'model',
+              attributes: ['id', 'name', 'article', 'unit'],
+            },
+            { model: models.Size, as: 'size', attributes: ['value'] },
+            { model: models.Size, as: 'heightSize', attributes: ['value'] },
+          ],
+        },
+      ],
+      order: [[{ model: models.IssuanceLine, as: 'lines' }, 'sortOrder', 'ASC']],
+    });
+  },
+
   findIssuanceMovements(documentIds) {
     if (documentIds.length === 0) return [];
     return models.StockMovement.findAll({

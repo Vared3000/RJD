@@ -19,7 +19,8 @@ export function createPrintFormsRouter() {
     '/print-forms/{form}': {
       get: {
         tags: ['Печатные формы'],
-        summary: 'Сформировать ФПУ-26, Приложение 1.5, Приложение 1.7, личную карточку или УПД',
+        summary:
+          'Сформировать ФПУ-26, Приложение 1.5, Приложение 1.7, личную карточку, сохранную расписку или УПД',
         parameters: [
           {
             name: 'form',
@@ -48,6 +49,12 @@ export function createPrintFormsRouter() {
             name: 'employeeId',
             in: 'query',
             description: 'Обязателен для личной карточки',
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'issuanceId',
+            in: 'query',
+            description: 'Проведённая выдача для сохранной расписки одного работника',
             schema: { type: 'string', format: 'uuid' },
           },
           {

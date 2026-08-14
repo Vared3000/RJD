@@ -6,7 +6,9 @@ async function expectJson(response, status = 200) {
   return JSON.parse(body).data;
 }
 
-test('сквозной цикл: работник → комплект → документы → сервис → инвентаризация → списание → отчёт', async () => {
+test('сквозной цикл: работник → комплект → документы → сервис → инвентаризация → списание → отчёт', async ({
+  page,
+}) => {
   const api = await playwrightRequest.newContext({ baseURL: process.env.E2E_API_URL });
   const relative = (url) => url.replace(/^\//, '');
   const loginResponse = await api.post('auth/login', {
@@ -150,6 +152,19 @@ test('сквозной цикл: работник → комплект → до�
     }),
   );
   expect(revisedIssuance.revisionNumber).toBe(2);
+
+  await page.goto('/login');
+  await page.getByLabel('Логин').fill(process.env.BOOTSTRAP_ADMIN_LOGIN);
+  await page.getByLabel('Пароль').fill(process.env.BOOTSTRAP_ADMIN_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await page.goto(`/issuance/documents/${issuance.id}`);
+  await expect(page.getByRole('button', { name: 'Сохранная расписка Excel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Сохранная расписка PDF' })).toBeVisible();
+  const receiptDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Сохранная расписка Excel' }).click();
+  const receiptDownload = await receiptDownloadPromise;
+  expect(receiptDownload.suggestedFilename()).toMatch(/preservation-receipt.*\.xlsx$/i);
 
   let instances = await expectJson(await get('/instances', { limit: 100 }));
   const issued = instances.find((item) => item.modelId === model.id && item.status === 'issued');

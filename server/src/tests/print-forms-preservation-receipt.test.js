@@ -58,6 +58,31 @@ test('сохранная расписка строится по проведён
   assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
   assert.ok(pdf.body.length > 4000);
 
+  const secondIssuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: state.employeeId,
+    warehouseId: state.warehouseId,
+    documentDate: '2026-07-15',
+  });
+  state.secondIssuanceId = secondIssuance.body.data.id;
+  await auth(agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/lines`)).send({
+    modelId: state.modelId,
+    sizeId: state.sizeId,
+    quantity: 1,
+  });
+  await auth(agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/post`));
+
+  const directXlsx = await auth(agent.get('/api/v1/print-forms/preservation-receipt'))
+    .query({ issuanceId: state.issuanceId, format: 'xlsx' })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(directXlsx.status, 200);
+  const directWorkbook = new ExcelJS.Workbook();
+  await directWorkbook.xlsx.load(directXlsx.body);
+  const directSheet = directWorkbook.worksheets[0];
+  assert.equal(directSheet.getCell('B7').value, employee.fullName);
+  assert.equal(directSheet.getCell('F7').value, 2);
+  assert.equal(directSheet.getCell('D8').value, null);
+
   const invalidPeriod = await auth(agent.get('/api/v1/print-forms/preservation-receipt')).query({
     ...query,
     from: '2026-07-14',

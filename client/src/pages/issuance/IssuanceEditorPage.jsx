@@ -18,9 +18,11 @@ import { Modal } from '../../shared/ui/Modal.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
 import { BlockingDocumentsNotice } from '../../shared/ui/BlockingDocumentsNotice.jsx';
+import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
 import {
   mutationErrorMessage as errorMessage,
   apiErrorDetails,
+  parseBlobApiError,
 } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
@@ -56,9 +58,12 @@ export function IssuanceEditorPage() {
   const [editingLine, setEditingLine] = useState(null);
   const [confirmingPost, setConfirmingPost] = useState(false);
   const [kitPreview, setKitPreview] = useState(null);
+  const [printPending, setPrintPending] = useState('');
+  const [printError, setPrintError] = useState('');
   const canManage = useSessionStore((state) =>
     state.user?.permissions?.includes('issuance.manage'),
   );
+  const canPrint = useSessionStore((state) => state.user?.permissions?.includes('print_forms.use'));
 
   // Режим редакции уже проведённого документа (задача 22) — см. подробный
   // комментарий в ReceivingEditorPage.jsx, тот же паттерн: draftHeader/
@@ -245,6 +250,18 @@ export function IssuanceEditorPage() {
     navigate('/issuance/documents');
   }
 
+  async function downloadPreservationReceipt(format) {
+    setPrintPending(format);
+    setPrintError('');
+    try {
+      await downloadPrintForm('preservation-receipt', { issuanceId: id, format });
+    } catch (requestError) {
+      setPrintError(await parseBlobApiError(requestError));
+    } finally {
+      setPrintPending('');
+    }
+  }
+
   const reviseBlockingDocuments = apiErrorDetails(revise.error)?.blockingDocuments ?? [];
 
   return (
@@ -287,11 +304,30 @@ export function IssuanceEditorPage() {
             </Button>
           </div>
         )}
-        {!isDraft && canManage && !revising && (
+        {!isDraft && !revising && (canManage || canPrint) && (
           <div className={styles.headerActions}>
-            <Button variant="secondary" onClick={startRevising}>
-              Редактировать
-            </Button>
+            {canPrint && (
+              <>
+                <Button
+                  onClick={() => downloadPreservationReceipt('xlsx')}
+                  disabled={Boolean(printPending)}
+                >
+                  {printPending === 'xlsx' ? 'Формирование…' : 'Сохранная расписка Excel'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => downloadPreservationReceipt('pdf')}
+                  disabled={Boolean(printPending)}
+                >
+                  {printPending === 'pdf' ? 'Формирование…' : 'Сохранная расписка PDF'}
+                </Button>
+              </>
+            )}
+            {canManage && (
+              <Button variant="secondary" onClick={startRevising}>
+                Редактировать
+              </Button>
+            )}
           </div>
         )}
         {revising && (
@@ -308,6 +344,8 @@ export function IssuanceEditorPage() {
           </div>
         )}
       </div>
+
+      {printError && <p className={catalogStyles.formError}>{printError}</p>}
 
       {revising && (
         <div className={styles.reviseReason}>
