@@ -228,12 +228,16 @@ export function PrintFormTemplatesPage() {
                     {valid ? (
                       <span className={catalogStyles.active}>Валидна</span>
                     ) : (
-                      <span
-                        className={styles.invalid}
-                        title={(version.validationResult?.errors ?? []).join('\n')}
-                      >
-                        Ошибки ({(version.validationResult?.errors ?? []).length})
-                      </span>
+                      <div className={styles.invalidBlock}>
+                        <span className={styles.invalid}>
+                          Ошибки ({(version.validationResult?.errors ?? []).length})
+                        </span>
+                        <ul className={styles.validationErrors}>
+                          {(version.validationResult?.errors ?? []).map((validationError) => (
+                            <li key={validationError}>{validationError}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </td>
                   <td>

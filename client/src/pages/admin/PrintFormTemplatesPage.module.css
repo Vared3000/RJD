@@ -60,5 +60,21 @@
 .invalid {
   color: var(--color-danger);
   font-weight: 600;
-  cursor: help;
+}
+
+.invalidBlock {
+  display: flex;
+  min-width: 260px;
+  max-width: 420px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.validationErrors {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
