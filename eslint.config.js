@@ -9,7 +9,7 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['server/**/*.js'],
+    files: ['server/**/*.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

@@ -86,7 +86,7 @@ try {
     .map((file) => `src/tests/${file}`);
 
   if (testFiles.length === 0) throw new Error('Не найдены файлы интеграционных тестов');
-  await runNode(['--test', ...testFiles], 'Интеграционные тесты');
+  await runNode(['--test', '--test-concurrency=1', ...testFiles], 'Интеграционные тесты');
 } catch (error) {
   failure = error;
 } finally {

@@ -49,14 +49,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Migrate, seed and test in an isolated schema
-        run: pnpm --filter @workwear/server test
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: ESLint
-        run: pnpm lint
-
-      - name: Prettier
-        run: pnpm format:check
-
-      - name: Frontend production build
-        run: pnpm --filter @workwear/client build
+      - name: Full release gate
+        run: pnpm release:check
