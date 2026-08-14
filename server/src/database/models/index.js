@@ -47,6 +47,7 @@ import { defineMonthlyRentalAct } from './monthly-rental-act.model.js';
 import { defineMonthlyRentalActVersion } from './monthly-rental-act-version.model.js';
 import { definePrintFormTemplate } from './print-form-template.model.js';
 import { defineDocumentRevision } from './document-revision.model.js';
+import { defineStartupImportRun } from './startup-import-run.model.js';
 
 const Role = defineRole(sequelize);
 const Permission = definePermission(sequelize);
@@ -96,6 +97,7 @@ const MonthlyRentalAct = defineMonthlyRentalAct(sequelize);
 const MonthlyRentalActVersion = defineMonthlyRentalActVersion(sequelize);
 const PrintFormTemplate = definePrintFormTemplate(sequelize);
 const DocumentRevision = defineDocumentRevision(sequelize);
+const StartupImportRun = defineStartupImportRun(sequelize);
 
 // Role <-> Permission (многие ко многим)
 Role.belongsToMany(Permission, {
@@ -372,6 +374,8 @@ EmployeeMeasurement.belongsTo(SourceImportRecord, {
 });
 
 PrintFormTemplate.belongsTo(User, { foreignKey: 'uploadedByUserId', as: 'uploadedByUser' });
+StartupImportRun.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdByUser' });
+StartupImportRun.belongsTo(User, { foreignKey: 'appliedByUserId', as: 'appliedByUser' });
 
 export const models = {
   Role,
@@ -422,6 +426,7 @@ export const models = {
   MonthlyRentalActVersion,
   PrintFormTemplate,
   DocumentRevision,
+  StartupImportRun,
 };
 
 export { sequelize };

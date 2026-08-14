@@ -18,7 +18,6 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/nomenclature/models', label: 'Модели' },
       { to: '/nomenclature/instances', label: 'Экземпляры' },
-      { to: '/nomenclature/barcodes', label: 'Штрихкоды и этикетки' },
     ],
   },
   {
@@ -65,10 +64,13 @@ export const NAV_SECTIONS = [
     // У раздела нет единого права — три независимых (в отличие от
     // "Стирка/Ремонт"), поэтому фильтруются сами пункты (item.permission),
     // а не только секция целиком.
+    items: [{ to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' }],
+  },
+  {
+    title: 'Дополнительно',
     items: [
       { to: '/transfers/documents', label: 'Перемещение', permission: 'transfers.manage' },
       { to: '/inventory/documents', label: 'Инвентаризация', permission: 'inventory.manage' },
-      { to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' },
       { to: '/adjustments/documents', label: 'Корректировка', permission: 'adjustments.manage' },
     ],
   },
@@ -99,6 +101,7 @@ export const NAV_SECTIONS = [
       { to: '/admin/users', label: 'Пользователи' },
       { to: '/admin/print-form-settings', label: 'Реквизиты печатных форм' },
       { to: '/admin/print-form-templates', label: 'Конструктор макетов' },
+      { to: '/admin/startup-import', label: 'Стартовый импорт' },
     ],
   },
 ];

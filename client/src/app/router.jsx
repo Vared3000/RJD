@@ -50,6 +50,7 @@ import { PrintFormsPage } from '../pages/print-forms/PrintFormsPage.jsx';
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage.jsx';
 import { PrintFormSettingsPage } from '../pages/admin/PrintFormSettingsPage.jsx';
 import { PrintFormTemplatesPage } from '../pages/admin/PrintFormTemplatesPage.jsx';
+import { StartupImportPage } from '../pages/admin/StartupImportPage.jsx';
 import { AppLayout } from '../widgets/layout/AppLayout.jsx';
 
 function RequireAuth({ children }) {
@@ -122,6 +123,7 @@ export function AppRouter() {
         <Route path="admin/users" element={<AdminUsersPage />} />
         <Route path="admin/print-form-settings" element={<PrintFormSettingsPage />} />
         <Route path="admin/print-form-templates" element={<PrintFormTemplatesPage />} />
+        <Route path="admin/startup-import" element={<StartupImportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
