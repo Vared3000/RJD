@@ -179,7 +179,16 @@ function ToolbarButton({ active = false, children, ...props }) {
   );
 }
 
-function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved, loadedLayout }) {
+function LoadedTemplateVisualEditor({
+  version,
+  dpoId,
+  from,
+  to,
+  onClose,
+  onSaved,
+  loadedLayout,
+  isNew = false,
+}) {
   const queryClient = useQueryClient();
   const [layout, setLayout] = useState(() => clone(loadedLayout));
   const [initialLayout] = useState(() => clone(loadedLayout));
@@ -192,14 +201,18 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
   const [previewing, setPreviewing] = useState('');
 
   const save = useMutation({
-    mutationFn: () =>
-      printFormTemplatesApi.saveLayout(version.id, {
+    mutationFn: () => {
+      const payload = {
         layout,
         dpoId,
         from,
         to,
         comment,
-      }),
+      };
+      return isNew
+        ? printFormTemplatesApi.saveNewLayout(version.formType, payload)
+        : printFormTemplatesApi.saveLayout(version.id, payload);
+    },
     onSuccess: async (savedVersion) => {
       await queryClient.invalidateQueries({
         queryKey: ['print-form-templates', version.formType],
@@ -340,13 +353,18 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
     }
     setPreviewing(format);
     try {
-      await printFormTemplatesApi.previewLayout(version.id, {
+      const payload = {
         layout,
         format,
         dpoId,
         from,
         to,
-      });
+      };
+      if (isNew) {
+        await printFormTemplatesApi.previewNewLayout(version.formType, payload);
+      } else {
+        await printFormTemplatesApi.previewLayout(version.id, payload);
+      }
     } catch (error) {
       setLocalError(await parseBlobApiError(error));
     } finally {
@@ -360,9 +378,14 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
         <div>
           <p className={styles.eyebrow}>Визуальный редактор</p>
           <h1>
-            {FORM_LABELS[version.formType] ?? version.formType} · версия {version.versionNumber}
+            {FORM_LABELS[version.formType] ?? version.formType} ·{' '}
+            {isNew ? 'новый собственный макет' : `версия ${version.versionNumber}`}
           </h1>
-          <p>Изменения сохраняются отдельной версией и не затрагивают действующий макет.</p>
+          <p>
+            {isNew
+              ? 'Соберите документ на чистом листе. Сохранение создаст новую версию.'
+              : 'Изменения сохраняются отдельной версией и не затрагивают действующий макет.'}
+          </p>
         </div>
         <div className={styles.headerActions}>
           <Button variant="secondary" onClick={closeEditor}>
@@ -659,6 +682,14 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
             </div>
           </section>
 
+          {isNew && (
+            <p className={styles.draftHint}>
+              Сначала разместите «Начало строк таблицы», «Конец строк таблицы» и нужные поля строки.
+              Черновик с ошибками можно сохранить, но предпросмотр и активация станут доступны
+              только после заполнения обязательных полей.
+            </p>
+          )}
+
           <div className={styles.workspace}>
             <table className={styles.sheet}>
               <colgroup>
@@ -771,17 +802,25 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
 }
 
 export function TemplateVisualEditor(props) {
+  const isNew = Boolean(props.version.isNew);
   const layoutQuery = useQuery({
-    queryKey: ['print-form-template-layout', props.version.id],
-    queryFn: () => printFormTemplatesApi.layout(props.version.id),
+    queryKey: [
+      isNew ? 'print-form-template-new-layout' : 'print-form-template-layout',
+      isNew ? props.version.formType : props.version.id,
+    ],
+    queryFn: () =>
+      isNew
+        ? printFormTemplatesApi.newLayout(props.version.formType)
+        : printFormTemplatesApi.layout(props.version.id),
   });
 
   return (
     <QueryState query={layoutQuery} loadingText="Открываем Excel-макет…">
       {layoutQuery.data?.layout && (
         <LoadedTemplateVisualEditor
-          key={props.version.id}
+          key={isNew ? `new:${props.version.formType}` : props.version.id}
           {...props}
+          isNew={isNew}
           loadedLayout={layoutQuery.data.layout}
         />
       )}

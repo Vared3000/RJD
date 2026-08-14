@@ -305,6 +305,17 @@
   color: var(--color-danger);
 }
 
+.draftHint {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .header,
   .markerBar {

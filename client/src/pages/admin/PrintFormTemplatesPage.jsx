@@ -112,14 +112,27 @@ export function PrintFormTemplatesPage() {
         <div>
           <h1 className={catalogStyles.title}>Конструктор макетов печатных форм</h1>
           <p className={styles.subtitle}>
-            Загрузите свою версию шаблона .xlsx с маркерами <code>{'{{ИМЯ}}'}</code> вместо
-            фиксированных ячеек. Активная версия применяется при следующем формировании формы.
+            Создайте свой макет на чистом листе или загрузите готовый Excel. Активная версия
+            применяется при следующем формировании формы.
           </p>
         </div>
       </div>
 
+      <section className={styles.quickGuide}>
+        <div>
+          <h2 className={styles.panelTitle}>Как создать свой шаблон</h2>
+          <ol>
+            <li>Выберите печатную форму, ДПО и период проверки.</li>
+            <li>Нажмите «Создать свой макет» и оформите чистый лист A4.</li>
+            <li>Выберите ячейку и добавляйте поля документа кнопками над таблицей.</li>
+            <li>Сохраните версию, устраните показанные ошибки и проверьте Excel/PDF.</li>
+            <li>Активируйте проверенную версию — только после этого она станет рабочей.</li>
+          </ol>
+        </div>
+      </section>
+
       <form className={styles.uploadPanel} onSubmit={submitUpload}>
-        <h2 className={styles.panelTitle}>Загрузить новую версию</h2>
+        <h2 className={styles.panelTitle}>Выберите форму и данные для проверки</h2>
         <p className={styles.hint}>
           ДПО и период нужны для пробной генерации — версия становится доступна для активации,
           только если по этим данным реально строится документ.
@@ -144,6 +157,27 @@ export function PrintFormTemplatesPage() {
           />
           <PeriodFilter from={range.from} to={range.to} onChange={setRange} />
         </div>
+        <div className={catalogStyles.formActions}>
+          <Button
+            type="button"
+            onClick={() => {
+              setError('');
+              if (!dpoId) {
+                setError('Сначала выберите ДПО для проверки нового макета');
+                return;
+              }
+              setEditorVersion({
+                id: null,
+                formType,
+                versionNumber: null,
+                isNew: true,
+              });
+            }}
+          >
+            Создать свой макет
+          </Button>
+        </div>
+        <h2 className={styles.uploadTitle}>Или загрузить готовый Excel</h2>
         <div className={styles.uploadFields}>
           <label className={styles.fileField}>
             <span>Файл шаблона (.xlsx)</span>

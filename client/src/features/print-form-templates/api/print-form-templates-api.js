@@ -45,8 +45,24 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
+  async newLayout(formType) {
+    const { data } = await httpClient.get(`${BASE}/${formType}/layout/new`);
+    return data.data;
+  },
+
   async saveLayout(id, { layout, dpoId, from, to, comment }) {
     const { data } = await httpClient.post(`${BASE}/versions/${id}/layout`, {
+      layout,
+      dpoId,
+      from,
+      to,
+      comment,
+    });
+    return data.data;
+  },
+
+  async saveNewLayout(formType, { layout, dpoId, from, to, comment }) {
+    const { data } = await httpClient.post(`${BASE}/${formType}/layout/new`, {
       layout,
       dpoId,
       from,
@@ -66,6 +82,19 @@ export const printFormTemplatesApi = {
       response.data,
       fileNameFromResponse(response),
       `print-form-layout-draft.${format}`,
+    );
+  },
+
+  async previewNewLayout(formType, { layout, format, dpoId, from, to }) {
+    const response = await httpClient.post(
+      `${BASE}/${formType}/layout/new/preview`,
+      { layout, format, dpoId, from, to },
+      { responseType: 'blob' },
+    );
+    downloadBlob(
+      response.data,
+      fileNameFromResponse(response),
+      `print-form-new-layout-draft.${format}`,
     );
   },
 

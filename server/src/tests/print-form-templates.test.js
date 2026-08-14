@@ -206,6 +206,49 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   assert.equal(validClone.body.data.validationResult.valid, true, JSON.stringify(validClone.body));
   assert.equal(validClone.body.data.versionNumber, base.versionNumber + 2);
 
+  // --- Новый собственный макет открывается как чистый лист A4 и сохраняется черновиком ---
+  const newLayoutResponse = await auth(
+    agent.get('/api/v1/print-forms/templates/fpu-26/layout/new'),
+  );
+  assert.equal(newLayoutResponse.status, 200, JSON.stringify(newLayoutResponse.body));
+  assert.equal(newLayoutResponse.body.data.version.id, null);
+  assert.equal(newLayoutResponse.body.data.layout.rowCount, 65);
+  assert.equal(newLayoutResponse.body.data.layout.columnCount, 14);
+  assert.equal(newLayoutResponse.body.data.layout.pageSetup.paperSize, 9);
+  assert.ok(newLayoutResponse.body.data.layout.allowedMarkers.includes('TABLE_START'));
+
+  const newLayoutPreview = await auth(
+    agent.post('/api/v1/print-forms/templates/fpu-26/layout/new/preview'),
+  )
+    .send({
+      dpoId: FPU26_QUERY.dpoId,
+      from: FPU26_QUERY.from,
+      to: FPU26_QUERY.to,
+      format: 'xlsx',
+      layout: newLayoutResponse.body.data.layout,
+    })
+    .buffer(true)
+    .parse(binaryParser);
+  assert.equal(newLayoutPreview.status, 400);
+
+  const newLayoutSave = await auth(
+    agent.post('/api/v1/print-forms/templates/fpu-26/layout/new'),
+  ).send({
+    dpoId: FPU26_QUERY.dpoId,
+    from: FPU26_QUERY.from,
+    to: FPU26_QUERY.to,
+    comment: 'пустой пользовательский макет',
+    layout: newLayoutResponse.body.data.layout,
+  });
+  assert.equal(newLayoutSave.status, 201, JSON.stringify(newLayoutSave.body));
+  assert.equal(newLayoutSave.body.data.validationResult.valid, false);
+  assert.ok(
+    newLayoutSave.body.data.validationResult.errors.some((item) =>
+      item.includes('{{TABLE_START}}'),
+    ),
+  );
+  templateIds.push(newLayoutSave.body.data.id);
+
   // --- Отсутствует обязательный маркер (CUSTOMER_NAME стёрт) ---
   const missingMarkerBuffer = await buildVariant(base.buffer, (sheet) => {
     sheet.getCell('B7').value = 'без маркера';
@@ -393,6 +436,11 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
     limitedAgent.get(`/api/v1/print-forms/templates/versions/${base.id}/layout`),
   );
   assert.equal(forbiddenEditor.status, 403);
+
+  const forbiddenNewEditor = await limitedAuth(
+    limitedAgent.get('/api/v1/print-forms/templates/fpu-26/layout/new'),
+  );
+  assert.equal(forbiddenNewEditor.status, 403);
 
   const stillWorks = await limitedAuth(limitedAgent.get('/api/v1/print-forms/fpu-26'))
     .query({ ...FPU26_QUERY, format: 'xlsx' })

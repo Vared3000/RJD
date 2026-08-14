@@ -13,18 +13,28 @@ import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 import { fpu26ExcelMapper } from '../fpu-26/fpu-26.excel-mapper.js';
 import { buildPreservationReceipt } from '../preservation-receipt/preservation-receipt.builder.js';
 import { preservationReceiptExcelMapper } from '../preservation-receipt/preservation-receipt.excel-mapper.js';
-import { buildTemplateFromLayout, readTemplateLayout } from './template-layout.js';
+import {
+  buildTemplateFromLayout,
+  createBlankTemplateBuffer,
+  readTemplateLayout,
+} from './template-layout.js';
 
 // Формы, уже переведённые на маркерную разметку (задача 19) — каждая знает,
 // как построить пробные данные (loadContext/build) и как разложить их по
 // шаблону (mapper.spec/mapper.fill). Остальные формы переносятся отдельным
 // следующим релизом.
 const GENERATORS = {
-  'fpu-26': { loadContext, build: buildFpu26, mapper: fpu26ExcelMapper },
+  'fpu-26': {
+    loadContext,
+    build: buildFpu26,
+    mapper: fpu26ExcelMapper,
+    blankLayout: { rowCount: 65, columnCount: 14 },
+  },
   'preservation-receipt': {
     loadContext,
     build: buildPreservationReceipt,
     mapper: preservationReceiptExcelMapper,
+    blankLayout: { rowCount: 45, columnCount: 8 },
   },
 };
 
@@ -120,6 +130,37 @@ async function validateBuffer(formType, buffer, query) {
   return { valid: errors.length === 0, errors, warnings: [] };
 }
 
+async function blankBuffer(formType) {
+  return createBlankTemplateBuffer(generatorFor(formType).blankLayout);
+}
+
+async function previewLayoutBuffer(formType, templateBuffer, { format, dpoId, from, to }, label) {
+  const generator = generatorFor(formType);
+  try {
+    const data = await buildTrialData(formType, { dpoId, from, to });
+    data.templateVersion = label;
+    const excelBuffer = await generateExcelFromMarkedTemplate(
+      data,
+      generatorOptions(generator, templateBuffer),
+    );
+    if (format === 'pdf') {
+      return {
+        buffer: await generatePdfFromExcel(excelBuffer, data),
+        contentType: 'application/pdf',
+        extension: 'pdf',
+      };
+    }
+    return {
+      buffer: excelBuffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extension: 'xlsx',
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw ApiError.badRequest(`Предпросмотр пока недоступен: ${error.message}`);
+  }
+}
+
 export const printFormTemplatesService = {
   listVersions(formType) {
     generatorFor(formType);
@@ -143,6 +184,19 @@ export const printFormTemplatesService = {
         originalFileName: version.originalFileName,
       },
       layout: await readTemplateLayout(version.fileData, allowedMarkers(generator)),
+    };
+  },
+
+  async newEditorLayout(formType) {
+    const generator = generatorFor(formType);
+    return {
+      version: {
+        id: null,
+        formType,
+        versionNumber: null,
+        originalFileName: `${formType}-custom.xlsx`,
+      },
+      layout: await readTemplateLayout(await blankBuffer(formType), allowedMarkers(generator)),
     };
   },
 
@@ -189,28 +243,43 @@ export const printFormTemplatesService = {
     );
   },
 
+  async saveNewEditorLayout(formType, { layout, comment, dpoId, from, to }, { userId }) {
+    generatorFor(formType);
+    const buffer = await buildTemplateFromLayout(await blankBuffer(formType), layout);
+    return printFormTemplatesService.upload(
+      formType,
+      {
+        buffer,
+        originalFileName: `${formType}-custom.xlsx`,
+        comment: comment || 'Собственный макет создан в визуальном редакторе',
+        dpoId,
+        from,
+        to,
+      },
+      { userId },
+    );
+  },
+
   async previewEditorLayout(id, { layout, format, dpoId, from, to }) {
     const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
-    const generator = generatorFor(baseVersion.formType);
     const templateBuffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
-    const data = await buildTrialData(baseVersion.formType, { dpoId, from, to });
-    data.templateVersion = `${baseVersion.versionNumber} (черновик)`;
-    const excelBuffer = await generateExcelFromMarkedTemplate(
-      data,
-      generatorOptions(generator, templateBuffer),
+    return previewLayoutBuffer(
+      baseVersion.formType,
+      templateBuffer,
+      { format, dpoId, from, to },
+      `${baseVersion.versionNumber} (черновик)`,
     );
-    if (format === 'pdf') {
-      return {
-        buffer: await generatePdfFromExcel(excelBuffer, data),
-        contentType: 'application/pdf',
-        extension: 'pdf',
-      };
-    }
-    return {
-      buffer: excelBuffer,
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      extension: 'xlsx',
-    };
+  },
+
+  async previewNewEditorLayout(formType, { layout, format, dpoId, from, to }) {
+    generatorFor(formType);
+    const templateBuffer = await buildTemplateFromLayout(await blankBuffer(formType), layout);
+    return previewLayoutBuffer(
+      formType,
+      templateBuffer,
+      { format, dpoId, from, to },
+      'новый черновик',
+    );
   },
 
   async preview(id, { format, dpoId, from, to }) {

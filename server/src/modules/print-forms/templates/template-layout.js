@@ -8,6 +8,45 @@ export const TEMPLATE_LAYOUT_LIMITS = {
   maxStyles: 500,
 };
 
+export async function createBlankTemplateBuffer({ rowCount = 60, columnCount = 14 } = {}) {
+  if (
+    rowCount < 1 ||
+    columnCount < 1 ||
+    rowCount > TEMPLATE_LAYOUT_LIMITS.maxRows ||
+    columnCount > TEMPLATE_LAYOUT_LIMITS.maxColumns
+  ) {
+    throw ApiError.badRequest('Некорректный размер пустого макета');
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Новый макет', {
+    views: [{ showGridLines: true }],
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      scale: 100,
+      margins: { left: 0.25, right: 0.25, top: 0.35, bottom: 0.35, header: 0, footer: 0.2 },
+    },
+  });
+
+  for (let column = 1; column <= columnCount; column += 1) {
+    sheet.getColumn(column).width = column === 1 ? 6 : 12;
+  }
+  for (let row = 1; row <= rowCount; row += 1) {
+    const target = sheet.getRow(row);
+    target.height = 20;
+    for (let column = 1; column <= columnCount; column += 1) {
+      target.getCell(column).value = '';
+    }
+  }
+  sheet.pageSetup.printArea = `A1:${sheet.getColumn(columnCount).letter}${rowCount}`;
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
 function clone(value) {
   return value == null ? value : structuredClone(value);
 }

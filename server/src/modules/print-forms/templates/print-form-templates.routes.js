@@ -16,6 +16,15 @@ export function createPrintFormTemplatesRouter() {
   router.use(requireAuth, requirePermission('admin.manage'));
 
   router.get('/:formType', asyncHandler(printFormTemplatesController.list));
+  router.get('/:formType/layout/new', asyncHandler(printFormTemplatesController.newEditorLayout));
+  router.post(
+    '/:formType/layout/new/preview',
+    asyncHandler(printFormTemplatesController.previewNewEditorLayout),
+  );
+  router.post(
+    '/:formType/layout/new',
+    asyncHandler(printFormTemplatesController.saveNewEditorLayout),
+  );
   router.post(
     '/:formType/versions',
     upload.single('file'),

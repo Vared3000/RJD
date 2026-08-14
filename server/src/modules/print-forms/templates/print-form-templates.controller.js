@@ -51,11 +51,26 @@ export const printFormTemplatesController = {
     return success(res, await printFormTemplatesService.editorLayout(req.params.id));
   },
 
+  async newEditorLayout(req, res) {
+    return success(res, await printFormTemplatesService.newEditorLayout(req.params.formType));
+  },
+
   async saveEditorLayout(req, res) {
     const body = saveEditorLayoutSchema.parse(req.body);
     return success(
       res,
       await printFormTemplatesService.saveEditorLayout(req.params.id, body, {
+        userId: req.user.sub,
+      }),
+      201,
+    );
+  },
+
+  async saveNewEditorLayout(req, res) {
+    const body = saveEditorLayoutSchema.parse(req.body);
+    return success(
+      res,
+      await printFormTemplatesService.saveNewEditorLayout(req.params.formType, body, {
         userId: req.user.sub,
       }),
       201,
@@ -68,6 +83,15 @@ export const printFormTemplatesController = {
     return sendFile(res, {
       ...file,
       fileName: `print-form-layout-draft.${file.extension}`,
+    });
+  },
+
+  async previewNewEditorLayout(req, res) {
+    const body = previewEditorLayoutSchema.parse(req.body);
+    const file = await printFormTemplatesService.previewNewEditorLayout(req.params.formType, body);
+    return sendFile(res, {
+      ...file,
+      fileName: `print-form-new-layout-draft.${file.extension}`,
     });
   },
 
