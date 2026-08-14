@@ -20,6 +20,69 @@ const PAPER_SIZES = [
   { value: 1, label: 'Letter' },
 ];
 
+const MARKER_GROUPS = [
+  { key: 'document', label: 'Документ' },
+  { key: 'parties', label: 'Организации и ДПО' },
+  { key: 'table', label: 'Строки таблицы' },
+  { key: 'totals', label: 'Итоги' },
+  { key: 'signatures', label: 'Подписи' },
+];
+
+const MARKER_META = {
+  TABLE_START: { label: 'Начало строк таблицы', group: 'table' },
+  TABLE_END: { label: 'Конец строк таблицы', group: 'table' },
+  CUSTOMER_NAME: { label: 'Заказчик: название и адрес', group: 'parties' },
+  CUSTOMER_OKPO: { label: 'ОКПО заказчика', group: 'parties' },
+  DPO_NAME: { label: 'Краткое название ДПО', group: 'parties' },
+  DPO_FULL_NAME: { label: 'Полное название ДПО', group: 'parties' },
+  BUSINESS_UNIT_CODE: { label: 'Код подразделения', group: 'parties' },
+  EXECUTOR_NAME: { label: 'Исполнитель: название', group: 'parties' },
+  EXECUTOR_ADDRESS: { label: 'Адрес исполнителя', group: 'parties' },
+  EXECUTOR_OKPO: { label: 'ОКПО исполнителя', group: 'parties' },
+  PERIOD_END: { label: 'Дата окончания периода', group: 'document' },
+  PERIOD_DESCRIPTION: { label: 'Описание периода', group: 'document' },
+  RECEIPT_DATE: { label: 'Дата расписки', group: 'document' },
+  CONTRACT_LINE: { label: 'Договор', group: 'document' },
+  SIGNATURE_CONTRACT_LINE: { label: 'Договор у подписей', group: 'signatures' },
+  EXECUTOR_SIGNATORY: { label: 'Подписант исполнителя', group: 'signatures' },
+  EXECUTOR_BASIS: { label: 'Основание полномочий исполнителя', group: 'signatures' },
+  DPO_HEAD_TITLE: { label: 'Должность начальника ДПО', group: 'signatures' },
+  DPO_HEAD_SIGNATURE_LABEL: { label: 'Подпись начальника ДПО', group: 'signatures' },
+  DPO_DIRECTOR_NAME: { label: 'ФИО руководителя ДПО', group: 'signatures' },
+  DPO_DIRECTOR_BASIS: { label: 'Основание полномочий руководителя', group: 'signatures' },
+  DPO_DIRECTOR_SIGNATURE: { label: 'Фамилия и инициалы руководителя', group: 'signatures' },
+  GRAND_TOTAL_COST: { label: 'Итого без НДС', group: 'totals' },
+  GRAND_TOTAL_VAT: { label: 'Итого НДС', group: 'totals' },
+  GRAND_TOTAL: { label: 'Итого с НДС', group: 'totals' },
+  GRAND_TOTAL_COST_REPEAT: { label: 'Итого без НДС — повтор', group: 'totals' },
+  GRAND_TOTAL_VAT_REPEAT: { label: 'Итого НДС — повтор', group: 'totals' },
+  GRAND_TOTAL_REPEAT: { label: 'Итого с НДС — повтор', group: 'totals' },
+  'ROW.SEQUENCE_NUMBER': { label: '№ строки', group: 'table' },
+  'ROW.EMPLOYEE_NAME': { label: 'ФИО работника', group: 'table' },
+  'ROW.PERSONNEL_NUMBER': { label: 'Табельный номер', group: 'table' },
+  'ROW.MODEL_NAME': { label: 'Наименование одежды', group: 'table' },
+  'ROW.UNIT': { label: 'Единица измерения', group: 'table' },
+  'ROW.QUANTITY': { label: 'Количество', group: 'table' },
+  'ROW.PRICE_WITHOUT_VAT': { label: 'Расчётная цена без НДС', group: 'table' },
+  'ROW.DISPLAYED_PRICE_WITHOUT_VAT': { label: 'Цена без НДС в документе', group: 'table' },
+  'ROW.COST_WITHOUT_VAT': { label: 'Стоимость без НДС', group: 'table' },
+  'ROW.VAT_AMOUNT': { label: 'Сумма НДС', group: 'table' },
+  'ROW.TOTAL_WITH_VAT': { label: 'Стоимость с НДС', group: 'table' },
+  'ROW.SIGNATURE': { label: 'Подпись работника', group: 'signatures' },
+};
+
+function markerMeta(marker) {
+  return (
+    MARKER_META[marker] ?? {
+      label: marker
+        .replace(/^ROW\./, '')
+        .replaceAll('_', ' ')
+        .toLocaleLowerCase('ru-RU'),
+      group: marker.startsWith('ROW.') ? 'table' : 'document',
+    }
+  );
+}
+
 function clone(value) {
   return structuredClone(value);
 }
@@ -159,6 +222,10 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
       ? `:${columnName(bounds.right)}${bounds.bottom}`
       : ''
   }`;
+  const markerGroups = MARKER_GROUPS.map((group) => ({
+    ...group,
+    markers: layout.allowedMarkers.filter((marker) => markerMeta(marker).group === group.key),
+  })).filter((group) => group.markers.length > 0);
 
   useEffect(() => {
     if (!dirty) return undefined;
@@ -569,13 +636,25 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
           <section className={styles.markerBar}>
             <div>
               <strong>Поля документа</strong>
-              <span>Выберите ячейку и нажмите поле, чтобы вставить маркер.</span>
+              <span>Выберите ячейку и нажмите понятное название нужного поля.</span>
             </div>
-            <div className={styles.markerList}>
-              {layout.allowedMarkers.map((marker) => (
-                <button key={marker} type="button" onClick={() => insertMarker(marker)}>
-                  {marker}
-                </button>
+            <div className={styles.markerGroups}>
+              {markerGroups.map((group) => (
+                <div className={styles.markerGroup} key={group.key}>
+                  <span className={styles.markerGroupTitle}>{group.label}</span>
+                  <div className={styles.markerList}>
+                    {group.markers.map((marker) => (
+                      <button
+                        key={marker}
+                        type="button"
+                        title={`Техническое поле: {{${marker}}}`}
+                        onClick={() => insertMarker(marker)}
+                      >
+                        {markerMeta(marker).label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </section>

@@ -160,6 +160,25 @@
   font-size: 12px;
 }
 
+.markerGroups {
+  display: grid;
+  flex: 1;
+  gap: var(--space-3);
+}
+
+.markerGroup {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.markerGroupTitle {
+  padding-top: 5px;
+  color: #1e3a8a !important;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+
 .markerList {
   display: flex;
   flex-wrap: wrap;
@@ -167,17 +186,18 @@
 }
 
 .markerList button {
-  padding: 4px 7px;
+  padding: 5px 9px;
   border: 1px solid #93c5fd;
   border-radius: 5px;
   background: white;
   color: #1d4ed8;
   cursor: pointer;
-  font:
-    11px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 12px inherit;
+}
+
+.markerList button:hover {
+  border-color: #2563eb;
+  background: #dbeafe;
 }
 
 .workspace {
@@ -303,6 +323,10 @@
     width: 100%;
     flex-wrap: wrap;
     border-right: 0;
+  }
+
+  .markerGroup {
+    grid-template-columns: 1fr;
   }
 
   .valueInput {
