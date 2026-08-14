@@ -110,6 +110,7 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   editedLayout.columns[0].width += 2;
   editedLayout.rows[0].height += 2;
   editedLayout.pageSetup.orientation = 'landscape';
+  editedLayout.pageSetup.paperSize = 9;
   const customerCell = editedLayout.cells.find((cell) => cell.row === 7 && cell.column === 2);
   const editedStyle = structuredClone(editedLayout.styles[customerCell.styleId] ?? {});
   editedStyle.alignment = { ...editedStyle.alignment, horizontal: 'right' };
@@ -159,6 +160,7 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   await visualWorkbook.xlsx.load(visualDownload.body);
   const visualSheet = visualWorkbook.worksheets[0];
   assert.equal(visualSheet.pageSetup.orientation, 'landscape');
+  assert.equal(visualSheet.pageSetup.paperSize, 9);
   assert.equal(visualSheet.getColumn(1).width, editedLayout.columns[0].width);
   assert.equal(visualSheet.getRow(1).height, editedLayout.rows[0].height);
   assert.equal(visualSheet.getCell('B7').alignment.horizontal, 'right');

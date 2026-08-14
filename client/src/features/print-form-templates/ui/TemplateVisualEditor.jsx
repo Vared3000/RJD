@@ -13,6 +13,13 @@ const FORM_LABELS = {
 
 const BORDER_STYLE = { style: 'thin', color: { argb: 'FF64748B' } };
 
+const PAPER_SIZES = [
+  { value: 9, label: 'A4 (210×297 мм)' },
+  { value: 8, label: 'A3 (297×420 мм)' },
+  { value: 11, label: 'A5 (148×210 мм)' },
+  { value: 1, label: 'Letter' },
+];
+
 function clone(value) {
   return structuredClone(value);
 }
@@ -508,6 +515,55 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
               <ToolbarButton onClick={mergeSelection}>Объединить</ToolbarButton>
               <ToolbarButton onClick={unmergeSelection}>Разъединить</ToolbarButton>
             </div>
+
+            <div className={styles.toolbarGroup}>
+              <label>
+                Формат листа
+                <select
+                  value={layout.pageSetup.paperSize}
+                  onChange={(event) =>
+                    changeLayout((next) => {
+                      next.pageSetup.paperSize = Number(event.target.value);
+                    })
+                  }
+                >
+                  {PAPER_SIZES.map((paper) => (
+                    <option key={paper.value} value={paper.value}>
+                      {paper.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Ориентация
+                <select
+                  value={layout.pageSetup.orientation}
+                  onChange={(event) =>
+                    changeLayout((next) => {
+                      next.pageSetup.orientation = event.target.value;
+                    })
+                  }
+                >
+                  <option value="portrait">Книжная</option>
+                  <option value="landscape">Альбомная</option>
+                </select>
+              </label>
+              <label>
+                Масштаб, %
+                <input
+                  className={styles.numberInput}
+                  type="number"
+                  min="10"
+                  max="400"
+                  value={layout.pageSetup.scale}
+                  onChange={(event) =>
+                    changeLayout((next) => {
+                      next.pageSetup.scale = Number(event.target.value);
+                    })
+                  }
+                />
+              </label>
+            </div>
           </section>
 
           <section className={styles.markerBar}>
@@ -593,34 +649,6 @@ function LoadedTemplateVisualEditor({ version, dpoId, from, to, onClose, onSaved
                 onChange={(event) =>
                   changeLayout((next) => {
                     next.sheetName = event.target.value;
-                  })
-                }
-              />
-            </label>
-            <label>
-              Ориентация
-              <select
-                value={layout.pageSetup.orientation}
-                onChange={(event) =>
-                  changeLayout((next) => {
-                    next.pageSetup.orientation = event.target.value;
-                  })
-                }
-              >
-                <option value="portrait">Книжная</option>
-                <option value="landscape">Альбомная</option>
-              </select>
-            </label>
-            <label>
-              Масштаб, %
-              <input
-                type="number"
-                min="10"
-                max="400"
-                value={layout.pageSetup.scale}
-                onChange={(event) =>
-                  changeLayout((next) => {
-                    next.pageSetup.scale = Number(event.target.value);
                   })
                 }
               />
