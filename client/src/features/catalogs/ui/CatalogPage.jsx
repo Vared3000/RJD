@@ -21,6 +21,7 @@ export function CatalogPage({
   managePermission = 'catalogs.manage',
   archiveColumnLabel = 'Статус',
   searchable = false,
+  description,
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,7 +100,12 @@ export function CatalogPage({
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>{title}</h1>
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>{title}</h1>
+          <p className={styles.subtitle}>
+            {description ?? 'Просматривайте записи, добавляйте новые и изменяйте существующие.'}
+          </p>
+        </div>
         {canManage && <Button onClick={() => setEditingItem({})}>+ Добавить</Button>}
       </div>
 
@@ -118,7 +124,7 @@ export function CatalogPage({
         {searchable && (
           <input
             type="search"
-            placeholder="Поиск…"
+            placeholder={`Найти в разделе «${title}»…`}
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -126,6 +132,18 @@ export function CatalogPage({
             }}
             className={styles.searchInput}
           />
+        )}
+      </div>
+
+      <div className={styles.summaryBar} aria-label="Сводка списка">
+        <span className={styles.summaryItem}>
+          Найдено: <strong>{meta?.total ?? items?.length ?? 0}</strong>
+        </span>
+        {showArchived && <span className={styles.summaryItem}>Показан архив</span>}
+        {debouncedSearch && (
+          <span className={styles.summaryItem}>
+            Поиск: <strong>{debouncedSearch}</strong>
+          </span>
         )}
       </div>
 

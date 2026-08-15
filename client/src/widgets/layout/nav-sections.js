@@ -1,107 +1,173 @@
 export const NAV_SECTIONS = [
-  { items: [{ to: '/', label: 'Главная', end: true }] },
   {
-    title: 'Справочники',
-    permission: 'catalogs.view',
+    icon: '⌂',
+    items: [{ to: '/', label: 'Главная', icon: '⌂', end: true }],
+  },
+  {
+    title: 'Рабочий день',
+    icon: '↻',
     items: [
-      { to: '/catalogs/organizations', label: 'Организации' },
-      { to: '/catalogs/subdivisions', label: 'Подразделения' },
-      { to: '/catalogs/positions', label: 'Должности' },
-      { to: '/catalogs/warehouses', label: 'Склады' },
-      { to: '/catalogs/suppliers', label: 'Поставщики' },
-      { to: '/catalogs/sizes', label: 'Размеры' },
+      {
+        to: '/purchases/receiving',
+        label: 'Поступления',
+        icon: '↓',
+        permission: 'purchases.manage',
+      },
+      { to: '/issuance/documents', label: 'Выдачи', icon: '→', permission: 'issuance.manage' },
+      { to: '/issuance/returns', label: 'Возвраты', icon: '←', permission: 'issuance.manage' },
+      { to: '/laundry/documents', label: 'Стирка', icon: '≈', permission: 'laundry.manage' },
+      { to: '/repair/documents', label: 'Ремонт', icon: '◇', permission: 'repair.manage' },
     ],
   },
   {
-    title: 'Номенклатура',
-    permission: 'nomenclature.view',
+    title: 'Склад',
+    icon: '▦',
     items: [
-      { to: '/nomenclature/models', label: 'Модели' },
-      { to: '/nomenclature/instances', label: 'Экземпляры' },
-    ],
-  },
-  {
-    title: 'Закупки',
-    permission: 'purchases.manage',
-    items: [{ to: '/purchases/receiving', label: 'Поступление' }],
-  },
-  {
-    title: 'Склады',
-    permission: 'warehouse.view',
-    items: [
-      { to: '/warehouses/balances', label: 'Остатки' },
-      { to: '/warehouses/movements', label: 'Движения' },
+      { to: '/warehouses/balances', label: 'Остатки', icon: '▦', permission: 'warehouse.view' },
+      { to: '/warehouses/movements', label: 'Движения', icon: '⇄', permission: 'warehouse.view' },
+      {
+        to: '/transfers/documents',
+        label: 'Перемещения',
+        icon: '⇆',
+        permission: 'transfers.manage',
+      },
+      {
+        to: '/inventory/documents',
+        label: 'Инвентаризации',
+        icon: '✓',
+        permission: 'inventory.manage',
+      },
+      {
+        to: '/adjustments/documents',
+        label: 'Корректировки',
+        icon: '±',
+        permission: 'adjustments.manage',
+      },
+      { to: '/writeoff/documents', label: 'Списания', icon: '×', permission: 'writeoff.manage' },
     ],
   },
   {
     title: 'Работники',
-    // У раздела нет единого права (ДПО — dpo.manage, не employees.view) —
-    // фильтруются сами пункты, как у "Складские документы".
+    icon: '♙',
     items: [
-      { to: '/employees', label: 'Работники', permission: 'employees.view' },
-      { to: '/employees/kits', label: 'Комплекты', permission: 'employees.view' },
-      { to: '/dpo', label: 'ДПО', permission: 'dpo.manage' },
+      { to: '/employees', label: 'Работники', icon: '♙', permission: 'employees.view' },
+      {
+        to: '/employees/kits',
+        label: 'Комплекты должностей',
+        icon: '▣',
+        permission: 'employees.view',
+      },
+      { to: '/dpo', label: 'ДПО', icon: '⌂', permission: 'dpo.manage' },
     ],
   },
   {
-    title: 'Выдача/Возврат',
-    permission: 'issuance.manage',
+    title: 'Номенклатура',
+    icon: '▤',
     items: [
-      { to: '/issuance/documents', label: 'Выдача' },
-      { to: '/issuance/returns', label: 'Возврат' },
+      {
+        to: '/nomenclature/models',
+        label: 'Модели одежды',
+        icon: '▤',
+        permission: 'nomenclature.view',
+      },
+      {
+        to: '/nomenclature/instances',
+        label: 'Экземпляры одежды',
+        icon: '#',
+        permission: 'nomenclature.view',
+      },
     ],
   },
   {
-    title: 'Стирка/Ремонт',
-    permission: 'laundry.manage',
+    title: 'Отчёты и документы',
+    icon: '▧',
     items: [
-      { to: '/laundry/documents', label: 'Стирка' },
-      { to: '/repair/documents', label: 'Ремонт' },
+      { to: '/print-forms', label: 'Печатные формы', icon: '▧', permission: 'print_forms.use' },
+      {
+        to: '/reports/employees',
+        label: 'Отчёт по работникам',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      { to: '/reports/dpo', label: 'Отчёт по ДПО', icon: '·', permission: 'reports.view' },
+      {
+        to: '/reports/purchases',
+        label: 'Отчёт по закупкам',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      {
+        to: '/reports/suppliers',
+        label: 'Отчёт по поставщикам',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      {
+        to: '/reports/writeoffs',
+        label: 'Отчёт по списаниям',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      { to: '/reports/repairs', label: 'Отчёт по ремонтам', icon: '·', permission: 'reports.view' },
+      {
+        to: '/reports/warehouses',
+        label: 'Отчёт по складам',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      {
+        to: '/reports/stock-balances',
+        label: 'Отчёт по остаткам',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      {
+        to: '/reports/property-cost',
+        label: 'Стоимость имущества',
+        icon: '·',
+        permission: 'reports.view',
+      },
     ],
   },
   {
-    title: 'Складские документы',
-    // У раздела нет единого права — три независимых (в отличие от
-    // "Стирка/Ремонт"), поэтому фильтруются сами пункты (item.permission),
-    // а не только секция целиком.
-    items: [{ to: '/writeoff/documents', label: 'Списание', permission: 'writeoff.manage' }],
-  },
-  {
-    title: 'Дополнительно',
+    title: 'Настройки',
+    icon: '⚙',
     items: [
-      { to: '/transfers/documents', label: 'Перемещение', permission: 'transfers.manage' },
-      { to: '/inventory/documents', label: 'Инвентаризация', permission: 'inventory.manage' },
-      { to: '/adjustments/documents', label: 'Корректировка', permission: 'adjustments.manage' },
-    ],
-  },
-  {
-    title: 'Отчётность',
-    permission: 'reports.view',
-    items: [
-      { to: '/reports/employees', label: 'Работники' },
-      { to: '/reports/dpo', label: 'ДПО' },
-      { to: '/reports/purchases', label: 'Закупки' },
-      { to: '/reports/suppliers', label: 'Поставщики' },
-      { to: '/reports/writeoffs', label: 'Списания' },
-      { to: '/reports/repairs', label: 'Ремонты' },
-      { to: '/reports/warehouses', label: 'Склады' },
-      { to: '/reports/stock-balances', label: 'Остатки' },
-      { to: '/reports/property-cost', label: 'Стоимость имущества' },
-    ],
-  },
-  {
-    title: 'Документы',
-    permission: 'print_forms.use',
-    items: [{ to: '/print-forms', label: 'Печатные формы' }],
-  },
-  {
-    title: 'Администрирование',
-    permission: 'admin.manage',
-    items: [
-      { to: '/admin/users', label: 'Пользователи' },
-      { to: '/admin/print-form-settings', label: 'Реквизиты печатных форм' },
-      { to: '/admin/print-form-templates', label: 'Конструктор макетов' },
-      { to: '/admin/startup-import', label: 'Стартовый импорт' },
+      {
+        to: '/catalogs/organizations',
+        label: 'Организации',
+        icon: '·',
+        permission: 'catalogs.view',
+      },
+      {
+        to: '/catalogs/subdivisions',
+        label: 'Подразделения',
+        icon: '·',
+        permission: 'catalogs.view',
+      },
+      { to: '/catalogs/positions', label: 'Должности', icon: '·', permission: 'catalogs.view' },
+      { to: '/catalogs/warehouses', label: 'Склады', icon: '·', permission: 'catalogs.view' },
+      { to: '/catalogs/suppliers', label: 'Поставщики', icon: '·', permission: 'catalogs.view' },
+      { to: '/catalogs/sizes', label: 'Размеры', icon: '·', permission: 'catalogs.view' },
+      { to: '/admin/users', label: 'Пользователи', icon: '·', permission: 'admin.manage' },
+      {
+        to: '/admin/print-form-settings',
+        label: 'Реквизиты форм',
+        icon: '·',
+        permission: 'admin.manage',
+      },
+      {
+        to: '/admin/print-form-templates',
+        label: 'Шаблоны печати',
+        icon: '·',
+        permission: 'admin.manage',
+      },
+      {
+        to: '/admin/startup-import',
+        label: 'Стартовый импорт',
+        icon: '·',
+        permission: 'admin.manage',
+      },
     ],
   },
 ];
@@ -112,8 +178,5 @@ export function getVisibleNavSections(permissions) {
     items: section.items.filter(
       (item) => !item.permission || permissions.includes(item.permission),
     ),
-  })).filter(
-    (section) =>
-      (!section.permission || permissions.includes(section.permission)) && section.items.length > 0,
-  );
+  })).filter((section) => section.items.length > 0);
 }

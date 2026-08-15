@@ -27,11 +27,11 @@ test('администратор входит, ищет раздел и скач
   await expect(nav.getByText('Ничего не найдено')).toBeVisible();
 });
 
-test('редкие складские операции доступны в разделе «Дополнительно»', async ({ page }) => {
+test('складские операции собраны в одном разделе', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Основное меню' });
-  await nav.getByRole('button', { name: /Дополнительно/i }).click();
-  await expect(nav.getByRole('link', { name: 'Перемещение' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Инвентаризация' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Корректировка' })).toBeVisible();
+  await nav.getByRole('button', { name: /Склад/i }).click();
+  await expect(nav.getByRole('link', { name: /Перемещения/i })).toBeVisible();
+  await expect(nav.getByRole('link', { name: /Инвентаризации/i })).toBeVisible();
+  await expect(nav.getByRole('link', { name: /Корректировки/i })).toBeVisible();
 });

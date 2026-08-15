@@ -7,6 +7,7 @@ import { getVisibleNavSections } from './nav-sections.js';
 import styles from './AppLayout.module.css';
 
 const STORAGE_KEY = 'workwear.nav.openSection';
+const QUICK_PATHS = ['/employees', '/issuance/documents', '/warehouses/balances', '/print-forms'];
 
 function loadStoredSection() {
   try {
@@ -25,14 +26,27 @@ export function AppLayout() {
     [user?.permissions],
   );
   const [navSearch, setNavSearch] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const activeSectionTitle = useMemo(
+  const visibleItems = useMemo(
     () =>
-      visibleSections.find((section) =>
-        section.items.some((item) => item.to !== '/' && location.pathname.startsWith(item.to)),
-      )?.title,
-    [visibleSections, location.pathname],
+      visibleSections.flatMap((section) =>
+        section.items.map((item) => ({ ...item, sectionTitle: section.title })),
+      ),
+    [visibleSections],
   );
+
+  const activeItem = useMemo(
+    () =>
+      [...visibleItems]
+        .sort((left, right) => right.to.length - left.to.length)
+        .find((item) =>
+          item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to),
+        ),
+    [location.pathname, visibleItems],
+  );
+
+  const activeSectionTitle = useMemo(() => activeItem?.sectionTitle, [activeItem]);
   const [sectionChoice, setSectionChoice] = useState(() => ({
     pathname: location.pathname,
     title: activeSectionTitle ?? loadStoredSection(),
@@ -57,6 +71,11 @@ export function AppLayout() {
 
   const isSectionExpanded = (title) => Boolean(navSearch.trim()) || openSection === title;
 
+  const quickItems = useMemo(
+    () => QUICK_PATHS.map((path) => visibleItems.find((item) => item.to === path)).filter(Boolean),
+    [visibleItems],
+  );
+
   const toggleSection = (title) => {
     const next = openSection === title ? null : title;
     setSectionChoice({ pathname: location.pathname, title: next });
@@ -66,8 +85,50 @@ export function AppLayout() {
 
   return (
     <div className={styles.layout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>Учёт спецодежды</div>
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className={styles.backdrop}
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Закрыть меню"
+        />
+      )}
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
+        <div className={styles.brandRow}>
+          <NavLink to="/" className={styles.brand} onClick={() => setMobileMenuOpen(false)}>
+            <span className={styles.brandMark}>РЖД</span>
+            <span>
+              <strong>Учёт спецодежды</strong>
+              <small>Локальная система</small>
+            </span>
+          </NavLink>
+          <button
+            type="button"
+            className={styles.mobileClose}
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Закрыть меню"
+          >
+            ×
+          </button>
+        </div>
+        {quickItems.length > 0 && (
+          <div className={styles.quickNav} aria-label="Быстрый доступ">
+            <span className={styles.quickNavTitle}>Быстрый доступ</span>
+            <div>
+              {quickItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  title={item.label}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        )}
         <div className={styles.navSearchWrap}>
           <span className={styles.navSearchIcon} aria-hidden="true">
             ⌕
@@ -108,6 +169,7 @@ export function AppLayout() {
                     onClick={() => toggleSection(section.title)}
                   >
                     <span className={styles.navSectionChevron}>{expanded ? '▾' : '▸'}</span>
+                    <span className={styles.navSectionIcon}>{section.icon}</span>
                     {section.title}
                   </button>
                 )}
@@ -118,11 +180,13 @@ export function AppLayout() {
                         <NavLink
                           to={item.to}
                           end={item.end}
+                          onClick={() => setMobileMenuOpen(false)}
                           className={({ isActive }) =>
                             `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                           }
                         >
-                          {item.label}
+                          <span className={styles.navItemIcon}>{item.icon}</span>
+                          <span>{item.label}</span>
                         </NavLink>
                       </li>
                     ))}
@@ -141,6 +205,20 @@ export function AppLayout() {
       </aside>
       <div className={styles.content}>
         <header className={styles.topbar}>
+          <div className={styles.pageContext}>
+            <button
+              type="button"
+              className={styles.mobileMenuButton}
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Открыть меню"
+            >
+              ☰
+            </button>
+            <div>
+              {activeSectionTitle && <span>{activeSectionTitle}</span>}
+              <strong>{activeItem?.label ?? 'Рабочий экран'}</strong>
+            </div>
+          </div>
           <div className={styles.userInfo}>
             <span className={styles.userName}>{user?.fullName}</span>
             <span className={styles.userRole}>{user?.role?.name}</span>

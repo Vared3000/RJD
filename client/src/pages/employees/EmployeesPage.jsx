@@ -41,6 +41,7 @@ export function EmployeesPage() {
     <CatalogPage
       resource="employees"
       title="Работники"
+      description="Карточки работников, должности, подразделения и закреплённые ДПО."
       columns={columns}
       fields={employeeFormFields}
       schema={employeeFormSchema}
