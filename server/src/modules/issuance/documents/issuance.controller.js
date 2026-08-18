@@ -1,6 +1,8 @@
 import { issuanceService } from './issuance.service.js';
+import { assemblyOrderService } from './assembly-order.js';
 import { success, paginatedSuccess } from '../../../utils/respond.js';
 import { parsePagination } from '../../../utils/pagination.js';
+import { attachmentHeader } from '../../../utils/attachment-header.js';
 
 export const issuanceController = {
   async list(req, res) {
@@ -78,5 +80,13 @@ export const issuanceController = {
       userId: req.user.sub,
     });
     return success(res, item);
+  },
+
+  async assemblyOrder(req, res) {
+    const file = await assemblyOrderService.generate(req.params.id, req.query.format || 'pdf');
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', attachmentHeader(file.fileName));
+    res.setHeader('Content-Length', file.buffer.length);
+    return res.send(file.buffer);
   },
 };

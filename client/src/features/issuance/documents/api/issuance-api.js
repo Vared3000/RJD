@@ -53,3 +53,20 @@ export const issuanceApi = {
     return data.data;
   },
 };
+
+export async function downloadAssemblyOrder(id, format) {
+  const response = await httpClient.get(`${BASE}/${id}/assembly-order`, {
+    params: { format },
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] ?? '';
+  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ?? `assembly-order.${format}`;
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

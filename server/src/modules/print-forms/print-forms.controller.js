@@ -3,15 +3,7 @@ import { printFormQuerySchema } from './print-forms.validation.js';
 import { monthlyRentalService } from './monthly-rental-act/monthly-rental-act.service.js';
 import { success } from '../../utils/respond.js';
 import { ApiError } from '../../utils/api-error.js';
-
-function attachmentHeader(fileName) {
-  const fallback = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const encoded = encodeURIComponent(fileName).replace(
-    /[!'()*]/g,
-    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
-}
+import { attachmentHeader } from '../../utils/attachment-header.js';
 
 export const printFormsController = {
   async generate(req, res) {

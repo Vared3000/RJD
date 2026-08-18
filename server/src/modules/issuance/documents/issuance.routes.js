@@ -126,6 +126,25 @@ export function createIssuanceRouter() {
 
   /**
    * @openapi
+   * /issuance/documents/{id}/assembly-order:
+   *   get:
+   *     tags: [Выдача/Возврат: Выдача]
+   *     summary: >
+   *       Задание на сборку — рабочий документ для склада со списком текущих
+   *       позиций документа (модель, размер, рост, количество). Не входит в
+   *       каталог официальных печатных форм (/print-forms), не требует
+   *       проведения документа.
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *       - { name: format, in: query, schema: { type: string, enum: [xlsx, pdf], default: pdf } }
+   *     responses:
+   *       200: { description: Файл задания на сборку }
+   *       400: { description: В документе нет позиций }
+   */
+  router.get('/:id/assembly-order', asyncHandler(issuanceController.assemblyOrder));
+
+  /**
+   * @openapi
    * /issuance/documents/{id}/apply-kit:
    *   post:
    *     tags: [Выдача/Возврат: Выдача]

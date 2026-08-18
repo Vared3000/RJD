@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import ExcelJS from 'exceljs';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models } from '../database/models/index.js';
@@ -826,4 +827,116 @@ test('комплект учитывает пол и сезон, выбирает
     [legacyModel.id, 5],
     [maleOnlyModel.id, 6],
   ]);
+});
+
+test('выдача: задание на сборку строится по строкам черновика (Excel/PDF), с кириллическим номером в имени файла', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = `Test AssemblyOrder ${Date.now()}`;
+  const state = {};
+
+  t.after(async () => {
+    if (state.issuanceId) {
+      await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
+    }
+    if (state.employeeId) await models.Employee.destroy({ where: { id: state.employeeId } });
+    if (state.positionId) await models.Position.destroy({ where: { id: state.positionId } });
+    if (state.modelId) await models.NomenclatureModel.destroy({ where: { id: state.modelId } });
+    if (state.sizeId) await models.Size.destroy({ where: { id: state.sizeId } });
+    if (state.warehouseId) await models.Warehouse.destroy({ where: { id: state.warehouseId } });
+    if (state.organizationId) {
+      await models.Organization.destroy({ where: { id: state.organizationId } });
+    }
+  });
+
+  const organization = await models.Organization.create({ name: unique });
+  state.organizationId = organization.id;
+  const warehouse = await models.Warehouse.create({
+    organizationId: organization.id,
+    name: unique,
+  });
+  state.warehouseId = warehouse.id;
+  const size = await models.Size.create({ type: 'clothing', value: unique });
+  state.sizeId = size.id;
+  const model = await models.NomenclatureModel.create({ name: unique, sizeType: 'clothing' });
+  state.modelId = model.id;
+  const position = await models.Position.create({ name: unique });
+  state.positionId = position.id;
+  const employee = await models.Employee.create({
+    organizationId: organization.id,
+    positionId: position.id,
+    fullName: unique,
+    hireDate: '2026-01-01',
+  });
+  state.employeeId = employee.id;
+
+  const draft = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: employee.id,
+    warehouseId: warehouse.id,
+    documentDate: '2026-08-18',
+  });
+  assert.equal(draft.status, 201);
+  assert.match(draft.body.data.number, /^В-\d{6}$/);
+  state.issuanceId = draft.body.data.id;
+
+  // На пустом черновике задание бессмысленно.
+  const emptyAttempt = await auth(
+    agent.get(`/api/v1/issuance/documents/${state.issuanceId}/assembly-order`),
+  ).query({ format: 'pdf' });
+  assert.equal(emptyAttempt.status, 400);
+
+  const addedLine = await auth(
+    agent.post(`/api/v1/issuance/documents/${state.issuanceId}/lines`),
+  ).send({ modelId: model.id, sizeId: size.id, quantity: 3 });
+  assert.equal(addedLine.status, 201);
+
+  const pdf = await auth(agent.get(`/api/v1/issuance/documents/${state.issuanceId}/assembly-order`))
+    .query({ format: 'pdf' })
+    .buffer(true)
+    .parse((res, callback) => {
+      res.setEncoding('binary');
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => callback(null, Buffer.from(data, 'binary')));
+    });
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers['content-type'], 'application/pdf');
+  // Номер документа ("В-000123") содержит кириллицу — заголовок должен уйти
+  // через RFC 5987 (filename*=UTF-8''...), а не упасть на невалидном символе.
+  assert.match(pdf.headers['content-disposition'], /filename\*=UTF-8''assembly-order_/);
+  assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
+
+  const xlsx = await auth(
+    agent.get(`/api/v1/issuance/documents/${state.issuanceId}/assembly-order`),
+  )
+    .query({ format: 'xlsx' })
+    .buffer(true)
+    .parse((res, callback) => {
+      res.setEncoding('binary');
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => callback(null, Buffer.from(data, 'binary')));
+    });
+  assert.equal(xlsx.status, 200);
+  assert.equal(xlsx.body.subarray(0, 2).toString(), 'PK');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(xlsx.body);
+  const sheet = workbook.worksheets[0];
+  assert.equal(sheet.getCell(1, 1).value, 'Задание на сборку');
+  assert.match(String(sheet.getCell(2, 1).value), new RegExp(draft.body.data.number));
+  assert.deepEqual(
+    [1, 2, 3, 4].map((column) => sheet.getCell(4, column).value),
+    ['Модель', 'Размер', 'Рост', 'Количество'],
+  );
+  assert.equal(sheet.getCell(5, 1).value, unique);
+  assert.equal(sheet.getCell(5, 4).value, 3);
+  assert.equal(sheet.getCell(6, 4).value, 3, 'строка итогов суммирует количество');
 });

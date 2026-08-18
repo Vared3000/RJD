@@ -19,6 +19,7 @@ import { Button } from '../../shared/ui/Button.jsx';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
 import { BlockingDocumentsNotice } from '../../shared/ui/BlockingDocumentsNotice.jsx';
 import { downloadPrintForm } from '../../features/print-forms/api/print-forms-api.js';
+import { downloadAssemblyOrder } from '../../features/issuance/documents/api/issuance-api.js';
 import {
   mutationErrorMessage as errorMessage,
   apiErrorDetails,
@@ -262,6 +263,21 @@ export function IssuanceEditorPage() {
     }
   }
 
+  // Задание на сборку — рабочий документ для склада: что найти и подготовить
+  // под текущий набор позиций черновика, ещё до проведения (экземпляры на
+  // черновике не подобраны — это происходит только при "Провести").
+  async function downloadAssembly() {
+    setPrintPending('assembly');
+    setPrintError('');
+    try {
+      await downloadAssemblyOrder(id, 'pdf');
+    } catch (requestError) {
+      setPrintError(await parseBlobApiError(requestError));
+    } finally {
+      setPrintPending('');
+    }
+  }
+
   const reviseBlockingDocuments = apiErrorDetails(revise.error)?.blockingDocuments ?? [];
 
   return (
@@ -295,6 +311,13 @@ export function IssuanceEditorPage() {
               disabled={previewKit.isPending}
             >
               Зимний комплект
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={downloadAssembly}
+              disabled={lines.length === 0 || Boolean(printPending)}
+            >
+              {printPending === 'assembly' ? 'Формирование…' : 'Отдать в сборку'}
             </Button>
             <Button variant="danger" onClick={handleDeleteDocument} disabled={remove.isPending}>
               Удалить черновик
