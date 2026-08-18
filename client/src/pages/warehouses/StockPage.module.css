@@ -7,3 +7,17 @@
 .filters > * {
   flex: 1;
 }
+
+.sortButton {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--color-primary);
+}

@@ -119,11 +119,6 @@ export const employeesService = {
 
   async getProperty(employeeId) {
     const instances = await employeeRelationsRepository.findIssuedProperty(employeeId);
-    const totalCost = instances.reduce((sum, instance) => sum + Number(instance.cost ?? 0), 0);
-    const totalEmployeeCost = instances.reduce(
-      (sum, instance) => sum + Number(instance.employeeCost ?? 0),
-      0,
-    );
-    return { instances, totalCost, totalEmployeeCost };
+    return { instances };
   },
 };

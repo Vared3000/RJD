@@ -36,7 +36,7 @@ export const reportsRepository = {
         {
           model: ReceivingLine,
           as: 'lines',
-          attributes: ['quantity', 'purchasePrice', 'employeeCost'],
+          attributes: ['quantity'],
         },
       ],
       order: [['documentDate', 'ASC']],
@@ -54,7 +54,6 @@ export const reportsRepository = {
           model: WriteoffLine,
           as: 'lines',
           attributes: ['reason'],
-          include: [{ model: Instance, as: 'instance', attributes: ['id', 'cost'] }],
         },
       ],
       order: [['documentDate', 'ASC']],
@@ -94,7 +93,7 @@ export const reportsRepository = {
 
     return Instance.findAll({
       where: { status: 'issued', archivedAt: null },
-      attributes: ['id', 'employeeId', 'cost', 'employeeCost'],
+      attributes: ['id', 'employeeId'],
       include: [
         {
           model: Employee,

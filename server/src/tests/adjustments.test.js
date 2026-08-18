@@ -194,7 +194,7 @@ test('корректировка: излишек/недостача/переме
   const surplusInstance = await models.Instance.findByPk(surplusPostedLine.instanceId);
   assert.equal(surplusInstance.status, 'in_stock');
   assert.equal(surplusInstance.warehouseId, warehouseAId);
-  assert.equal(Number(surplusInstance.cost), 500);
+  assert.equal(surplusInstance.cost, undefined);
 
   const movements = await models.StockMovement.findAll({
     where: { documentId: adjustmentId, documentType: 'stock_adjustment' },

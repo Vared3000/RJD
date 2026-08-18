@@ -134,8 +134,8 @@ test('поступление: черновик -> строки -> проведе
   for (const instance of instances) {
     assert.equal(instance.warehouseId, warehouse.body.data.id);
     assert.equal(instance.status, 'in_stock');
-    assert.equal(Number(instance.cost), 1500);
-    assert.equal(Number(instance.employeeCost), 500);
+    assert.equal(instance.cost, undefined);
+    assert.equal(instance.employeeCost, undefined);
     assert.equal(instance.batchId, posted.body.data.batchId);
   }
 

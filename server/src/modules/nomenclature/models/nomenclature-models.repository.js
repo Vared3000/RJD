@@ -3,19 +3,6 @@ import { createReferenceRepository } from '../../catalogs/reference-crud.factory
 
 export const nomenclatureModelsRepository = createReferenceRepository(models.NomenclatureModel, {
   searchFields: ['name', 'article', 'description'],
-  include: [
-    {
-      model: models.NomenclaturePrice,
-      as: 'prices',
-      separate: true,
-      limit: 1,
-      order: [
-        ['effectiveDate', 'DESC'],
-        ['createdAt', 'DESC'],
-      ],
-      include: [{ model: models.Dpo, as: 'dpo', attributes: ['id', 'name'] }],
-    },
-  ],
 });
 
 export const nomenclaturePricesRepository = {

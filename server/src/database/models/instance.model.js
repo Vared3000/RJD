@@ -34,6 +34,9 @@ export function defineInstance(sequelize) {
       employeeCost: { type: DataTypes.DECIMAL(14, 4), allowNull: true, field: 'employee_cost' },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
-    { tableName: 'instances' },
+    {
+      tableName: 'instances',
+      defaultScope: { attributes: { exclude: ['cost', 'employeeCost'] } },
+    },
   );
 }

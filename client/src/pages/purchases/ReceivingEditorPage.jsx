@@ -33,15 +33,7 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
-const LINE_DRAFT_FIELDS = [
-  'modelId',
-  'sizeId',
-  'heightSizeId',
-  'quantity',
-  'purchasePrice',
-  'employeeCost',
-  'vatRate',
-];
+const LINE_DRAFT_FIELDS = ['modelId', 'sizeId', 'heightSizeId', 'quantity'];
 
 function byId(items) {
   return new Map((items ?? []).map((item) => [item.id, item]));
@@ -85,8 +77,6 @@ export function ReceivingEditorPage() {
 
   const isDraft = receivingDocument.status === 'draft';
   const lines = revising ? (draftLines ?? []) : (receivingDocument.lines ?? []);
-  const totalSum = lines.reduce((sum, line) => sum + line.quantity * Number(line.purchasePrice), 0);
-
   function lineDisplay(line) {
     if (!revising) {
       return {
@@ -348,17 +338,13 @@ export function ReceivingEditorPage() {
               <th>Размер</th>
               <th>Рост</th>
               <th>Кол-во</th>
-              <th>Цена закупки</th>
-              <th>Для работника</th>
-              <th>НДС, %</th>
-              <th>Сумма</th>
               {canEdit && <th aria-label="Действия" />}
             </tr>
           </thead>
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={9}>
+                <td className={catalogStyles.hint} colSpan={canEdit ? 5 : 4}>
                   Позиций пока нет
                 </td>
               </tr>
@@ -371,10 +357,6 @@ export function ReceivingEditorPage() {
                   <td>{display.sizeLabel}</td>
                   <td>{display.heightLabel}</td>
                   <td>{line.quantity}</td>
-                  <td>{line.purchasePrice} ₽</td>
-                  <td>{line.employeeCost != null ? `${line.employeeCost} ₽` : '—'}</td>
-                  <td>{line.vatRate != null ? `${line.vatRate}%` : '—'}</td>
-                  <td>{(line.quantity * Number(line.purchasePrice)).toFixed(2)} ₽</td>
                   {canEdit && (
                     <td className={catalogStyles.actions}>
                       <button
@@ -398,17 +380,6 @@ export function ReceivingEditorPage() {
               );
             })}
           </tbody>
-          {lines.length > 0 && (
-            <tfoot>
-              <tr>
-                <td colSpan={7} className={styles.totalLabel}>
-                  Итого
-                </td>
-                <td>{totalSum.toFixed(2)} ₽</td>
-                {canEdit && <td />}
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
 

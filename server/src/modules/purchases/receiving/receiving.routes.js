@@ -92,7 +92,7 @@ export function createReceivingRouter() {
    *         application/json:
    *           schema:
    *             type: object
-   *             description: modelId, sizeId, quantity, purchasePrice (обязательно), employeeCost, vatRate
+   *             description: modelId, sizeId, heightSizeId, quantity
    *     responses:
    *       201: { description: Позиция добавлена, возвращён документ целиком }
    */

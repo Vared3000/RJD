@@ -22,6 +22,8 @@ const schema = z
       z.enum(['clothing', 'height', 'shoe', 'headwear', 'belt', 'gloves']).optional(),
     ),
     requiresHeightSize: z.boolean().default(false),
+    rentalPrice: z.coerce.number().nonnegative('Цена аренды не может быть отрицательной'),
+    rentalVatRate: z.coerce.number().min(0).max(100),
     description: z.string().max(1000).optional().or(z.literal('')),
   })
   .refine((data) => !data.requiresHeightSize || data.sizeType === 'clothing', {
@@ -44,15 +46,11 @@ const columns = [
     render: (item) => (item.requiresHeightSize ? 'Да' : 'Нет'),
   },
   {
-    key: 'latestPrice',
-    label: 'Последняя цена без НДС',
-    render: (item) => {
-      const price = item.prices?.[0];
-      if (!price) return '—';
-      const dpo = price.dpo?.name ? ` · ${price.dpo.name}` : '';
-      return `${Number(price.priceWithoutVat).toFixed(4)} ₽${dpo}`;
-    },
+    key: 'rentalPrice',
+    label: 'Цена аренды без НДС',
+    render: (item) => `${Number(item.rentalPrice ?? 0).toLocaleString('ru-RU')} ₽`,
   },
+  { key: 'rentalVatRate', label: 'НДС', render: (item) => `${Number(item.rentalVatRate ?? 5)}%` },
 ];
 
 const fields = [
@@ -71,6 +69,13 @@ const fields = [
     type: 'checkbox',
     defaultValue: false,
   },
+  {
+    name: 'rentalPrice',
+    label: 'Цена аренды за месяц без НДС',
+    type: 'number',
+    defaultValue: 0,
+  },
+  { name: 'rentalVatRate', label: 'НДС для аренды, %', type: 'number', defaultValue: 5 },
   { name: 'description', label: 'Описание', type: 'text' },
 ];
 

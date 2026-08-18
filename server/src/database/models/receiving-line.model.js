@@ -25,6 +25,9 @@ export function defineReceivingLine(sequelize) {
         field: 'sort_order',
       },
     },
-    { tableName: 'receiving_lines' },
+    {
+      tableName: 'receiving_lines',
+      defaultScope: { attributes: { exclude: ['purchasePrice', 'employeeCost', 'vatRate'] } },
+    },
   );
 }

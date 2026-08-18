@@ -36,6 +36,11 @@ test('печатная форма Приложение 1.7: историческ
   await workbook.xlsx.load(xlsx.body);
   const sheet = workbook.worksheets[0];
   assert.equal(sheet.getColumn(8).hidden, false, 'колонка цены должна быть видимой');
+  assert.equal(
+    sheet.getCell('G8').value,
+    2,
+    'две одинаковые выданные вещи должны давать количество 2',
+  );
   assert.equal(sheet.getCell('H8').fill?.pattern, 'solid');
   assert.match(sheet.getCell('H8').numFmt, /0\.0000/);
   const cellValues = [];
@@ -84,7 +89,7 @@ test('печатная форма Приложение 1.7: историческ
   historicalWorkbook.worksheets[0].getColumn(8).eachCell((cell) => {
     if (typeof cell.value === 'number') historicalValues.push(cell.value);
   });
-  assert.equal(historicalValues.filter((value) => value === 1000).length, 2);
+  assert.equal(historicalValues.filter((value) => value === 1000).length, 1);
   assert.equal(historicalValues.filter((value) => value === 2000).length, 1);
 
   // Архивная копия уже живой выдачи (тот же работник/модель/дата/количество)
@@ -145,7 +150,7 @@ test('печатная форма Приложение 1.7: историческ
   });
   assert.equal(
     mixedModels.filter((value) => value === unique).length,
-    3,
+    2,
     'архивная копия живой выдачи не должна создавать дополнительную строку',
   );
   assert.ok(mixedModels.includes(`${unique} смешанный архив`));

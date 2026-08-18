@@ -3,7 +3,6 @@ import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { usePurchasesReport } from '../../features/reports/model/use-reports-queries.js';
-import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -16,8 +15,6 @@ const columns = [
   { key: 'supplierName', label: 'Поставщик' },
   { key: 'warehouseName', label: 'Склад' },
   { key: 'quantity', label: 'Количество' },
-  { key: 'cost', label: 'Стоимость', render: (r) => formatMoney(r.cost) },
-  { key: 'employeeCost', label: 'Для работника', render: (r) => formatMoney(r.employeeCost) },
 ];
 
 const totalColumns = [
@@ -26,8 +23,6 @@ const totalColumns = [
   { key: 'blank2', label: '', render: () => '' },
   { key: 'blank3', label: '', render: () => '' },
   { key: 'quantity', label: '', render: (t) => t.quantity },
-  { key: 'cost', label: '', render: (t) => formatMoney(t.cost) },
-  { key: 'employeeCost', label: '', render: (t) => formatMoney(t.employeeCost) },
 ];
 
 export function ReportPurchasesPage() {
@@ -45,7 +40,7 @@ export function ReportPurchasesPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Отчёт: Закупки</h1>
+        <h1 className={styles.title}>Отчёт: Поступления</h1>
       </div>
 
       <div className={pageStyles.filters}>

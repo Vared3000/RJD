@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { env } from '../config/env.js';
+import { loadUpdContext, buildUpd } from '../modules/print-forms/upd/upd.builder.js';
 import {
   binaryParser,
   setupApp,
@@ -22,6 +23,10 @@ test('печатная форма УПД: только PDF, fallback на ФПУ
   t.after(() => cleanupFixtureState(state));
 
   const query = { dpoId: state.dpoId, from: '2026-07-01', to: '2026-07-31' };
+
+  const liveUpd = buildUpd(await loadUpdContext(query));
+  assert.equal(liveUpd.rows.length, 1);
+  assert.equal(liveUpd.rows[0].quantity, 2, 'УПД должен учитывать обе выданные вещи');
 
   const xlsxRejected = await auth(agent.get('/api/v1/print-forms/upd')).query({
     ...query,

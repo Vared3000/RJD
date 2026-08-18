@@ -17,7 +17,6 @@ const surplusLineSchema = z.object({
     emptyToUndefined,
     z.enum(['new', 'good', 'worn', 'damaged']).optional(),
   ),
-  cost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
   reason,
   note: optionalNote,
 });
@@ -158,12 +157,6 @@ export const lineFields = [
     defaultValue: 'good',
     hiddenWhen: (context) => !['surplus', 'condition'].includes(type(context)),
     required: true,
-  },
-  {
-    name: 'cost',
-    label: 'Стоимость',
-    type: 'number',
-    hiddenWhen: (context) => type(context) !== 'surplus',
   },
   { name: 'reason', label: 'Основание', type: 'text', required: true },
   { name: 'note', label: 'Примечание', type: 'text' },

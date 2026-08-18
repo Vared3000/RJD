@@ -114,7 +114,7 @@ test('поступление: чистая редакция без зависи�
   assert.equal(newInstances.length, 3, 'должно быть создано ровно 3 новых экземпляра');
   state.instanceIds.push(...newInstances.map((instance) => instance.id));
   for (const instance of newInstances) {
-    assert.equal(Number(instance.cost), 2000);
+    assert.equal(instance.cost, undefined);
     assert.equal(instance.status, 'in_stock');
   }
 

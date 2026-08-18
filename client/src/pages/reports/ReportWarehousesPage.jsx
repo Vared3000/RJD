@@ -3,7 +3,6 @@ import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useWarehousesReport } from '../../features/reports/model/use-reports-queries.js';
-import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -15,7 +14,6 @@ const columns = [
   { key: 'incoming', label: 'Поступления (движений)' },
   { key: 'outgoing', label: 'Выбытия (движений)' },
   { key: 'balanceQuantity', label: 'Остаток, шт.' },
-  { key: 'balanceCost', label: 'Остаток, стоимость', render: (r) => formatMoney(r.balanceCost) },
 ];
 
 const totalColumns = [
@@ -23,7 +21,6 @@ const totalColumns = [
   { key: 'incoming', label: '', render: (t) => t.incoming },
   { key: 'outgoing', label: '', render: (t) => t.outgoing },
   { key: 'balanceQuantity', label: '', render: (t) => t.balanceQuantity },
-  { key: 'balanceCost', label: '', render: (t) => formatMoney(t.balanceCost) },
 ];
 
 export function ReportWarehousesPage() {

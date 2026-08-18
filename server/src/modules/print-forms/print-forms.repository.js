@@ -111,7 +111,7 @@ export const printFormsRepository = {
         {
           model: models.Instance,
           as: 'instance',
-          attributes: ['id', 'modelId', 'inventoryNumber', 'cost', 'employeeCost'],
+          attributes: ['id', 'modelId', 'sizeId', 'heightSizeId', 'inventoryNumber'],
           include: [
             {
               model: models.NomenclatureModel,

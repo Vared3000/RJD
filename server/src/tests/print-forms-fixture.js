@@ -130,6 +130,8 @@ export async function setupBaseFixture({ agent, auth, unique }) {
     name: unique,
     sizeType: 'clothing',
     unit: 'шт.',
+    rentalPrice: 1000,
+    rentalVatRate: 5,
   });
   state.modelId = model.body.data.id;
   const position = await auth(agent.post('/api/v1/positions')).send({ name: unique });
@@ -246,6 +248,10 @@ export async function addSecondPriceAndIssuance({ agent, auth, state, model }) {
     vatRate: 5,
     priceWithVat: 2100,
   });
+  await models.NomenclatureModel.update(
+    { rentalPrice: 2000, rentalVatRate: 5 },
+    { where: { id: model.id } },
+  );
   const secondIssuance = await auth(agent.post('/api/v1/issuance/documents')).send({
     employeeId: state.employeeId,
     warehouseId: state.warehouseId,

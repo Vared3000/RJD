@@ -19,6 +19,18 @@ export function defineNomenclatureModel(sequelize) {
         defaultValue: false,
         field: 'requires_height_size',
       },
+      rentalPrice: {
+        type: DataTypes.DECIMAL(14, 4),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'rental_price',
+      },
+      rentalVatRate: {
+        type: DataTypes.DECIMAL(7, 4),
+        allowNull: false,
+        defaultValue: 5,
+        field: 'rental_vat_rate',
+      },
       description: { type: DataTypes.STRING(1000), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },

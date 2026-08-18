@@ -103,10 +103,6 @@ export function InstanceCardPage() {
           <dt>Местонахождение</dt>
           <dd>{locationText(instance.warehouse, instance.employee)}</dd>
         </div>
-        <div>
-          <dt>Стоимость</dt>
-          <dd>{instance.cost != null ? `${instance.cost} ₽` : '—'}</dd>
-        </div>
       </dl>
 
       <section>

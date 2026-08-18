@@ -24,28 +24,11 @@ async function createPricedFixture(auth, agent, unique) {
   const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: unique,
     sizeType: 'clothing',
+    rentalPrice: 1000,
+    rentalVatRate: 5,
   });
   const size = await auth(agent.post('/api/v1/sizes')).send({ type: 'clothing', value: unique });
-
-  const sourceRecord = await models.SourceImportRecord.create({
-    sourceKey: `issuance-revise-${unique}`,
-    sourceFile: 'test.xlsx',
-    fileHash: '0'.repeat(64),
-    recordType: 'price',
-    sheetName: 'Тест',
-    rowNumber: 1,
-    payload: { test: true },
-  });
-  const price = await models.NomenclaturePrice.create({
-    modelId: model.body.data.id,
-    dpoId: null,
-    sourceRecordId: sourceRecord.id,
-    effectiveDate: '2026-01-01',
-    priceWithoutVat: 1000,
-    vatRate: 5,
-  });
-
-  return { org, warehouse, supplier, model, size, sourceRecord, price };
+  return { org, warehouse, supplier, model, size };
 }
 
 test('выдача: чистая редакция меняет работника/дату и пересчитывает цену без дублей движений', async (t) => {

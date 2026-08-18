@@ -42,8 +42,6 @@ const schema = z.object({
   inventoryNumber: z.string().max(64).optional().or(z.literal('')),
   status: z.enum(['in_stock', 'issued', 'laundry', 'repair', 'write_off']).default('in_stock'),
   condition: z.enum(['new', 'good', 'worn', 'damaged']).default('new'),
-  cost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
-  employeeCost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
 });
 
 const columns = [
@@ -69,11 +67,6 @@ const columns = [
     key: 'condition',
     label: 'Состояние',
     render: (item) => CONDITION_LABELS[item.condition] ?? item.condition,
-  },
-  {
-    key: 'cost',
-    label: 'Стоимость',
-    render: (item) => (item.cost != null ? `${item.cost} ₽` : '—'),
   },
 ];
 
@@ -166,8 +159,6 @@ const fields = [
     options: Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label })),
     defaultValue: 'new',
   },
-  { name: 'cost', label: 'Стоимость', type: 'number' },
-  { name: 'employeeCost', label: 'Стоимость для работника', type: 'number' },
 ];
 
 export function InstancesPage() {

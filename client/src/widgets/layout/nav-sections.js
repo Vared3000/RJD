@@ -92,7 +92,7 @@ export const NAV_SECTIONS = [
       { to: '/reports/dpo', label: 'Отчёт по ДПО', icon: '·', permission: 'reports.view' },
       {
         to: '/reports/purchases',
-        label: 'Отчёт по закупкам',
+        label: 'Отчёт по поступлениям',
         icon: '·',
         permission: 'reports.view',
       },
@@ -123,7 +123,7 @@ export const NAV_SECTIONS = [
       },
       {
         to: '/reports/property-cost',
-        label: 'Стоимость имущества',
+        label: 'Имущество у работников',
         icon: '·',
         permission: 'reports.view',
       },

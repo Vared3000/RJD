@@ -20,7 +20,9 @@ export function buildUpd(context) {
   let paymentDocumentNumber = null;
   let paymentDocumentDate = null;
   let documentDate = context.toText;
-  if (context.importedUpd.length > 0) {
+  // Проведённые выдачи — источник истины. Архивный УПД используется только
+  // когда за выбранный период в системе ещё нет живых документов выдачи.
+  if (context.documents.length === 0 && context.importedUpd.length > 0) {
     const groups = new Map();
     for (const source of context.importedUpd) {
       const candidate = source.payload;

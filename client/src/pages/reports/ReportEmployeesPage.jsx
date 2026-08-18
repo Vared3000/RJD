@@ -3,7 +3,6 @@ import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useEmployeesReport } from '../../features/reports/model/use-reports-queries.js';
-import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -17,7 +16,7 @@ const columns = [
   { key: 'terminationDate', label: 'Дата увольнения', render: (r) => r.terminationDate ?? '—' },
   { key: 'tenureDays', label: 'Стаж, дн.' },
   { key: 'coverageDaysInPeriod', label: 'Дни обеспечения за период' },
-  { key: 'propertyCost', label: 'Стоимость имущества', render: (r) => formatMoney(r.propertyCost) },
+  { key: 'propertyItemsCount', label: 'Выдано предметов' },
 ];
 
 const totalColumns = [
@@ -27,7 +26,7 @@ const totalColumns = [
   { key: 'terminationDate', label: '', render: () => '' },
   { key: 'tenureDays', label: '', render: () => '' },
   { key: 'coverageDaysInPeriod', label: '', render: (t) => t.coverageDaysInPeriod },
-  { key: 'propertyCost', label: '', render: (t) => formatMoney(t.propertyCost) },
+  { key: 'propertyItemsCount', label: '', render: (t) => t.propertyItemsCount },
 ];
 
 export function ReportEmployeesPage() {

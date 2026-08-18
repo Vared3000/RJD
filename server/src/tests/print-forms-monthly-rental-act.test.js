@@ -82,6 +82,10 @@ test('ежемесячный акт аренды: предпросмотр, фи
     { priceWithoutVat: 1234, priceWithVat: 1295.7 },
     { where: { id: secondPrice.id } },
   );
+  await models.NomenclatureModel.update(
+    { rentalPrice: 1234, rentalVatRate: 5 },
+    { where: { id: state.modelId } },
+  );
   const frozenPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
     dpoId: state.dpoId,
     month: '2026-08',

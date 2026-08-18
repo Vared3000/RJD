@@ -94,7 +94,7 @@ export function createReportsRouter() {
     '/reports/property-cost': {
       get: {
         tags: ['Отчёты'],
-        summary: 'Стоимость выданного имущества по работникам',
+        summary: 'Выданное имущество по работникам',
         parameters: [
           { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } },
           { name: 'organizationId', in: 'query', schema: { type: 'string', format: 'uuid' } },
@@ -106,7 +106,7 @@ export function createReportsRouter() {
     '/reports/purchases': {
       get: {
         tags: ['Отчёты'],
-        summary: 'Закупки за период (список документов Поступления)',
+        summary: 'Поступления за период (список документов)',
         parameters: [
           ...periodParams,
           { name: 'supplierId', in: 'query', schema: { type: 'string', format: 'uuid' } },
@@ -118,7 +118,7 @@ export function createReportsRouter() {
     '/reports/suppliers': {
       get: {
         tags: ['Отчёты'],
-        summary: 'Закупки за период, сгруппированные по поставщику',
+        summary: 'Поступления за период, сгруппированные по поставщику',
         parameters: periodParams,
         responses: { 200: { description: 'Список по поставщикам + итоги' } },
       },
@@ -160,7 +160,7 @@ export function createReportsRouter() {
       get: {
         tags: ['Отчёты'],
         summary:
-          'Отчёт по работникам: стаж, стоимость имущества, фактические дни ' +
+          'Отчёт по работникам: стаж, количество имущества, фактические дни ' +
           'обеспечения за период',
         parameters: [
           ...periodParams,
@@ -175,7 +175,7 @@ export function createReportsRouter() {
     '/reports/dpo': {
       get: {
         tags: ['Отчёты'],
-        summary: 'Отчёт по ДПО: работники, стоимость имущества, выдано за период, дни обеспечения',
+        summary: 'Отчёт по ДПО: работники, количество имущества, выдано за период, дни обеспечения',
         parameters: [
           ...periodParams,
           { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } },

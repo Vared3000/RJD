@@ -21,9 +21,6 @@ export const lineSchema = z.object({
   sizeId: optionalUuid,
   heightSizeId: optionalUuid,
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
-  purchasePrice: z.coerce.number().nonnegative('Цена не может быть отрицательной'),
-  employeeCost: z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional()),
-  vatRate: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(100).optional()),
 });
 
 const SIZE_TYPE_LABELS = {
@@ -91,7 +88,4 @@ export const lineFields = [
     hint: 'Рост хранится отдельно от размера одежды.',
   },
   { name: 'quantity', label: 'Количество', type: 'number', defaultValue: 1, required: true },
-  { name: 'purchasePrice', label: 'Закупочная цена', type: 'number', required: true },
-  { name: 'employeeCost', label: 'Стоимость для работника', type: 'number' },
-  { name: 'vatRate', label: 'НДС, %', type: 'number', defaultValue: 20 },
 ];

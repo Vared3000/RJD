@@ -36,6 +36,11 @@ test('печатная форма Приложение 1.5: живые стро�
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(xlsx.body);
   const sheet = workbook.worksheets[0];
+  assert.equal(
+    sheet.getCell('E7').value,
+    2,
+    'две одинаковые выданные вещи должны давать количество 2',
+  );
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
   let hasFormula = false;

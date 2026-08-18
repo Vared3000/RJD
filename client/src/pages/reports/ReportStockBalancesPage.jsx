@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useStockBalancesReport } from '../../features/reports/model/use-reports-queries.js';
-import { formatMoney } from '../../features/reports/model/format-money.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
@@ -28,7 +27,6 @@ const columns = [
   { key: 'size', label: 'Размер', render: (r) => formatSize(r.size) },
   { key: 'heightSize', label: 'Рост', render: (r) => r.heightSize?.value ?? '—' },
   { key: 'quantity', label: 'Количество' },
-  { key: 'totalCost', label: 'Стоимость', render: (r) => formatMoney(r.totalCost) },
 ];
 
 const totalColumns = [
@@ -37,7 +35,6 @@ const totalColumns = [
   { key: 'blank2', label: '', render: () => '' },
   { key: 'blank3', label: '', render: () => '' },
   { key: 'quantity', label: '', render: (t) => t.quantity },
-  { key: 'totalCost', label: '', render: (t) => formatMoney(t.totalCost) },
 ];
 
 export function ReportStockBalancesPage() {

@@ -80,7 +80,16 @@ function addDatabaseChecks(parsed, existing) {
       (row.article && modelsByArticle.get(lower(row.article))) || modelsByName.get(lower(row.name));
     if (!found) continue;
     if (
-      same(found, row, ['name', 'article', 'unit', 'sizeType', 'requiresHeightSize', 'description'])
+      same(found, row, [
+        'name',
+        'article',
+        'unit',
+        'sizeType',
+        'requiresHeightSize',
+        'description',
+      ]) &&
+      Number(found.rentalPrice) === Number(row.rentalPrice) &&
+      Number(found.rentalVatRate) === Number(row.rentalVatRate)
     ) {
       databaseDuplicates.models += 1;
       protocol.push({
@@ -229,8 +238,8 @@ async function createOpeningBalances(payload, context, transaction) {
         sizeId: size?.id ?? null,
         heightSizeId: heightSize?.id ?? null,
         quantity: row.quantity,
-        purchasePrice: row.purchasePrice,
-        employeeCost: row.employeeCost,
+        purchasePrice: 0,
+        employeeCost: null,
         vatRate: 0,
         sortOrder,
       });
@@ -251,8 +260,8 @@ async function createOpeningBalances(payload, context, transaction) {
         barcode: null,
         status: 'in_stock',
         condition: spec.row.condition,
-        cost: spec.row.purchasePrice,
-        employeeCost: spec.row.employeeCost,
+        cost: null,
+        employeeCost: null,
       })),
       { transaction, returning: true },
     );

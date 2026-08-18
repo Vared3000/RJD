@@ -20,7 +20,6 @@ export const stockRepository = {
         'sizeId',
         'heightSizeId',
         [fn('COUNT', col('id')), 'quantity'],
-        [fn('SUM', col('cost')), 'totalCost'],
       ],
       where,
       group: ['warehouseId', 'modelId', 'sizeId', 'heightSizeId'],

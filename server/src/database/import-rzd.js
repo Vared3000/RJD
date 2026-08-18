@@ -546,6 +546,19 @@ async function importNormalized(data, sourceIdByKey, transaction) {
       ],
     });
   }
+  const latestRentalPriceByModel = new Map();
+  for (const price of priceRows) {
+    const current = latestRentalPriceByModel.get(price.modelId);
+    if (!current || String(price.effectiveDate ?? '') >= String(current.effectiveDate ?? '')) {
+      latestRentalPriceByModel.set(price.modelId, price);
+    }
+  }
+  for (const [modelId, price] of latestRentalPriceByModel) {
+    await models.NomenclatureModel.update(
+      { rentalPrice: price.priceWithoutVat, rentalVatRate: price.vatRate ?? 5 },
+      { where: { id: modelId }, transaction },
+    );
+  }
 
   return {
     dpos: dpoByName.size,

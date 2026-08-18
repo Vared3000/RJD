@@ -32,7 +32,14 @@ async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
   if (!model) throw ApiError.badRequest('Модель номенклатуры не найдена или архивирована');
 
   if (!model.sizeType) {
-    return { ...data, sizeId: null, heightSizeId: null };
+    return {
+      ...data,
+      purchasePrice: 0,
+      employeeCost: null,
+      vatRate: null,
+      sizeId: null,
+      heightSizeId: null,
+    };
   }
 
   if (!sizeId) {
@@ -51,10 +58,17 @@ async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
     if (!heightSize || heightSize.type !== 'height') {
       throw ApiError.badRequest('Рост не найден, архивирован или имеет другой тип');
     }
-    return { ...data, sizeId, heightSizeId };
+    return { ...data, purchasePrice: 0, employeeCost: null, vatRate: null, sizeId, heightSizeId };
   }
 
-  return { ...data, sizeId, heightSizeId: null };
+  return {
+    ...data,
+    purchasePrice: 0,
+    employeeCost: null,
+    vatRate: null,
+    sizeId,
+    heightSizeId: null,
+  };
 }
 
 // Создаёт экземпляры, движения и события для готовой партии (переиспользуется
@@ -80,8 +94,8 @@ async function applyReceivingSideEffects(document, lines, batch, { userId, trans
         barcode: inventoryNumber,
         status: 'in_stock',
         condition: 'new',
-        cost: line.purchasePrice,
-        employeeCost: line.employeeCost,
+        cost: null,
+        employeeCost: null,
       });
     }
   }

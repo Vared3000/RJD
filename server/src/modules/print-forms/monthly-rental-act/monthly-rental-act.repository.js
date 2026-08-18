@@ -21,12 +21,9 @@ export const monthlyRentalRepository = {
               instance.id AS "instanceId", instance.inventory_number AS "inventoryNumber",
               model.id AS "modelId", model.name AS "modelName", model.unit AS "unit",
               size.value AS "sizeValue", height_size.value AS "heightValue",
-              price.id AS "priceSourceId", price.effective_date AS "priceEffectiveDate",
-              price.price_without_vat AS "monthlyPriceWithoutVat",
-              COALESCE(price.vat_rate,
-                CASE WHEN price.price_with_vat IS NOT NULL AND price.price_without_vat > 0
-                  THEN (price.price_with_vat / price.price_without_vat - 1) * 100 ELSE 5 END
-              ) AS "vatRate"
+              NULL::uuid AS "priceSourceId", NULL::date AS "priceEffectiveDate",
+              model.rental_price AS "monthlyPriceWithoutVat",
+              model.rental_vat_rate AS "vatRate"
        FROM instance_events event
        JOIN issuance_documents document
          ON document.id = event.document_id AND document.status = 'posted'
@@ -51,16 +48,6 @@ export const monthlyRentalRepository = {
          ORDER BY next_event.occurred_at, next_event.created_at
          LIMIT 1
        ) departure ON TRUE
-       LEFT JOIN LATERAL (
-         SELECT candidate.*
-         FROM nomenclature_prices candidate
-         WHERE candidate.model_id = instance.model_id
-           AND (candidate.dpo_id = :dpoId OR candidate.dpo_id IS NULL)
-           AND (candidate.effective_date IS NULL OR candidate.effective_date <= DATE :monthEnd)
-         ORDER BY (candidate.dpo_id = :dpoId) DESC,
-                  candidate.effective_date DESC NULLS LAST, candidate.created_at DESC
-         LIMIT 1
-       ) price ON TRUE
        WHERE event.event_type = 'issuance'
          AND event.document_type = 'issuance'
          AND event.to_employee_id IS NOT NULL

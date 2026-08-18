@@ -3,7 +3,6 @@ import { PeriodFilter } from '../../features/reports/ui/PeriodFilter.jsx';
 import { ReportTable } from '../../features/reports/ui/ReportTable.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import { useWriteoffsReport } from '../../features/reports/model/use-reports-queries.js';
-import { formatMoney } from '../../features/reports/model/format-money.js';
 import { resolvePreset } from '../../features/reports/model/period-presets.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -16,7 +15,6 @@ const columns = [
   { key: 'warehouseName', label: 'Склад' },
   { key: 'itemsCount', label: 'Позиций' },
   { key: 'reasons', label: 'Причины', render: (r) => r.reasons.join(', ') },
-  { key: 'cost', label: 'Стоимость', render: (r) => formatMoney(r.cost) },
 ];
 
 const totalColumns = [
@@ -25,7 +23,6 @@ const totalColumns = [
   { key: 'blank2', label: '', render: () => '' },
   { key: 'itemsCount', label: '', render: (t) => t.itemsCount },
   { key: 'blank3', label: '', render: () => '' },
-  { key: 'cost', label: '', render: (t) => formatMoney(t.cost) },
 ];
 
 export function ReportWriteoffsPage() {

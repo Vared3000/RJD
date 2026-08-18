@@ -5,7 +5,7 @@ function uniqueIds(values) {
 }
 
 export const stockService = {
-  async getBalances(filters) {
+  async getBalances(filters = {}) {
     const groups = await stockRepository.getBalanceGroups(filters);
 
     const [warehouses, nomenclatureModels, sizes] = await Promise.all([
@@ -18,14 +18,36 @@ export const stockService = {
     const modelById = new Map(nomenclatureModels.map((m) => [m.id, m]));
     const sizeById = new Map(sizes.map((s) => [s.id, s]));
 
-    return groups.map((group) => ({
+    const rows = groups.map((group) => ({
       warehouse: warehouseById.get(group.warehouseId) ?? null,
       model: modelById.get(group.modelId) ?? null,
       size: sizeById.get(group.sizeId) ?? null,
       heightSize: sizeById.get(group.heightSizeId) ?? null,
       quantity: Number(group.quantity),
-      totalCost: group.totalCost != null ? Number(group.totalCost) : 0,
     }));
+
+    const sortValues = {
+      warehouse: (row) => row.warehouse?.name ?? '',
+      model: (row) => row.model?.name ?? '',
+      size: (row) => row.size?.value ?? '',
+      height: (row) => row.heightSize?.value ?? '',
+      quantity: (row) => row.quantity,
+    };
+    const sort = sortValues[filters.sort] ? filters.sort : 'warehouse';
+    const direction = String(filters.order).toUpperCase() === 'DESC' ? -1 : 1;
+    const value = sortValues[sort];
+    return rows.sort((left, right) => {
+      const leftValue = value(left);
+      const rightValue = value(right);
+      if (typeof leftValue === 'number') return (leftValue - rightValue) * direction;
+      const primary = String(leftValue).localeCompare(String(rightValue), 'ru', { numeric: true });
+      if (primary !== 0) return primary * direction;
+      return `${left.warehouse?.name}${left.model?.name}${left.size?.value}${left.heightSize?.value}`.localeCompare(
+        `${right.warehouse?.name}${right.model?.name}${right.size?.value}${right.heightSize?.value}`,
+        'ru',
+        { numeric: true },
+      );
+    });
   },
 
   listMovements(filters) {

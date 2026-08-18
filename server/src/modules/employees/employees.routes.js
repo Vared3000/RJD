@@ -32,13 +32,11 @@ export function createEmployeesRouter() {
    * /employees/{id}/property:
    *   get:
    *     tags: [Работники]
-   *     summary: >
-   *       Стоимость выданного имущества (раздел 8 ТЗ) — экземпляры, сейчас выданные
-   *       работнику, и суммы по cost/employeeCost
+   *     summary: Экземпляры, которые сейчас выданы работнику
    *     parameters:
    *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
    *     responses:
-   *       200: { description: Список экземпляров и итоговые суммы }
+   *       200: { description: Список экземпляров }
    */
   router.get(
     '/:id/property',

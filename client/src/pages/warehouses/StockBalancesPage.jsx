@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStockBalances } from '../../features/warehouses/stock/model/use-stock-queries.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
+import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 import pageStyles from './StockPage.module.css';
 
@@ -19,23 +20,35 @@ function formatSize(size) {
   return `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`;
 }
 
-function formatMoney(value) {
-  return `${Number(value).toLocaleString('ru-RU')} ₽`;
-}
-
 export function StockBalancesPage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [modelId, setModelId] = useState('');
+  const [sort, setSort] = useState('warehouse');
+  const [order, setOrder] = useState('ASC');
 
   const { data: warehouses } = createCatalogHooks('warehouses').useList(false);
   const { data: models } = createCatalogHooks('nomenclature-models').useList(false);
   const { data: rows, isLoading } = useStockBalances({
     warehouseId: warehouseId || undefined,
     modelId: modelId || undefined,
+    sort,
+    order,
   });
 
   const totalQuantity = rows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
-  const totalCost = rows?.reduce((sum, row) => sum + row.totalCost, 0) ?? 0;
+
+  function changeSort(nextSort) {
+    if (sort === nextSort) {
+      setOrder((current) => (current === 'ASC' ? 'DESC' : 'ASC'));
+      return;
+    }
+    setSort(nextSort);
+    setOrder('ASC');
+  }
+
+  function sortLabel(label, key) {
+    return `${label}${sort === key ? (order === 'ASC' ? ' ↑' : ' ↓') : ''}`;
+  }
 
   return (
     <div className={styles.page}>
@@ -58,29 +71,78 @@ export function StockBalancesPage() {
         />
       </div>
 
+      <ReportExportButtons
+        report="stock-balances"
+        params={{
+          warehouseId: warehouseId || undefined,
+          modelId: modelId || undefined,
+          sort,
+          order,
+        }}
+      />
+
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Склад</th>
-              <th>Модель</th>
-              <th>Размер</th>
-              <th>Рост</th>
-              <th>Количество</th>
-              <th>Стоимость</th>
+              <th>
+                <button
+                  type="button"
+                  className={pageStyles.sortButton}
+                  onClick={() => changeSort('warehouse')}
+                >
+                  {sortLabel('Склад', 'warehouse')}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={pageStyles.sortButton}
+                  onClick={() => changeSort('model')}
+                >
+                  {sortLabel('Модель', 'model')}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={pageStyles.sortButton}
+                  onClick={() => changeSort('size')}
+                >
+                  {sortLabel('Размер', 'size')}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={pageStyles.sortButton}
+                  onClick={() => changeSort('height')}
+                >
+                  {sortLabel('Рост', 'height')}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={pageStyles.sortButton}
+                  onClick={() => changeSort('quantity')}
+                >
+                  {sortLabel('Количество', 'quantity')}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td className={styles.hint} colSpan={6}>
+                <td className={styles.hint} colSpan={5}>
                   Загрузка…
                 </td>
               </tr>
             )}
             {!isLoading && rows?.length === 0 && (
               <tr>
-                <td className={styles.hint} colSpan={6}>
+                <td className={styles.hint} colSpan={5}>
                   Остатков нет
                 </td>
               </tr>
@@ -92,7 +154,6 @@ export function StockBalancesPage() {
                 <td>{formatSize(row.size)}</td>
                 <td>{row.heightSize?.value ?? '—'}</td>
                 <td>{row.quantity}</td>
-                <td>{formatMoney(row.totalCost)}</td>
               </tr>
             ))}
           </tbody>
@@ -104,9 +165,6 @@ export function StockBalancesPage() {
                 </td>
                 <td>
                   <strong>{totalQuantity}</strong>
-                </td>
-                <td>
-                  <strong>{formatMoney(totalCost)}</strong>
                 </td>
               </tr>
             </tfoot>

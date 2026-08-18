@@ -4,10 +4,6 @@ import { useStockBalances } from '../../features/warehouses/stock/model/use-stoc
 import { getVisibleNavSections } from '../../widgets/layout/nav-sections.js';
 import styles from './DashboardPage.module.css';
 
-function formatMoney(value) {
-  return `${Number(value ?? 0).toLocaleString('ru-RU')} ₽`;
-}
-
 const QUICK_ACTIONS = [
   {
     label: 'Оформить выдачу',
@@ -56,7 +52,6 @@ export function DashboardPage() {
   const canViewStock = permissions.includes('warehouse.view');
   const { data: stockRows } = useStockBalances(undefined, { enabled: canViewStock });
   const totalQuantity = stockRows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
-  const totalCost = stockRows?.reduce((sum, row) => sum + row.totalCost, 0) ?? 0;
   const sections = getVisibleNavSections(permissions).filter((section) => section.title);
   const actions = QUICK_ACTIONS.filter((item) => permissions.includes(item.permission));
   const today = new Intl.DateTimeFormat('ru-RU', {
@@ -78,7 +73,7 @@ export function DashboardPage() {
           <Link to="/warehouses/balances" className={styles.stockSummary}>
             <span>На складах</span>
             <strong>{totalQuantity.toLocaleString('ru-RU')} ед.</strong>
-            <small>{formatMoney(totalCost)}</small>
+            <small>Открыть остатки</small>
           </Link>
         )}
       </section>

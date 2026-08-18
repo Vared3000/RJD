@@ -19,6 +19,8 @@ export function createStockRouter() {
    *     parameters:
    *       - { name: warehouseId, in: query, schema: { type: string, format: uuid } }
    *       - { name: modelId, in: query, schema: { type: string, format: uuid } }
+   *       - { name: sort, in: query, schema: { type: string, enum: [warehouse, model, size, height, quantity] } }
+   *       - { name: order, in: query, schema: { type: string, enum: [ASC, DESC] } }
    *     responses:
    *       200: { description: Список остатков }
    */

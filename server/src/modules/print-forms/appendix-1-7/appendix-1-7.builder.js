@@ -80,34 +80,43 @@ export async function buildAppendix17(context) {
   const movements = await printFormsRepository.findIssuanceMovements([
     ...new Set(retainedLive.map((entry) => entry.document.id)),
   ]);
-  const byDocumentModel = new Map();
+  const byDocumentModelSize = new Map();
   for (const movement of movements) {
-    const key = JSON.stringify([movement.documentId, movement.instance?.modelId]);
-    if (!byDocumentModel.has(key)) byDocumentModel.set(key, []);
-    byDocumentModel.get(key).push(movement.instance);
+    const key = JSON.stringify([
+      movement.documentId,
+      movement.instance?.modelId,
+      movement.instance?.sizeId ?? null,
+      movement.instance?.heightSizeId ?? null,
+    ]);
+    if (!byDocumentModelSize.has(key)) byDocumentModelSize.set(key, []);
+    byDocumentModelSize.get(key).push(movement.instance);
   }
   const rows = [];
   for (const entry of retainedLive) {
     const { document, line } = entry;
     const price = priceValues(priceForLine(context, document, line));
-    const instances = byDocumentModel.get(JSON.stringify([document.id, line.modelId])) ?? [];
-    const lineInstances = instances.length > 0 ? instances : Array(line.quantity).fill(null);
-    for (const instance of lineInstances) {
-      const values = calculateMoney(1, price.priceWithoutVat, price.vatRate);
-      rows.push({
-        fullName: document.employee?.fullName ?? '',
-        personnelNumber: document.employee?.personnelNumber ?? '',
-        modelName: line.model?.name ?? instance?.model?.name ?? '',
-        inventoryNumber: instance?.inventoryNumber ?? '',
-        unit: line.model?.unit ?? instance?.model?.unit ?? 'шт.',
-        quantity: 1,
-        ...price,
-        subtotalWithoutVat: values.costWithoutVat,
-        vatAmount: values.vatAmount,
-        totalWithVat: values.totalWithVat,
-        ...sourceFields(entry),
-      });
-    }
+    const instances =
+      byDocumentModelSize.get(
+        JSON.stringify([document.id, line.modelId, line.sizeId ?? null, line.heightSizeId ?? null]),
+      ) ?? [];
+    const quantity = Number(line.quantity ?? instances.length ?? 0);
+    const values = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
+    rows.push({
+      fullName: document.employee?.fullName ?? '',
+      personnelNumber: document.employee?.personnelNumber ?? '',
+      modelName: line.model?.name ?? instances[0]?.model?.name ?? '',
+      inventoryNumber: instances
+        .map((instance) => instance.inventoryNumber)
+        .filter(Boolean)
+        .join(', '),
+      unit: line.model?.unit ?? instances[0]?.model?.unit ?? 'шт.',
+      quantity,
+      ...price,
+      subtotalWithoutVat: values.costWithoutVat,
+      vatAmount: values.vatAmount,
+      totalWithVat: values.totalWithVat,
+      ...sourceFields(entry),
+    });
   }
   for (const entry of entries.filter((item) => item.source === 'archive')) {
     const candidate = entry.candidate;

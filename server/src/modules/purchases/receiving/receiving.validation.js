@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
-const optionalNumber = (schema) => z.preprocess(emptyToNull, schema.nullable());
 const optionalUuid = z.preprocess(
   emptyToNull,
   z.string().uuid('Некорректный идентификатор').nullable(),
@@ -23,9 +22,6 @@ export const createLineSchema = z.object({
   sizeId: optionalUuid.optional(),
   heightSizeId: optionalUuid.optional(),
   quantity: z.coerce.number().int().positive('Количество должно быть больше нуля'),
-  purchasePrice: z.coerce.number().nonnegative('Цена не может быть отрицательной'),
-  employeeCost: optionalNumber(z.coerce.number().nonnegative()).optional(),
-  vatRate: optionalNumber(z.coerce.number().min(0).max(100)).optional(),
 });
 
 export const updateLineSchema = createLineSchema.partial();

@@ -16,7 +16,16 @@ export const STARTUP_IMPORT_HEADERS = {
   },
   models: {
     sheet: 'Номенклатура',
-    headers: ['Наименование', 'Артикул', 'Единица', 'Тип размера', 'Требует рост', 'Описание'],
+    headers: [
+      'Наименование',
+      'Артикул',
+      'Единица',
+      'Тип размера',
+      'Требует рост',
+      'Цена аренды без НДС',
+      'НДС аренды, %',
+      'Описание',
+    ],
   },
   employees: {
     sheet: 'Работники',
@@ -39,16 +48,7 @@ export const STARTUP_IMPORT_HEADERS = {
   },
   balances: {
     sheet: 'Остатки',
-    headers: [
-      'Склад',
-      'Номенклатура',
-      'Размер',
-      'Рост',
-      'Количество',
-      'Цена закупки',
-      'Стоимость для работника',
-      'Состояние',
-    ],
+    headers: ['Склад', 'Номенклатура', 'Размер', 'Рост', 'Количество', 'Состояние'],
   },
 };
 
@@ -226,7 +226,16 @@ export async function parseStartupWorkbook(buffer) {
   });
 
   const models = sheets.models.map(({ rowNumber, values }) => {
-    const [name, article, unit, rawSizeType, rawRequiresHeight, description] = values;
+    const [
+      name,
+      article,
+      unit,
+      rawSizeType,
+      rawRequiresHeight,
+      rentalPriceValue,
+      rentalVatRateValue,
+      description,
+    ] = values;
     const location = `Номенклатура, строка ${rowNumber}`;
     if (!name) protocol.push({ level: 'error', location, message: 'Наименование обязательно' });
     const typeKey = lower(rawSizeType || 'none');
@@ -253,6 +262,20 @@ export async function parseStartupWorkbook(buffer) {
       unit: nullable(unit) || 'шт',
       sizeType,
       requiresHeightSize,
+      rentalPrice:
+        parseNumber(
+          rentalPriceValue === '' ? 0 : rentalPriceValue,
+          'Цена аренды без НДС',
+          protocol,
+          location,
+        ) ?? 0,
+      rentalVatRate:
+        parseNumber(
+          rentalVatRateValue === '' ? 5 : rentalVatRateValue,
+          'НДС аренды, %',
+          protocol,
+          location,
+        ) ?? 5,
       description: nullable(description),
     };
   });
@@ -307,16 +330,7 @@ export async function parseStartupWorkbook(buffer) {
   });
 
   const balances = sheets.balances.map(({ rowNumber, values }) => {
-    const [
-      warehouseName,
-      modelName,
-      size,
-      height,
-      quantityValue,
-      priceValue,
-      employeeCostValue,
-      rawCondition,
-    ] = values;
+    const [warehouseName, modelName, size, height, quantityValue, rawCondition] = values;
     const location = `Остатки, строка ${rowNumber}`;
     if (!['входящие', 'возврат старой формы'].includes(lower(warehouseName))) {
       protocol.push({ level: 'error', location, message: `Недопустимый склад «${warehouseName}»` });
@@ -344,9 +358,6 @@ export async function parseStartupWorkbook(buffer) {
       size: nullable(size),
       height: nullable(height),
       quantity,
-      purchasePrice: parseNumber(priceValue || 0, 'Цена закупки', protocol, location) ?? 0,
-      employeeCost:
-        parseNumber(employeeCostValue || 0, 'Стоимость для работника', protocol, location) ?? 0,
       condition: condition ?? 'new',
     };
   });
@@ -372,8 +383,6 @@ export async function parseStartupWorkbook(buffer) {
         lower(row.modelName),
         lower(row.size),
         lower(row.height),
-        row.purchasePrice,
-        row.employeeCost,
         row.condition,
       ].join('|'),
     protocol,

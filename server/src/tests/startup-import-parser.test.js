@@ -43,7 +43,7 @@ test('стартовый импорт: точный дубль пропуска�
       ['Иванов Иван Иванович', '001', 'ДПО-1', 'Дежурный', 'Мужской'],
       ['Петров Пётр Петрович', '001', 'ДПО-1', 'Дежурный', 'Мужской'],
     ],
-    balances: [['Входящие', 'Куртка утеплённая', '52', '182', 2, 1000, 500, 'Новая']],
+    balances: [['Входящие', 'Куртка утеплённая', '52', '182', 2, 'Новая']],
   });
   const parsed = await parseStartupWorkbook(buffer);
   assert.equal(parsed.payload.dpos.length, 1);
@@ -54,4 +54,14 @@ test('стартовый импорт: точный дубль пропуска�
       (item) => item.level === 'error' && item.message.includes('уже встречался'),
     ),
   );
+});
+
+test('стартовый импорт: цена аренды и нулевая ставка НДС читаются из номенклатуры', async () => {
+  const buffer = await workbookBuffer({
+    models: [['Куртка утеплённая', 'К-1', 'шт', 'clothing', 'Да', 1234.5, 0, 'Тест']],
+  });
+  const parsed = await parseStartupWorkbook(buffer);
+  assert.equal(parsed.protocol.length, 0);
+  assert.equal(parsed.payload.models[0].rentalPrice, 1234.5);
+  assert.equal(parsed.payload.models[0].rentalVatRate, 0);
 });

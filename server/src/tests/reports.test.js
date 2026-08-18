@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import ExcelJS from 'exceljs';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models } from '../database/models/index.js';
@@ -204,8 +205,8 @@ test('отчёты: дни обеспечения по ДПО/работника
   assert.equal(row1.coverageDaysInPeriod, 14, 'работник 1: с 1 по 15 июня — 14 дней');
   assert.equal(row2.coverageDaysInPeriod, 11, 'работник 2: с 20 по 30 июня включительно — 11 дней');
   // Только работник 2 сейчас фактически держит экземпляр.
-  assert.equal(row1.propertyCost, 0);
-  assert.equal(row2.propertyCost, 1000);
+  assert.equal(row1.propertyItemsCount, 0);
+  assert.equal(row2.propertyItemsCount, 1);
 
   // --- Отчёт по ДПО: агрегаты совпадают с суммой по работникам ---
   const dpoReport = await auth(agent.get('/api/v1/reports/dpo')).query({
@@ -217,7 +218,7 @@ test('отчёты: дни обеспечения по ДПО/работника
   assert.equal(dpoReport.body.data.length, 1);
   assert.equal(dpoReport.body.data[0].employeesCount, 2);
   assert.equal(dpoReport.body.data[0].coverageDaysInPeriod, 25);
-  assert.equal(dpoReport.body.data[0].propertyCost, 1000);
+  assert.equal(dpoReport.body.data[0].propertyItemsCount, 1);
 
   // --- Smoke: остальные отчёты отвечают 200 и отдают ожидаемую форму ---
   const stockBalances = await auth(agent.get('/api/v1/reports/stock-balances')).query({
@@ -228,7 +229,7 @@ test('отчёты: дни обеспечения по ДПО/работника
 
   const propertyCost = await auth(agent.get('/api/v1/reports/property-cost')).query({ dpoId });
   assert.equal(propertyCost.status, 200);
-  assert.equal(propertyCost.body.meta.totals.cost, 1000);
+  assert.equal(propertyCost.body.meta.totals.itemsCount, 1);
 
   const purchases = await auth(agent.get('/api/v1/reports/purchases')).query({
     from: '2026-06-01',
@@ -237,7 +238,7 @@ test('отчёты: дни обеспечения по ДПО/работника
   });
   assert.equal(purchases.status, 200);
   assert.equal(purchases.body.meta.totals.documentsCount, 1);
-  assert.equal(purchases.body.meta.totals.cost, 1000);
+  assert.equal(purchases.body.meta.totals.quantity, 1);
 
   const suppliersReport = await auth(agent.get('/api/v1/reports/suppliers')).query({
     from: '2026-06-01',
@@ -286,6 +287,25 @@ test('отчёты: дни обеспечения по ДПО/работника
     assert.equal(xlsx.status, 200, `${report}: Excel`);
     assert.match(xlsx.headers['content-type'], /spreadsheetml/);
     assert.equal(xlsx.body.subarray(0, 2).toString(), 'PK');
+    if (report === 'stock-balances') {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(xlsx.body);
+      const sheet = workbook.worksheets[0];
+      const headerRowNumber = Array.from(
+        { length: sheet.actualRowCount },
+        (_, index) => index + 1,
+      ).find((rowNumber) => sheet.getCell(rowNumber, 1).value === 'Склад');
+      assert.ok(headerRowNumber);
+      const headerRow = sheet.getRow(headerRowNumber);
+      assert.deepEqual(headerRow.values.slice(1, 6), [
+        'Склад',
+        'Модель',
+        'Размер',
+        'Рост',
+        'Количество',
+      ]);
+      assert.equal(headerRow.cellCount, 5);
+    }
 
     const pdf = await auth(agent.get(`/api/v1/reports/${report}/export`))
       .query({ ...query, format: 'pdf' })

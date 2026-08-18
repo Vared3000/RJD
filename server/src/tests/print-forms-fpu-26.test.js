@@ -38,6 +38,12 @@ test('печатная форма ФПУ-26: живые строки, смена
   await workbook.xlsx.load(xlsx.body);
   const sheet = workbook.worksheets[0];
   assert.ok(sheet);
+  let liveRow = null;
+  sheet.eachRow((row) => {
+    if (row.values.some((value) => String(value ?? '') === unique)) liveRow = row.number;
+  });
+  assert.ok(liveRow, 'строка выданной модели должна присутствовать в ФПУ-26');
+  assert.equal(sheet.getCell(`F${liveRow}`).value, 2, 'ФПУ-26 должен учитывать обе выданные вещи');
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
   let hasFormula = false;

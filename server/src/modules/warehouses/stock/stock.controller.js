@@ -4,8 +4,8 @@ import { parsePagination } from '../../../utils/pagination.js';
 
 export const stockController = {
   async getBalances(req, res) {
-    const { warehouseId, modelId } = req.query;
-    const data = await stockService.getBalances({ warehouseId, modelId });
+    const { warehouseId, modelId, sort, order } = req.query;
+    const data = await stockService.getBalances({ warehouseId, modelId, sort, order });
     return success(res, data);
   },
 

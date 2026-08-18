@@ -9,7 +9,6 @@ const optionalUuid = z.preprocess(
   emptyToNull,
   z.string().uuid('Некорректный идентификатор').nullable(),
 );
-const optionalCost = z.preprocess(emptyToNull, z.coerce.number().nonnegative().nullable());
 const optionalNote = z.preprocess(emptyToNull, z.string().max(500).nullable()).optional();
 
 export const createDocumentSchema = z.object({
@@ -41,7 +40,6 @@ const surplusLineSchema = z.object({
     emptyToUndefined,
     z.enum(INSTANCE_CONDITIONS).optional().default('good'),
   ),
-  cost: optionalCost.optional(),
   reason,
   note: optionalNote,
 });
