@@ -4,6 +4,7 @@ import { computeCoverageDays } from './coverage.service.js';
 import { resolvePeriodFromQuery } from './period.js';
 
 const num = (value) => Number(value ?? 0);
+const GENDER_LABELS = { male: 'Мужской', female: 'Женский' };
 
 function sumBy(items, fn) {
   return items.reduce((sum, item) => sum + fn(item), 0);
@@ -320,5 +321,28 @@ export const reportsService = {
       coverageDaysInPeriod: sumBy(rows, (r) => r.coverageDaysInPeriod),
     };
     return { from, to, rows, totals };
+  },
+
+  // Экспорт текущего списка со страницы "Работники" (не период-отчёт — тот
+  // же список, что и GET /employees, только в Excel/PDF с теми же фильтрами:
+  // ДПО и архивные). Колонки повторяют таблицу на странице.
+  async employeesList(query) {
+    const dpoId = query.dpoId || undefined;
+    const includeArchived = query.includeArchived === 'true' || query.includeArchived === true;
+    const employees = await reportsRepository.findEmployeesForExport({ dpoId, includeArchived });
+    const today = new Date();
+    const rows = employees.map((employee) => ({
+      fullName: employee.fullName,
+      gender: GENDER_LABELS[employee.gender] ?? '—',
+      organizationName: employee.organization?.name ?? null,
+      subdivisionName: employee.subdivision?.name ?? null,
+      positionName: employee.position?.name ?? null,
+      dpoName: employee.dpo?.name ?? null,
+      hireDate: employee.hireDate,
+      tenureDays: tenureDays(employee.hireDate, employee.terminationDate, today),
+      terminationDate: employee.terminationDate,
+      status: employee.archivedAt ? 'В архиве' : 'Активно',
+    }));
+    return { rows, totals: { employeesCount: rows.length } };
   },
 };

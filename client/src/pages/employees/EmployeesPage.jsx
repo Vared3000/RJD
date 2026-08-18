@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
+import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { formatTenure } from '../../features/employees/model/format-tenure.js';
 import {
   employeeFormSchema,
@@ -37,6 +38,13 @@ const columns = [
 ];
 
 export function EmployeesPage() {
+  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const dpoFilter = {
+    name: 'dpoId',
+    label: 'ДПО',
+    options: (dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name })),
+  };
+
   return (
     <CatalogPage
       resource="employees"
@@ -48,6 +56,8 @@ export function EmployeesPage() {
       viewPermission="employees.view"
       managePermission="employees.manage"
       searchable
+      filters={[dpoFilter]}
+      exportReport="employees-list"
     />
   );
 }

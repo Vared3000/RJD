@@ -109,6 +109,23 @@ const REPORTS = {
       propertyItemsCount: 'propertyItemsCount',
     },
   },
+  'employees-list': {
+    method: 'employeesList',
+    title: 'Работники',
+    columns: [
+      ['fullName', 'ФИО', 32],
+      ['gender', 'Пол', 10],
+      ['organizationName', 'Организация', 22],
+      ['subdivisionName', 'Подразделение', 22],
+      ['positionName', 'Должность', 20],
+      ['dpoName', 'ДПО', 24],
+      ['hireDate', 'Дата приёма', 13, 'date'],
+      ['tenureDays', 'Стаж, дн.', 11, 'number'],
+      ['terminationDate', 'Дата увольнения', 15, 'date'],
+      ['status', 'Статус', 12],
+    ],
+    totals: {},
+  },
   dpo: {
     method: 'dpo',
     title: 'Отчёт по ДПО',

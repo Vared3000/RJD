@@ -126,6 +126,21 @@ export const reportsRepository = {
     });
   },
 
+  findEmployeesForExport({ dpoId, includeArchived = false } = {}) {
+    const where = includeArchived ? {} : { archivedAt: null };
+    if (dpoId) where.dpoId = dpoId;
+    return Employee.findAll({
+      where,
+      include: [
+        { model: models.Organization, as: 'organization', attributes: ['id', 'name'] },
+        { model: models.Subdivision, as: 'subdivision', attributes: ['id', 'name'] },
+        { model: models.Position, as: 'position', attributes: ['id', 'name'] },
+        { model: Dpo, as: 'dpo', attributes: ['id', 'name'] },
+      ],
+      order: [['fullName', 'ASC']],
+    });
+  },
+
   findWarehouses({ warehouseId } = {}) {
     const where = { archivedAt: null };
     if (warehouseId) where.id = warehouseId;

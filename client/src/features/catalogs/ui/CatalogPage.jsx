@@ -5,12 +5,19 @@ import { EntityFormModal } from './EntityFormModal.jsx';
 import { Button } from '../../../shared/ui/Button.jsx';
 import { useSessionStore } from '../../../shared/session/session-store.js';
 import { parseApiError } from '../../../shared/lib/parse-api-error.js';
+import { ReportExportButtons } from '../../reports/ui/ReportExportButtons.jsx';
 import styles from './CatalogPage.module.css';
 
 // resource — сегмент REST-пути ('organizations', 'subdivisions', ...).
 // columns — [{ key, label, render?(item) }] для таблицы.
 // fields — конфигурация полей формы, см. CatalogFormField.jsx.
 // schema — общая zod-схема формы (используется и для создания, и для правки).
+// filters — необязательный список select-фильтров сверх поиска/архива:
+//   [{ name, label, options: [{ value, label }] }]. name должен совпадать с
+//   именем query-параметра, который бэкенд принимает в filterFields
+//   (см. reference-crud.factory.js).
+// exportReport — id отчёта в report-export.service.js REPORTS для кнопок
+//   "Скачать Excel/PDF" текущего (отфильтрованного) списка; необязателен.
 export function CatalogPage({
   resource,
   title,
@@ -21,6 +28,8 @@ export function CatalogPage({
   managePermission = 'catalogs.manage',
   archiveColumnLabel = 'Статус',
   searchable = false,
+  filters = [],
+  exportReport,
   description,
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
@@ -28,7 +37,13 @@ export function CatalogPage({
   const [showArchived, setShowArchived] = useState(searchParams.get('archived') === 'true');
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [filterValues, setFilterValues] = useState(() =>
+    Object.fromEntries(filters.map((filter) => [filter.name, searchParams.get(filter.name) ?? ''])),
+  );
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const activeFilters = Object.fromEntries(
+    Object.entries(filterValues).filter(([, value]) => value),
+  );
   const {
     data: items,
     meta,
@@ -38,6 +53,7 @@ export function CatalogPage({
     refetch,
   } = useList(showArchived, {
     ...(searchable ? { search: debouncedSearch } : {}),
+    ...activeFilters,
     page,
     limit: 50,
   });
@@ -63,12 +79,16 @@ export function CatalogPage({
         else next.delete('search');
         if (showArchived) next.set('archived', 'true');
         else next.delete('archived');
+        for (const [name, value] of Object.entries(filterValues)) {
+          if (value) next.set(name, value);
+          else next.delete(name);
+        }
         next.set('page', String(page));
         return next;
       },
       { replace: true },
     );
-  }, [debouncedSearch, page, setSearchParams, showArchived]);
+  }, [debouncedSearch, filterValues, page, setSearchParams, showArchived]);
 
   function goToPage(nextPage) {
     setSearchParams((current) => {
@@ -76,6 +96,11 @@ export function CatalogPage({
       next.set('page', String(nextPage));
       return next;
     });
+  }
+
+  function setFilter(name, value) {
+    setFilterValues((current) => ({ ...current, [name]: value }));
+    goToPage(1);
   }
 
   function closeModal() {
@@ -133,7 +158,33 @@ export function CatalogPage({
             className={styles.searchInput}
           />
         )}
+        {filters.map((filter) => (
+          <select
+            key={filter.name}
+            aria-label={filter.label}
+            value={filterValues[filter.name] ?? ''}
+            onChange={(event) => setFilter(filter.name, event.target.value)}
+          >
+            <option value="">{filter.label}: все</option>
+            {filter.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ))}
       </div>
+
+      {exportReport && (
+        <ReportExportButtons
+          report={exportReport}
+          params={{
+            ...(searchable ? { search: debouncedSearch } : {}),
+            ...activeFilters,
+            includeArchived: showArchived || undefined,
+          }}
+        />
+      )}
 
       <div className={styles.summaryBar} aria-label="Сводка списка">
         <span className={styles.summaryItem}>

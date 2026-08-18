@@ -2,7 +2,9 @@ import { createReferenceController } from '../catalogs/reference-crud.factory.js
 import { success } from '../../utils/respond.js';
 import { employeesService } from './employees.service.js';
 
-const referenceController = createReferenceController(employeesService);
+const referenceController = createReferenceController(employeesService, {
+  filterFields: ['dpoId'],
+});
 
 export const employeesController = {
   ...referenceController,

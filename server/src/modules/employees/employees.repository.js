@@ -4,6 +4,7 @@ import { createReferenceRepository } from '../catalogs/reference-crud.factory.js
 export const employeeRepository = createReferenceRepository(models.Employee, {
   searchFields: ['fullName', 'personnelNumber'],
   sortFields: ['fullName', 'personnelNumber', 'createdAt', 'hireDate', 'terminationDate'],
+  filterFields: ['dpoId'],
   include: [
     { model: models.Organization, as: 'organization', attributes: ['id', 'name'] },
     { model: models.Subdivision, as: 'subdivision', attributes: ['id', 'name'] },

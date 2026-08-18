@@ -13,6 +13,7 @@ import {
   setupApp,
   setupBaseFixture,
   addSecondPriceAndIssuance,
+  createReturnDocument,
   cleanupFixtureState,
 } from './print-forms-fixture.js';
 
@@ -160,4 +161,59 @@ test('ежемесячный акт аренды: предпросмотр, фи
   assert.equal(versionOne.snapshot.totals.costWithoutVat, 6000);
   assert.equal(versionTwo.snapshot.totals.costWithoutVat, 3702);
   assert.equal(versionTwo.reason, 'Пересчёт после исправления выдачи');
+});
+
+// Раньше это был открытый вопрос (docs/CUSTOMER_DECISIONS.md, п. 3
+// "Не определено правило для выдачи и возврата в один день") — заказчик
+// подтвердил: даже один день владения включается в счёт за месяц.
+test('ежемесячный акт аренды: выдача и возврат в один день дают один оплачиваемый день', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const { agent, auth } = await setupApp();
+  const unique = `Test MonthlyRentalSameDay ${Date.now()}`;
+  const { state } = await setupBaseFixture({ agent, auth, unique });
+  t.after(() => cleanupFixtureState(state));
+
+  // setupBaseFixture оприходует 3 экземпляра и выдаёт 2 — один остаётся на
+  // складе свободным для этого сценария.
+  const spareInstance = await models.Instance.findOne({
+    where: { modelId: state.modelId, status: 'in_stock' },
+  });
+  assert.ok(spareInstance, 'должен остаться неиспользованный экземпляр из базовой фикстуры');
+
+  const sameDayIssuance = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId: state.employeeId,
+    warehouseId: state.warehouseId,
+    documentDate: '2026-08-20',
+  });
+  state.secondIssuanceId = sameDayIssuance.body.data.id;
+  await auth(agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/lines`)).send({
+    modelId: state.modelId,
+    sizeId: state.sizeId,
+    quantity: 1,
+  });
+  await auth(agent.post(`/api/v1/issuance/documents/${state.secondIssuanceId}/post`));
+
+  await createReturnDocument({
+    agent,
+    auth,
+    state,
+    instanceId: spareInstance.id,
+    documentDate: '2026-08-20',
+  });
+
+  const augustPreview = await auth(agent.get('/api/v1/print-forms/monthly-rental/preview')).query({
+    dpoId: state.dpoId,
+    month: '2026-08',
+  });
+  assert.equal(augustPreview.status, 200);
+  const row = augustPreview.body.data.rows.find((item) => item.instanceId === spareInstance.id);
+  assert.ok(row, 'экземпляр, выданный и возвращённый в один день, должен попасть в акт');
+  assert.equal(row.rentalDays, 1, 'выдача и возврат в один день — один оплачиваемый день');
+  assert.equal(row.issuedDate, '2026-08-20');
+  assert.equal(row.returnedDate, '2026-08-20');
+  assert.equal(row.costWithoutVat, Number((row.monthlyPriceWithoutVat / 31).toFixed(4)));
 });
