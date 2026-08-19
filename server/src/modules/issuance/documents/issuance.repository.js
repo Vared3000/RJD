@@ -121,8 +121,8 @@ export const issuanceRepository = {
     };
   },
 
-  createDocument(data) {
-    return IssuanceDocument.create(data);
+  createDocument(data, { transaction } = {}) {
+    return IssuanceDocument.create(data, { transaction });
   },
 
   async updateDocument(id, data, { transaction }) {

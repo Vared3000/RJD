@@ -71,8 +71,10 @@ export const issuanceController = {
   },
 
   async post(req, res) {
-    const item = await issuanceService.post(req.params.id, { userId: req.user.sub });
-    return success(res, item);
+    const { document, shortages } = await issuanceService.post(req.params.id, {
+      userId: req.user.sub,
+    });
+    return success(res, document, 200, { shortages });
   },
 
   async revise(req, res) {

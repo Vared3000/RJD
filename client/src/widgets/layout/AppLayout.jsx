@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import { useLogout } from '../../features/auth/model/use-logout.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { getVisibleNavSections } from './nav-sections.js';
+import { useOpenTasksCount } from '../../features/issuance/tasks/model/use-tasks-queries.js';
+import { notify } from '../../shared/notifications/notification-store.js';
 import styles from './AppLayout.module.css';
 
 const STORAGE_KEY = 'workwear.nav.openSection';
+const TASKS_REMINDER_STORAGE_KEY = 'workwear.tasksReminder.lastShownDate';
 const QUICK_PATHS = ['/employees', '/issuance/documents', '/warehouses/balances', '/print-forms'];
 
 function loadStoredSection() {
@@ -25,6 +28,34 @@ export function AppLayout() {
     () => getVisibleNavSections(user?.permissions ?? []),
     [user?.permissions],
   );
+
+  const canSeeTasks = Boolean(user?.permissions?.includes('issuance.manage'));
+  const { data: openTasksCount } = useOpenTasksCount(canSeeTasks);
+
+  // Напоминание не чаще раза в день (см. задачу "Отдать в сборку" —
+  // локальная сеть без email/SMS, поэтому единственный доступный канал —
+  // тост в интерфейсе при следующем открытии приложения). Дата последнего
+  // показа — в localStorage, отдельно от бейджа-счётчика в меню, который
+  // всегда актуален и не привязан к разу в день.
+  useEffect(() => {
+    if (!openTasksCount) return;
+    const today = new Date().toISOString().slice(0, 10);
+    let lastShown = null;
+    try {
+      lastShown = localStorage.getItem(TASKS_REMINDER_STORAGE_KEY);
+    } catch {
+      // localStorage недоступен (приватный режим и т.п.) — просто не запоминаем.
+    }
+    if (lastShown === today) return;
+    notify.warning(
+      `Незавершённых задач на дособор: ${openTasksCount}. Смотрите раздел «Задачи на дособор».`,
+    );
+    try {
+      localStorage.setItem(TASKS_REMINDER_STORAGE_KEY, today);
+    } catch {
+      // Не критично — в худшем случае напоминание покажется ещё раз сегодня.
+    }
+  }, [openTasksCount]);
   const [navSearch, setNavSearch] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -187,6 +218,9 @@ export function AppLayout() {
                         >
                           <span className={styles.navItemIcon}>{item.icon}</span>
                           <span>{item.label}</span>
+                          {item.badge === 'issuance-open-tasks' && Boolean(openTasksCount) && (
+                            <span className={styles.navBadge}>{openTasksCount}</span>
+                          )}
                         </NavLink>
                       </li>
                     ))}

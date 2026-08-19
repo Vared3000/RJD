@@ -22,6 +22,7 @@ import { defineEmployee } from './employee.model.js';
 import { definePositionKitItem } from './position-kit-item.model.js';
 import { defineIssuanceDocument } from './issuance-document.model.js';
 import { defineIssuanceLine } from './issuance-line.model.js';
+import { defineIssuanceTask } from './issuance-task.model.js';
 import { defineReturnDocument } from './return-document.model.js';
 import { defineReturnLine } from './return-line.model.js';
 import { defineLaundryDocument } from './laundry-document.model.js';
@@ -72,6 +73,7 @@ const Employee = defineEmployee(sequelize);
 const PositionKitItem = definePositionKitItem(sequelize);
 const IssuanceDocument = defineIssuanceDocument(sequelize);
 const IssuanceLine = defineIssuanceLine(sequelize);
+const IssuanceTask = defineIssuanceTask(sequelize);
 const ReturnDocument = defineReturnDocument(sequelize);
 const ReturnLine = defineReturnLine(sequelize);
 const LaundryDocument = defineLaundryDocument(sequelize);
@@ -222,6 +224,18 @@ IssuanceLine.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' }
 IssuanceLine.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
 IssuanceLine.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 IssuanceLine.belongsTo(NomenclaturePrice, { foreignKey: 'priceSourceId', as: 'priceSource' });
+
+IssuanceTask.belongsTo(IssuanceDocument, { foreignKey: 'sourceDocumentId', as: 'sourceDocument' });
+IssuanceTask.belongsTo(IssuanceDocument, {
+  foreignKey: 'fulfillingDocumentId',
+  as: 'fulfillingDocument',
+});
+IssuanceTask.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
+IssuanceTask.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
+IssuanceTask.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
+IssuanceTask.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
+IssuanceTask.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
+IssuanceTask.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
 
 // Документ "Возврат": шапка -> строки (конкретный экземпляр + состояние при
 // возврате), в отличие от "Выдачи" — по экземплярам, не по модели/размеру,
@@ -401,6 +415,7 @@ export const models = {
   PositionKitItem,
   IssuanceDocument,
   IssuanceLine,
+  IssuanceTask,
   ReturnDocument,
   ReturnLine,
   LaundryDocument,

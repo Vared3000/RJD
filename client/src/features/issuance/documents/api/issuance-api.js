@@ -46,7 +46,7 @@ export const issuanceApi = {
   },
   async post(id) {
     const { data } = await httpClient.post(`${BASE}/${id}/post`);
-    return data.data;
+    return { document: data.data, shortages: data.meta?.shortages ?? [] };
   },
   async revise(id, payload) {
     const { data } = await httpClient.post(`${BASE}/${id}/revise`, payload);

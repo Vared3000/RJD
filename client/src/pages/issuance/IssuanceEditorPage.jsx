@@ -26,6 +26,7 @@ import {
   parseBlobApiError,
 } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
+import { notify } from '../../shared/notifications/notification-store.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
@@ -242,8 +243,13 @@ export function IssuanceEditorPage() {
   }
 
   async function handlePost() {
-    await post.mutateAsync();
+    const { shortages } = await post.mutateAsync();
     setConfirmingPost(false);
+    if (shortages.length > 0) {
+      notify.warning(
+        `Не хватило остатка по ${shortages.length} ${shortages.length === 1 ? 'позиции' : 'позициям'} — создана задача на дособор, см. страницу «Задачи»`,
+      );
+    }
   }
 
   async function handleDeleteDocument() {
@@ -514,8 +520,10 @@ export function IssuanceEditorPage() {
         <Modal title="Провести документ?" onClose={() => setConfirmingPost(false)}>
           <p className={styles.confirmText}>
             После проведения система подберёт доступные экземпляры на складе под каждую позицию,
-            переведёт их в статус «Выдан» с привязкой к работнику и создаст движения склада.
-            Документ станет недоступен для изменения. Действие необратимо.
+            переведёт их в статус «Выдан» с привязкой к работнику и создаст движения склада. Если
+            остатка не хватит — выдастся сколько есть, а на недостающее количество создастся задача
+            на дособор (страница «Задачи»). Документ станет недоступен для изменения. Действие
+            необратимо.
           </p>
           {post.isError && <p className={catalogStyles.formError}>{errorMessage(post)}</p>}
           <div className={catalogStyles.formActions}>

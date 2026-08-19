@@ -14,6 +14,7 @@ import {
 } from '../../nomenclature/instances/instance-dependency-check.js';
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
+import { tasksRepository } from '../tasks/tasks.repository.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -170,26 +171,29 @@ async function normalizeLineSizes(data, currentLine, { transaction } = {}) {
 // Подбирает под каждую строку доступные экземпляры (FIFO), переводит их в
 // issued с привязкой к работнику, создаёт движения/события и снимок цены.
 // Переиспользуется post() (первое проведение) и revise() (редакция).
-async function applyIssuanceSideEffects(document, lines, { userId, transaction }) {
+//
+// tolerateShortage=false (revise() и внутренние вызовы по умолчанию) —
+// прежнее поведение: нехватка остатка хотя бы по одной строке откатывает
+// всю транзакцию. tolerateShortage=true (только post(), см. ниже) — новое
+// поведение "частичной сборки": по строке выдаётся столько, сколько реально
+// есть, line.quantity в БД уменьшается до фактически выданного (это то же
+// самое поле, которое печатные формы 1.5/1.7/ФПУ/УПД показывают как
+// фактическое количество — должно совпадать с реальностью), полностью
+// невыполненная строка удаляется. Разница по каждой строке возвращается
+// вызывающей стороне как shortages — post() создаёт по ним задачи на
+// дособор (issuance_tasks).
+async function applyIssuanceSideEffects(
+  document,
+  lines,
+  { userId, transaction, tolerateShortage = false },
+) {
   const allInstanceIds = [];
   const movementRows = [];
   const eventRows = [];
+  const shortages = [];
   const employee = await issuanceRepository.findEmployeeDpo(document.employeeId, { transaction });
 
   for (const line of lines) {
-    const applicablePrice = await priceRepository.findApplicable(
-      {
-        modelId: line.modelId,
-        dpoId: employee?.dpoId ?? null,
-        operationDate: document.documentDate,
-      },
-      { transaction },
-    );
-    const snapshot = priceSnapshot(applicablePrice);
-    if (snapshot) {
-      await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
-    }
-
     const instances = await issuanceRepository.findAvailableInstances(
       {
         modelId: line.modelId,
@@ -202,12 +206,41 @@ async function applyIssuanceSideEffects(document, lines, { userId, transaction }
     );
 
     if (instances.length < line.quantity) {
-      const modelName = line.model?.name ?? line.modelId;
-      const sizeDescription = line.size?.value ? `, размер ${line.size.value}` : ', без размера';
-      throw ApiError.badRequest(
-        `Недостаточно на складе: «${modelName}»${sizeDescription} — ` +
-          `доступно ${instances.length} из ${line.quantity}`,
-      );
+      if (!tolerateShortage) {
+        const modelName = line.model?.name ?? line.modelId;
+        const sizeDescription = line.size?.value ? `, размер ${line.size.value}` : ', без размера';
+        throw ApiError.badRequest(
+          `Недостаточно на складе: «${modelName}»${sizeDescription} — ` +
+            `доступно ${instances.length} из ${line.quantity}`,
+        );
+      }
+      shortages.push({
+        modelId: line.modelId,
+        sizeId: line.sizeId,
+        heightSizeId: line.heightSizeId ?? null,
+        missingQuantity: line.quantity - instances.length,
+      });
+    }
+
+    if (instances.length === 0) {
+      await issuanceRepository.deleteLine(line.id, { transaction });
+      continue;
+    }
+    if (instances.length < line.quantity) {
+      await issuanceRepository.updateLine(line.id, { quantity: instances.length }, { transaction });
+    }
+
+    const applicablePrice = await priceRepository.findApplicable(
+      {
+        modelId: line.modelId,
+        dpoId: employee?.dpoId ?? null,
+        operationDate: document.documentDate,
+      },
+      { transaction },
+    );
+    const snapshot = priceSnapshot(applicablePrice);
+    if (snapshot) {
+      await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
     }
 
     for (const instance of instances) {
@@ -241,7 +274,7 @@ async function applyIssuanceSideEffects(document, lines, { userId, transaction }
   });
   await issuanceRepository.bulkCreateMovements(movementRows, { transaction });
   await instanceEventsRepository.bulkCreate(eventRows, { transaction });
-  return { instanceIds: allInstanceIds };
+  return { instanceIds: allInstanceIds, shortages };
 }
 
 export const issuanceService = {
@@ -451,12 +484,18 @@ export const issuanceService = {
     };
   },
 
-  // Проведение — необратимо: подбирает под каждую строку доступные экземпляры
-  // (FIFO по дате поступления, FOR UPDATE SKIP LOCKED — см. репозиторий),
-  // переводит их в issued с привязкой к работнику и создаёт движения склада.
-  // Если хотя бы по одной строке не хватает остатка — вся транзакция
-  // откатывается, документ остаётся черновиком.
+  // Проведение — подбирает под каждую строку доступные экземпляры (FIFO по
+  // дате поступления, FOR UPDATE SKIP LOCKED — см. репозиторий), переводит
+  // их в issued с привязкой к работнику и создаёт движения склада.
+  // Нехватка остатка больше не откатывает всю транзакцию целиком (было так
+  // до задачи "Отдать в сборку" с частичной выдачей): по строке выдаётся
+  // сколько есть, недостача по каждой строке становится отдельной задачей
+  // на дособор (issuance_tasks, см. tasks/tasks.service.js#complete) —
+  // кладовщик закрывает её вручную на странице "Задачи", когда остаток
+  // появится на складе. Если ДОСТУПНОГО остатка нет вообще ни по одной
+  // строке — проведение отклоняется целиком (нечего выдавать прямо сейчас).
   async post(documentId, { userId }) {
+    let shortages = [];
     await sequelize.transaction(async (transaction) => {
       const document = await issuanceRepository.findLocked(documentId, { transaction });
       if (!document) throw ApiError.notFound('Документ не найден');
@@ -465,12 +504,77 @@ export const issuanceService = {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }
 
-      await applyIssuanceSideEffects(document, document.lines, { userId, transaction });
+      const result = await applyIssuanceSideEffects(document, document.lines, {
+        userId,
+        transaction,
+        tolerateShortage: true,
+      });
+      shortages = result.shortages;
+
+      if (result.instanceIds.length === 0) {
+        throw ApiError.badRequest(
+          'На складе сейчас нет ни одной доступной позиции по этому документу — нечего выдавать',
+        );
+      }
 
       await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
+
+      if (shortages.length > 0) {
+        await tasksRepository.bulkCreate(
+          shortages.map((shortage) => ({
+            sourceDocumentId: documentId,
+            employeeId: document.employeeId,
+            warehouseId: document.warehouseId,
+            modelId: shortage.modelId,
+            sizeId: shortage.sizeId,
+            heightSizeId: shortage.heightSizeId,
+            quantity: shortage.missingQuantity,
+          })),
+          { transaction },
+        );
+      }
     });
 
-    return issuanceRepository.findById(documentId);
+    return { document: await issuanceRepository.findById(documentId), shortages };
+  },
+
+  // Используется tasks/tasks.service.js#complete() при закрытии задачи на
+  // дособор: создаёт и сразу проводит документ на одну строку в той же
+  // транзакции, что лочит и закрывает саму задачу — без прохождения через
+  // отдельный видимый пользователю черновик. tolerateShortage не передаётся
+  // (остаётся false) — на этом шаге отсутствие остатка уже настоящая ошибка,
+  // а не повод создавать вторую задачу поверх первой.
+  async createAndPostForTask(
+    {
+      employeeId,
+      warehouseId,
+      documentDate,
+      responsibleUserId,
+      note,
+      modelId,
+      sizeId,
+      heightSizeId,
+      quantity,
+    },
+    { userId, transaction },
+  ) {
+    const number = await generateDocumentNumber();
+    const document = await issuanceRepository.createDocument(
+      { number, employeeId, warehouseId, documentDate, responsibleUserId, status: 'draft', note },
+      { transaction },
+    );
+    const line = await issuanceRepository.createLine(
+      document.id,
+      { modelId, sizeId, heightSizeId, quantity },
+      { transaction },
+    );
+    await applyIssuanceSideEffects(
+      { id: document.id, number, employeeId, warehouseId, documentDate },
+      [line.get({ plain: true })],
+      { userId, transaction },
+    );
+    await issuanceRepository.markPosted(document.id, { postedByUserId: userId }, { transaction });
+    return document.id;
   },
 
   // Задача 22: контролируемое перепроведение уже проведённой Выдачи.

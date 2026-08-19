@@ -940,3 +940,193 @@ test('выдача: задание на сборку строится по ст�
   assert.equal(sheet.getCell(5, 4).value, 3);
   assert.equal(sheet.getCell(6, 4).value, 3, 'строка итогов суммирует количество');
 });
+
+test('выдача: частичная нехватка остатка выдаёт доступное и создаёт задачу на дособор, задача закрывается вручную', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  // Size.value ограничен 32 символами — префикс короче, чем в остальных
+  // тестах файла, чтобы уместиться вместе с 13-значным Date.now().
+  const unique = `Test Shortage ${Date.now()}`;
+  const state = {
+    instanceIds: [],
+    issuanceDocIds: [],
+    receivingDocIds: [],
+    batchIds: [],
+    taskIds: [],
+  };
+
+  t.after(async () => {
+    if (state.taskIds.length) await models.IssuanceTask.destroy({ where: { id: state.taskIds } });
+    if (state.instanceIds.length) {
+      await models.StockMovement.destroy({ where: { instanceId: state.instanceIds } });
+    }
+    if (state.issuanceDocIds.length) {
+      await models.IssuanceDocument.destroy({ where: { id: state.issuanceDocIds } });
+    }
+    if (state.instanceIds.length) {
+      await models.Instance.destroy({ where: { id: state.instanceIds } });
+    }
+    if (state.receivingDocIds.length) {
+      await models.ReceivingDocument.destroy({ where: { id: state.receivingDocIds } });
+    }
+    if (state.batchIds.length) await models.Batch.destroy({ where: { id: state.batchIds } });
+    await models.Employee.destroy({ where: { fullName: unique } });
+    await models.NomenclatureModel.destroy({ where: { name: unique } });
+    await models.Size.destroy({ where: { value: unique } });
+    await models.Warehouse.destroy({ where: { name: unique } });
+    await models.Supplier.destroy({ where: { name: unique } });
+    await models.Organization.destroy({ where: { name: unique } });
+  });
+
+  const org = await auth(agent.post('/api/v1/organizations')).send({ name: unique });
+  const organizationId = org.body.data.id;
+  const warehouse = await auth(agent.post('/api/v1/warehouses')).send({
+    organizationId,
+    name: unique,
+  });
+  const warehouseId = warehouse.body.data.id;
+  const supplier = await auth(agent.post('/api/v1/suppliers')).send({ name: unique });
+  const size = await auth(agent.post('/api/v1/sizes')).send({ type: 'clothing', value: unique });
+  const sizeId = size.body.data.id;
+  const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: unique,
+    sizeType: 'clothing',
+  });
+  const modelId = model.body.data.id;
+  const employee = await auth(agent.post('/api/v1/employees')).send({
+    organizationId,
+    fullName: unique,
+    hireDate: '2022-01-10',
+  });
+  const employeeId = employee.body.data.id;
+
+  // Оприходуем только 1 экземпляр — работнику понадобится 2.
+  const receiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
+    supplierId: supplier.body.data.id,
+    warehouseId,
+    documentDate: '2026-08-01',
+  });
+  state.receivingDocIds.push(receiving.body.data.id);
+  await auth(agent.post(`/api/v1/purchases/receiving/${receiving.body.data.id}/lines`)).send({
+    modelId,
+    sizeId,
+    quantity: 1,
+    purchasePrice: 1000,
+  });
+  const receivingPosted = await auth(
+    agent.post(`/api/v1/purchases/receiving/${receiving.body.data.id}/post`),
+  );
+  state.batchIds.push(receivingPosted.body.data.batchId);
+  const firstInstances = await models.Instance.findAll({ where: { modelId } });
+  state.instanceIds.push(...firstInstances.map((i) => i.id));
+
+  const issuanceDraft = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId,
+    warehouseId,
+    documentDate: '2026-08-01',
+  });
+  const issuanceId = issuanceDraft.body.data.id;
+  state.issuanceDocIds.push(issuanceId);
+  await auth(agent.post(`/api/v1/issuance/documents/${issuanceId}/lines`)).send({
+    modelId,
+    sizeId,
+    quantity: 2,
+  });
+
+  // Нужно 2, есть 1 — проведение теперь не блокируется целиком: выдаётся
+  // доступное, недостача уходит в задачу.
+  const posted = await auth(agent.post(`/api/v1/issuance/documents/${issuanceId}/post`));
+  assert.equal(posted.status, 200, 'частичное проведение должно проходить успешно');
+  assert.equal(posted.body.data.status, 'posted');
+  assert.equal(posted.body.data.lines.length, 1);
+  assert.equal(
+    posted.body.data.lines[0].quantity,
+    1,
+    'количество строки должно уменьшиться до фактически выданного',
+  );
+  assert.equal(posted.body.meta.shortages.length, 1);
+  assert.equal(posted.body.meta.shortages[0].modelId, modelId);
+  assert.equal(posted.body.meta.shortages[0].missingQuantity, 1);
+
+  const issuedInstance = await models.Instance.findByPk(firstInstances[0].id);
+  assert.equal(issuedInstance.status, 'issued');
+  assert.equal(issuedInstance.employeeId, employeeId);
+
+  const openTasks = await auth(agent.get('/api/v1/issuance/tasks')).query({ status: 'open' });
+  assert.equal(openTasks.status, 200);
+  const task = openTasks.body.data.find((item) => item.sourceDocumentId === issuanceId);
+  assert.ok(task, 'должна появиться открытая задача на дособор');
+  state.taskIds.push(task.id);
+  assert.equal(task.employeeId, employeeId);
+  assert.equal(task.warehouseId, warehouseId);
+  assert.equal(task.modelId, modelId);
+  assert.equal(task.sizeId, sizeId);
+  assert.equal(task.quantity, 1);
+  assert.equal(task.status, 'open');
+
+  const countResponse = await auth(agent.get('/api/v1/issuance/tasks/count'));
+  assert.equal(countResponse.status, 200);
+  assert.ok(countResponse.body.data.count >= 1);
+
+  // Остатка всё ещё нет — завершить нельзя.
+  const failedComplete = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
+  assert.equal(failedComplete.status, 400, 'без остатка завершить задачу нельзя');
+  const stillOpenTask = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(stillOpenTask.status, 'open');
+
+  // Довозим недостающую единицу.
+  const secondReceiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
+    supplierId: supplier.body.data.id,
+    warehouseId,
+    documentDate: '2026-08-05',
+  });
+  state.receivingDocIds.push(secondReceiving.body.data.id);
+  await auth(agent.post(`/api/v1/purchases/receiving/${secondReceiving.body.data.id}/lines`)).send({
+    modelId,
+    sizeId,
+    quantity: 1,
+    purchasePrice: 1000,
+  });
+  const secondReceivingPosted = await auth(
+    agent.post(`/api/v1/purchases/receiving/${secondReceiving.body.data.id}/post`),
+  );
+  state.batchIds.push(secondReceivingPosted.body.data.batchId);
+  const allInstancesAfterSecondReceiving = await models.Instance.findAll({ where: { modelId } });
+  const newInstanceIds = allInstancesAfterSecondReceiving
+    .map((i) => i.id)
+    .filter((id) => !state.instanceIds.includes(id));
+  state.instanceIds.push(...newInstanceIds);
+
+  const completed = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
+  assert.equal(completed.status, 200, 'с появившимся остатком задача должна закрыться');
+  assert.equal(completed.body.data.status, 'completed');
+  assert.ok(completed.body.data.fulfillingDocumentId);
+  state.issuanceDocIds.push(completed.body.data.fulfillingDocumentId);
+
+  const fulfillingDocument = await auth(
+    agent.get(`/api/v1/issuance/documents/${completed.body.data.fulfillingDocumentId}`),
+  );
+  assert.equal(fulfillingDocument.body.data.status, 'posted');
+  assert.equal(fulfillingDocument.body.data.employeeId, employeeId);
+  assert.equal(fulfillingDocument.body.data.lines.length, 1);
+  assert.equal(fulfillingDocument.body.data.lines[0].quantity, 1);
+
+  const completedTasks = await auth(agent.get('/api/v1/issuance/tasks')).query({
+    status: 'completed',
+  });
+  const completedTask = completedTasks.body.data.find((item) => item.id === task.id);
+  assert.ok(completedTask);
+  assert.ok(completedTask.fulfillingDocument);
+  assert.equal(completedTask.fulfillingDocument.id, completed.body.data.fulfillingDocumentId);
+
+  // Повторное завершение уже закрытой задачи отклоняется.
+  const doubleComplete = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
+  assert.equal(doubleComplete.status, 409);
+});

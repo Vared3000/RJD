@@ -15,6 +15,13 @@ export const NAV_SECTIONS = [
       },
       { to: '/issuance/documents', label: 'Выдачи', icon: '→', permission: 'issuance.manage' },
       { to: '/issuance/returns', label: 'Возвраты', icon: '←', permission: 'issuance.manage' },
+      {
+        to: '/issuance/tasks',
+        label: 'Задачи на дособор',
+        icon: '✎',
+        permission: 'issuance.manage',
+        badge: 'issuance-open-tasks',
+      },
       { to: '/laundry/documents', label: 'Стирка', icon: '≈', permission: 'laundry.manage' },
       { to: '/repair/documents', label: 'Ремонт', icon: '◇', permission: 'repair.manage' },
     ],

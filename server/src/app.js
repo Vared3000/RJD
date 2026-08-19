@@ -23,6 +23,7 @@ import { createEmployeesRouter } from './modules/employees/employees.routes.js';
 import { createKitsRouter } from './modules/kits/kits.routes.js';
 import { createIssuanceRouter } from './modules/issuance/documents/issuance.routes.js';
 import { createReturnRouter } from './modules/issuance/returns/return.routes.js';
+import { createTasksRouter } from './modules/issuance/tasks/tasks.routes.js';
 import { createLaundryRouter } from './modules/laundry/laundry.routes.js';
 import { createRepairRouter } from './modules/repair/repair.routes.js';
 import { createTransferRouter } from './modules/transfers/transfer.routes.js';
@@ -75,6 +76,7 @@ export function createApp() {
   app.use('/api/v1/kits', createKitsRouter());
   app.use('/api/v1/issuance/documents', createIssuanceRouter());
   app.use('/api/v1/issuance/returns', createReturnRouter());
+  app.use('/api/v1/issuance/tasks', createTasksRouter());
   app.use('/api/v1/laundry/documents', createLaundryRouter());
   app.use('/api/v1/repair/documents', createRepairRouter());
   app.use('/api/v1/transfers/documents', createTransferRouter());

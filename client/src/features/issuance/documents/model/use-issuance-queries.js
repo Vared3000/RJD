@@ -24,6 +24,7 @@ export function useIssuanceMutations(id) {
     queryClient.invalidateQueries({ queryKey: [KEY] });
     queryClient.invalidateQueries({ queryKey: ['stock-balances'] });
     queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+    queryClient.invalidateQueries({ queryKey: ['issuance-tasks'] });
   };
 
   const create = useMutation({ mutationFn: issuanceApi.create, onSuccess: invalidate });

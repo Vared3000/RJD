@@ -23,6 +23,7 @@ import { IssuanceListPage } from '../pages/issuance/IssuanceListPage.jsx';
 import { IssuanceEditorPage } from '../pages/issuance/IssuanceEditorPage.jsx';
 import { ReturnListPage } from '../pages/issuance/ReturnListPage.jsx';
 import { ReturnEditorPage } from '../pages/issuance/ReturnEditorPage.jsx';
+import { TasksPage } from '../pages/issuance/TasksPage.jsx';
 import { LaundryListPage } from '../pages/laundry/LaundryListPage.jsx';
 import { LaundryEditorPage } from '../pages/laundry/LaundryEditorPage.jsx';
 import { RepairListPage } from '../pages/repair/RepairListPage.jsx';
@@ -98,6 +99,7 @@ export function AppRouter() {
         <Route path="issuance/documents/:id" element={<IssuanceEditorPage />} />
         <Route path="issuance/returns" element={<ReturnListPage />} />
         <Route path="issuance/returns/:id" element={<ReturnEditorPage />} />
+        <Route path="issuance/tasks" element={<TasksPage />} />
         <Route path="laundry/documents" element={<LaundryListPage />} />
         <Route path="laundry/documents/:id" element={<LaundryEditorPage />} />
         <Route path="repair/documents" element={<RepairListPage />} />
