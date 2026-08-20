@@ -32,6 +32,7 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/warehouses/balances', label: 'Остатки', icon: '▦', permission: 'warehouse.view' },
       { to: '/warehouses/movements', label: 'Движения', icon: '⇄', permission: 'warehouse.view' },
+      { to: '/purchases/batches', label: 'Партии', icon: '▤', permission: 'warehouse.view' },
       {
         to: '/transfers/documents',
         label: 'Перемещения',

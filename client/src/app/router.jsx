@@ -14,6 +14,8 @@ import { InstanceCardPage } from '../pages/nomenclature/InstanceCardPage.jsx';
 import { BarcodeLabelsPage } from '../pages/nomenclature/BarcodeLabelsPage.jsx';
 import { ReceivingListPage } from '../pages/purchases/ReceivingListPage.jsx';
 import { ReceivingEditorPage } from '../pages/purchases/ReceivingEditorPage.jsx';
+import { BatchesPage } from '../pages/purchases/BatchesPage.jsx';
+import { BatchCardPage } from '../pages/purchases/BatchCardPage.jsx';
 import { StockBalancesPage } from '../pages/warehouses/StockBalancesPage.jsx';
 import { StockMovementsPage } from '../pages/warehouses/StockMovementsPage.jsx';
 import { EmployeesPage } from '../pages/employees/EmployeesPage.jsx';
@@ -89,6 +91,8 @@ export function AppRouter() {
         <Route path="nomenclature/barcodes" element={<BarcodeLabelsPage />} />
         <Route path="purchases/receiving" element={<ReceivingListPage />} />
         <Route path="purchases/receiving/:id" element={<ReceivingEditorPage />} />
+        <Route path="purchases/batches" element={<BatchesPage />} />
+        <Route path="purchases/batches/:id" element={<BatchCardPage />} />
         <Route path="warehouses/balances" element={<StockBalancesPage />} />
         <Route path="warehouses/movements" element={<StockMovementsPage />} />
         <Route path="employees" element={<EmployeesPage />} />

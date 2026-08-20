@@ -154,6 +154,7 @@ Instance.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 
 Batch.hasMany(Instance, { foreignKey: 'batchId', as: 'instances' });
 Instance.belongsTo(Batch, { foreignKey: 'batchId', as: 'batch' });
+Batch.hasOne(ReceivingDocument, { foreignKey: 'batchId', as: 'receivingDocument' });
 
 Warehouse.hasMany(Instance, { foreignKey: 'warehouseId', as: 'instances' });
 Instance.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });

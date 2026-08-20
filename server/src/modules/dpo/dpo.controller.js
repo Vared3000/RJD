@@ -1,13 +1,16 @@
 import { dpoService } from './dpo.service.js';
-import { success } from '../../utils/respond.js';
+import { success, paginatedSuccess } from '../../utils/respond.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 export const dpoController = {
   async list(req, res) {
-    const items = await dpoService.list({
+    const pagination = parsePagination(req.query);
+    const { rows, count } = await dpoService.list({
       includeArchived: req.query.includeArchived === 'true',
       search: req.query.search,
+      ...pagination,
     });
-    return success(res, items);
+    return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
   },
 
   async getOne(req, res) {

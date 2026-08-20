@@ -60,6 +60,9 @@ export const employeeFormFields = [
     optionsResource: 'dpo',
     optionValue: 'id',
     optionLabel: 'name',
+    searchable: true,
+    serverSearch: true,
+    placeholder: 'Введите название ДПО…',
   },
   { name: 'fullName', label: 'ФИО', type: 'text' },
   {

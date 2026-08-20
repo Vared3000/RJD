@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStockBalances } from '../../features/warehouses/stock/model/use-stock-queries.js';
 import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { Select } from '../../shared/ui/Select.jsx';
@@ -37,13 +37,27 @@ const EMPTY_FILTERS = {
   heightSizeId: '',
 };
 
+const modelsHooks = createCatalogHooks('nomenclature-models');
+
 export function StockBalancesPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState('warehouse');
   const [order, setOrder] = useState('ASC');
+  const [modelSearch, setModelSearch] = useState('');
+  const [debouncedModelSearch, setDebouncedModelSearch] = useState('');
 
   const { data: warehouses } = createCatalogHooks('warehouses').useList(false);
-  const { data: models } = createCatalogHooks('nomenclature-models').useList(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedModelSearch(modelSearch.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [modelSearch]);
+  const { data: models, isFetching: modelsLoading } = modelsHooks.useList(false, {
+    search: debouncedModelSearch,
+    limit: 40,
+  });
+  const { data: selectedModel } = modelsHooks.useOne(filters.modelId, {
+    enabled: Boolean(filters.modelId),
+  });
   const { data: sizes } = createCatalogHooks('sizes').useList(false);
   const { data: rows, isLoading } = useStockBalances({
     warehouseId: filters.warehouseId || undefined,
@@ -56,6 +70,10 @@ export function StockBalancesPage() {
   });
 
   const heightSizes = (sizes ?? []).filter((s) => s.type === 'height');
+  const modelOptions =
+    selectedModel && !(models ?? []).some((model) => model.id === selectedModel.id)
+      ? [selectedModel, ...(models ?? [])]
+      : (models ?? []);
   const totalQuantity = rows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
 
   function setFilter(name, value) {
@@ -104,7 +122,9 @@ export function StockBalancesPage() {
           placeholder="Все — начните вводить название"
           value={filters.modelId}
           onChange={(value) => setFilter('modelId', value)}
-          options={(models ?? []).map((m) => ({ value: m.id, label: m.name }))}
+          onSearch={setModelSearch}
+          isLoading={modelsLoading}
+          options={modelOptions.map((m) => ({ value: m.id, label: m.name }))}
         />
         <Select
           label="Размер"

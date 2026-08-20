@@ -93,6 +93,7 @@ export const lineFields = [
     optionLabel: 'name',
     optionsSort: (left, right) => left.name.localeCompare(right.name, 'ru'),
     searchable: true,
+    serverSearch: true,
     hiddenWhen: (context) => type(context) !== 'surplus',
     required: true,
     placeholder: 'Введите название позиции…',

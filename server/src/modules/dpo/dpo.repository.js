@@ -4,7 +4,7 @@ import { models } from '../../database/models/index.js';
 const { Dpo, DpoHistory, User } = models;
 
 export const dpoRepository = {
-  list({ includeArchived = false, search } = {}) {
+  list({ includeArchived = false, search, page = 1, limit = 50, sort, order = 'ASC' } = {}) {
     const where = includeArchived ? {} : { archivedAt: null };
     if (search) {
       where[Op.or] = [
@@ -13,7 +13,18 @@ export const dpoRepository = {
         { code: { [Op.iLike]: `%${search}%` } },
       ];
     }
-    return Dpo.findAll({ where, order: [['name', 'ASC']] });
+    const effectiveSort = ['name', 'code', 'region', 'createdAt'].includes(sort) ? sort : 'name';
+    const effectiveOrder = String(order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    const offset = (Number(page) - 1) * Number(limit);
+    return Dpo.findAndCountAll({
+      where,
+      order: [
+        [effectiveSort, effectiveOrder],
+        ['name', 'ASC'],
+      ],
+      limit: Number(limit),
+      offset,
+    });
   },
 
   findById(id, { transaction } = {}) {

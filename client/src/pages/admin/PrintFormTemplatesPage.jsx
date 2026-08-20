@@ -36,7 +36,7 @@ export function PrintFormTemplatesPage() {
   const [editorVersion, setEditorVersion] = useState(null);
   const fileInputRef = useRef(null);
 
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   const versionsQuery = useQuery({
     queryKey: ['print-form-templates', formType],
     queryFn: () => printFormTemplatesApi.list(formType),

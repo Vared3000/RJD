@@ -62,14 +62,15 @@ export function PrintFormsPage() {
   const canReopenMonth = useSessionStore((state) =>
     state.user?.permissions?.includes('admin.manage'),
   );
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedEmployeeSearch(employeeSearch), 250);
     return () => clearTimeout(timer);
   }, [employeeSearch]);
   const { data: employees, isFetching: employeesLoading } = createCatalogHooks('employees').useList(
     false,
-    { search: debouncedEmployeeSearch, limit: 40 },
+    { search: debouncedEmployeeSearch, dpoId: dpoId || undefined, limit: 40 },
+    { enabled: Boolean(dpoId) },
   );
 
   async function download(form, format) {
@@ -201,12 +202,10 @@ export function PrintFormsPage() {
           disabled={!dpoId}
           placeholder={dpoId ? 'Введите ФИО или табельный номер…' : 'Сначала выберите ДПО'}
           hint="Нужен только для личной карточки"
-          options={(employees ?? [])
-            .filter((employee) => employee.dpoId === dpoId)
-            .map((employee) => ({
-              value: employee.id,
-              label: [employee.fullName, employee.personnelNumber].filter(Boolean).join(' · '),
-            }))}
+          options={(employees ?? []).map((employee) => ({
+            value: employee.id,
+            label: [employee.fullName, employee.personnelNumber].filter(Boolean).join(' · '),
+          }))}
         />
       </div>
 

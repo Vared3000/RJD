@@ -79,16 +79,26 @@ function SelectField({ field, control, error }) {
     ? filterResourceHooks.useList(false)
     : { data: null };
   const formValues = useWatch({ control });
+  const selectedValue = formValues[field.name];
+  const { data: selectedItem } = resourceHooks
+    ? resourceHooks.useOne(selectedValue, {
+        enabled: Boolean(field.serverSearch && selectedValue),
+      })
+    : { data: null };
+  const optionsItems =
+    selectedItem && !(fetchedItems ?? []).some((item) => item.id === selectedItem.id)
+      ? [selectedItem, ...(fetchedItems ?? [])]
+      : (fetchedItems ?? []);
   const fieldContext = {
     values: formValues,
-    relatedItems: filterItems ?? fetchedItems ?? [],
-    optionsItems: fetchedItems ?? [],
+    relatedItems: filterItems ?? optionsItems,
+    optionsItems,
   };
 
   if (field.hiddenWhen?.(fieldContext)) return null;
 
   const options = field.optionsResource
-    ? (fetchedItems ?? [])
+    ? optionsItems
         .filter((item) =>
           field.optionsFilter
             ? field.optionsFilter(item, {

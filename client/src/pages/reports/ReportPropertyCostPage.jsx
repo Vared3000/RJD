@@ -21,7 +21,7 @@ const totalColumns = [
 
 export function ReportPropertyCostPage() {
   const [dpoId, setDpoId] = useState('');
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   const { data, isLoading } = usePropertyCostReport({ dpoId: dpoId || undefined });
 
   return (

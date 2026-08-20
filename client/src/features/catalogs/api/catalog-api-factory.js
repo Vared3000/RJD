@@ -27,6 +27,11 @@ export function createCatalogApi(resource) {
       return { items: data.data, meta: data.meta };
     },
 
+    async getOne(id) {
+      const { data } = await httpClient.get(`${basePath}/${id}`);
+      return data.data;
+    },
+
     async create(payload) {
       const { data } = await httpClient.post(basePath, payload);
       return data.data;

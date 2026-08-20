@@ -94,7 +94,7 @@ export function ReportTurnoverPage() {
   const [sort, setSort] = useState('');
   const [order, setOrder] = useState('ASC');
 
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   const { data: positions } = createCatalogHooks('positions').useList(false);
 
   const params = {

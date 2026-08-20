@@ -32,7 +32,7 @@ const totalColumns = [
 export function ReportEmployeesPage() {
   const [range, setRange] = useState(() => resolvePreset('month'));
   const [dpoId, setDpoId] = useState('');
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   const { data, isLoading } = useEmployeesReport({ ...range, dpoId: dpoId || undefined });
 
   return (

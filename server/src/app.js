@@ -18,6 +18,7 @@ import { createSizesRouter } from './modules/catalogs/sizes/sizes.routes.js';
 import { createNomenclatureModelsRouter } from './modules/nomenclature/models/nomenclature-models.routes.js';
 import { createInstancesRouter } from './modules/nomenclature/instances/instances.routes.js';
 import { createReceivingRouter } from './modules/purchases/receiving/receiving.routes.js';
+import { createBatchesRouter } from './modules/purchases/batches/batches.routes.js';
 import { createStockRouter } from './modules/warehouses/stock/stock.routes.js';
 import { createEmployeesRouter } from './modules/employees/employees.routes.js';
 import { createKitsRouter } from './modules/kits/kits.routes.js';
@@ -71,6 +72,7 @@ export function createApp() {
   app.use('/api/v1/nomenclature-models', createNomenclatureModelsRouter());
   app.use('/api/v1/instances', createInstancesRouter());
   app.use('/api/v1/purchases/receiving', createReceivingRouter());
+  app.use('/api/v1/batches', createBatchesRouter());
   app.use('/api/v1/stock', createStockRouter());
   app.use('/api/v1/employees', createEmployeesRouter());
   app.use('/api/v1/kits', createKitsRouter());

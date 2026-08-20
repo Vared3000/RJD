@@ -57,6 +57,21 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   assert.equal(searchHit.status, 200);
   assert.equal(searchHit.body.data.length, 1);
   assert.equal(searchHit.body.data[0].id, dpoId);
+  assert.equal(searchHit.body.meta.page, 1);
+  assert.equal(searchHit.body.meta.total, 1);
+
+  const paginated = await auth(agent.get('/api/v1/dpo')).query({
+    search: unique,
+    page: 1,
+    limit: 1,
+    sort: 'name',
+    order: 'DESC',
+  });
+  assert.equal(paginated.status, 200);
+  assert.equal(paginated.body.data.length, 1);
+  assert.equal(paginated.body.meta.limit, 1);
+  const invalidPage = await auth(agent.get('/api/v1/dpo')).query({ page: 0 });
+  assert.equal(invalidPage.status, 400);
 
   const searchMiss = await auth(agent.get('/api/v1/dpo')).query({ search: 'no-such-dpo-xyz' });
   assert.equal(searchMiss.body.data.length, 0);

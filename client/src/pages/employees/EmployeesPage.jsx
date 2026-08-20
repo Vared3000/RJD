@@ -73,7 +73,7 @@ const SORT_OPTIONS = [
 ];
 
 export function EmployeesPage() {
-  const { data: dpos } = createCatalogHooks('dpo').useList(false);
+  const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
   const dpoFilter = {
     name: 'dpoId',
     label: 'ДПО',

@@ -16,6 +16,15 @@ export function createCatalogHooks(resource) {
     return { ...query, data: query.data?.items, meta: query.data?.meta };
   }
 
+  function useOne(id, options = {}) {
+    return useQuery({
+      queryKey: [resource, id],
+      queryFn: () => api.getOne(id),
+      enabled: Boolean(id),
+      ...options,
+    });
+  }
+
   function useCatalogMutations() {
     const queryClient = useQueryClient();
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [resource] });
@@ -44,5 +53,5 @@ export function createCatalogHooks(resource) {
     return { create, update, archive, restore };
   }
 
-  return { useList, useCatalogMutations };
+  return { useList, useOne, useCatalogMutations };
 }

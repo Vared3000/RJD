@@ -31,7 +31,13 @@ test('складские операции собраны в одном разд�
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Основное меню' });
   await nav.getByRole('button', { name: /Склад/i }).click();
+  const batchesLink = nav.getByRole('link', { name: /Партии/i });
+  await expect(batchesLink).toBeVisible();
   await expect(nav.getByRole('link', { name: /Перемещения/i })).toBeVisible();
   await expect(nav.getByRole('link', { name: /Инвентаризации/i })).toBeVisible();
   await expect(nav.getByRole('link', { name: /Корректировки/i })).toBeVisible();
+
+  await batchesLink.click();
+  await expect(page.getByRole('heading', { name: 'Партии' })).toBeVisible();
+  await expect(page.getByPlaceholder('Код партии, поставщик или примечание…')).toBeVisible();
 });
