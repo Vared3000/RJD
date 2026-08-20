@@ -44,4 +44,19 @@ export const reportsController = {
   async dpo(req, res) {
     respond(res, await reportsService.dpo(req.query));
   },
+  async turnover(req, res) {
+    const result = await reportsService.turnover(req.query);
+    return success(res, result.rows, 200, {
+      totals: result.totals,
+      from: result.from,
+      to: result.to,
+      groupBy: result.groupBy,
+      groupByLabel: result.groupByLabel,
+      filtersText: result.filtersText,
+      formulaText: result.formulaText,
+      positionNote: result.positionNote,
+      incompleteHireCount: result.incompleteHireCount,
+      generatedAt: result.generatedAt,
+    });
+  },
 };

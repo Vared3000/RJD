@@ -139,6 +139,31 @@ const REPORTS = {
       propertyItemsCount: 'propertyItemsCount',
     },
   },
+  turnover: {
+    method: 'turnover',
+    title: 'Сменяемость работников по ДПО',
+    columns: [
+      ['dpoName', 'ДПО', 26],
+      ['positionName', 'Должность', 22],
+      ['genderLabel', 'Пол', 12],
+      ['start', 'На начало', 12, 'number'],
+      ['hired', 'Принято', 12, 'number'],
+      ['terminated', 'Уволено', 12, 'number'],
+      ['end', 'На конец', 12, 'number'],
+      ['average', 'Средняя численность', 16, 'decimal'],
+      ['turnoverRate', 'Сменяемость, %', 14, 'percent'],
+      ['turnoverPercent', 'Оборот кадров, %', 14, 'percent'],
+    ],
+    totals: {
+      start: 'start',
+      hired: 'hired',
+      terminated: 'terminated',
+      end: 'end',
+      average: 'average',
+      turnoverRate: 'turnoverRate',
+      turnoverPercent: 'turnoverPercent',
+    },
+  },
 };
 
 function periodText(result) {
@@ -147,10 +172,16 @@ function periodText(result) {
       ? `Период: ${dateLabel(result.from)} — ${dateLabel(result.to)}`
       : 'На текущий момент',
   ];
+  if (result.groupByLabel) parts.push(`Группировка: ${result.groupByLabel}`);
   if (result.filtersText) parts.push(result.filtersText);
   if (result.generatedAt) {
     parts.push(`Сформировано ${new Date(result.generatedAt).toLocaleString('ru-RU')}`);
   }
+  if (result.positionNote) parts.push(result.positionNote);
+  if (result.incompleteHireCount) {
+    parts.push(`Без даты приёма: ${result.incompleteHireCount} карточек`);
+  }
+  if (result.formulaText) parts.push(result.formulaText);
   return parts.join(' · ');
 }
 

@@ -9,7 +9,8 @@ import { createRequire } from 'node:module';
 //
 // config = { title, subtitle?, columns: [[key, label, width, type?]], totals?: { columnKey: totalsKey } }
 // result = { rows, totals? }
-// type колонки: 'number' | 'money' | 'date' | 'datetime' | 'list' | undefined (текст)
+// type колонки: 'number' | 'decimal' | 'money' | 'percent' | 'date' | 'datetime' |
+// 'list' | undefined (текст)
 
 const require = createRequire(import.meta.url);
 const FONT = require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf');
@@ -38,6 +39,18 @@ export function displayValue(value, type) {
     return Number(value).toLocaleString('ru-RU', {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
+    });
+  }
+  if (type === 'percent') {
+    return `${Number(value).toLocaleString('ru-RU', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}%`;
+  }
+  if (type === 'decimal') {
+    return Number(value).toLocaleString('ru-RU', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
   }
   return String(value);
@@ -88,6 +101,8 @@ export async function generateTabularExcel(config, result) {
     config.columns.forEach(([, , , type], index) => {
       if (type === 'money') row.getCell(index + 1).numFmt = '# ##0.000';
       if (type === 'number') row.getCell(index + 1).numFmt = '# ##0';
+      if (type === 'percent') row.getCell(index + 1).numFmt = '0.00"%"';
+      if (type === 'decimal') row.getCell(index + 1).numFmt = '# ##0.00';
     });
   }
 
@@ -102,6 +117,8 @@ export async function generateTabularExcel(config, result) {
   config.columns.forEach(([, , , type], index) => {
     if (type === 'money') totalRow.getCell(index + 1).numFmt = '# ##0.000';
     if (type === 'number') totalRow.getCell(index + 1).numFmt = '# ##0';
+    if (type === 'percent') totalRow.getCell(index + 1).numFmt = '0.00"%"';
+    if (type === 'decimal') totalRow.getCell(index + 1).numFmt = '# ##0.00';
   });
 
   for (let rowNumber = 4; rowNumber <= totalRow.number; rowNumber += 1) {
@@ -201,7 +218,10 @@ export async function generateTabularPdf(config, result) {
     let x = doc.page.margins.left;
     config.columns.forEach(([key, , , type], index) => {
       drawCell(displayValue(valueAt(row, key), type), x, y, widths[index], rowHeight, {
-        align: type === 'money' || type === 'number' ? 'right' : 'left',
+        align:
+          type === 'money' || type === 'number' || type === 'percent' || type === 'decimal'
+            ? 'right'
+            : 'left',
       });
       x += widths[index];
     });
@@ -219,7 +239,10 @@ export async function generateTabularPdf(config, result) {
     const value = index === 0 ? 'Итого' : totalKey ? result.totals?.[totalKey] : '';
     drawCell(totalKey ? displayValue(value, type) : value, x, y, widths[index], rowHeight, {
       bold: true,
-      align: type === 'money' || type === 'number' ? 'right' : 'left',
+      align:
+        type === 'money' || type === 'number' || type === 'percent' || type === 'decimal'
+          ? 'right'
+          : 'left',
     });
     x += widths[index];
   });

@@ -25,6 +25,7 @@ export function createReportsRouter() {
   router.get('/warehouses', asyncHandler(reportsController.warehouses));
   router.get('/employees', asyncHandler(reportsController.employees));
   router.get('/dpo', asyncHandler(reportsController.dpo));
+  router.get('/turnover', asyncHandler(reportsController.turnover));
 
   const periodParams = [
     {
@@ -60,6 +61,7 @@ export function createReportsRouter() {
                 'employees',
                 'employees-list',
                 'dpo',
+                'turnover',
               ],
             },
           },
@@ -198,6 +200,53 @@ export function createReportsRouter() {
           { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         ],
         responses: { 200: { description: 'Список по ДПО + итоги' } },
+      },
+    },
+    '/reports/turnover': {
+      get: {
+        tags: ['Отчёты'],
+        summary: 'Сменяемость работников по ДПО (не текучесть — причины увольнения не хранятся)',
+        parameters: [
+          { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          { name: 'dpoId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'positionId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          {
+            name: 'gender',
+            in: 'query',
+            schema: { type: 'string', enum: ['male', 'female', 'none'] },
+          },
+          {
+            name: 'groupBy',
+            in: 'query',
+            schema: {
+              type: 'string',
+              enum: ['dpo', 'position', 'gender', 'dpo_position_gender'],
+              default: 'dpo',
+            },
+          },
+          {
+            name: 'sort',
+            in: 'query',
+            schema: {
+              type: 'string',
+              enum: [
+                'dpo',
+                'position',
+                'gender',
+                'start',
+                'hired',
+                'terminated',
+                'end',
+                'average',
+                'turnoverRate',
+                'turnoverPercent',
+              ],
+            },
+          },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'] } },
+        ],
+        responses: { 200: { description: 'Список групп + итоги + формула' } },
       },
     },
   });

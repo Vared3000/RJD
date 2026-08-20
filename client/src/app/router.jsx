@@ -45,6 +45,7 @@ import { ReportRepairsPage } from '../pages/reports/ReportRepairsPage.jsx';
 import { ReportWarehousesPage } from '../pages/reports/ReportWarehousesPage.jsx';
 import { ReportStockBalancesPage } from '../pages/reports/ReportStockBalancesPage.jsx';
 import { ReportPropertyCostPage } from '../pages/reports/ReportPropertyCostPage.jsx';
+import { ReportTurnoverPage } from '../pages/reports/ReportTurnoverPage.jsx';
 import { DpoPage } from '../pages/dpo/DpoPage.jsx';
 import { DpoHistoryPage } from '../pages/dpo/DpoHistoryPage.jsx';
 import { PrintFormsPage } from '../pages/print-forms/PrintFormsPage.jsx';
@@ -121,6 +122,7 @@ export function AppRouter() {
         <Route path="reports/warehouses" element={<ReportWarehousesPage />} />
         <Route path="reports/stock-balances" element={<ReportStockBalancesPage />} />
         <Route path="reports/property-cost" element={<ReportPropertyCostPage />} />
+        <Route path="reports/turnover" element={<ReportTurnoverPage />} />
         <Route path="print-forms" element={<PrintFormsPage />} />
         <Route path="admin/users" element={<AdminUsersPage />} />
         <Route path="admin/print-form-settings" element={<PrintFormSettingsPage />} />

@@ -98,6 +98,12 @@ export const NAV_SECTIONS = [
       },
       { to: '/reports/dpo', label: 'Отчёт по ДПО', icon: '·', permission: 'reports.view' },
       {
+        to: '/reports/turnover',
+        label: 'Сменяемость по ДПО',
+        icon: '·',
+        permission: 'reports.view',
+      },
+      {
         to: '/reports/purchases',
         label: 'Отчёт по поступлениям',
         icon: '·',

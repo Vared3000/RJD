@@ -19,6 +19,24 @@ export const reportsApi = {
   warehouses: (params) => getReport('warehouses', params),
   employees: (params) => getReport('employees', params),
   dpo: (params) => getReport('dpo', params),
+  async turnover(params) {
+    const { data } = await httpClient.get('/reports/turnover', {
+      params: pruneParams(params ?? {}),
+    });
+    return {
+      rows: data.data,
+      totals: data.meta?.totals,
+      from: data.meta?.from,
+      to: data.meta?.to,
+      groupBy: data.meta?.groupBy,
+      groupByLabel: data.meta?.groupByLabel,
+      filtersText: data.meta?.filtersText,
+      formulaText: data.meta?.formulaText,
+      positionNote: data.meta?.positionNote,
+      incompleteHireCount: data.meta?.incompleteHireCount ?? 0,
+      generatedAt: data.meta?.generatedAt,
+    };
+  },
 };
 
 export async function downloadReport(report, params, format) {

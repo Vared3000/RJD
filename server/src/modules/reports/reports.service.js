@@ -1,6 +1,7 @@
 import { reportsRepository } from './reports.repository.js';
 import { stockService } from '../warehouses/stock/stock.service.js';
 import { computeCoverageDays } from './coverage.service.js';
+import { computeTurnoverReport } from './turnover.service.js';
 import { resolvePeriodFromQuery } from './period.js';
 import {
   EMPLOYEE_STATUSES,
@@ -428,5 +429,18 @@ export const reportsService = {
       generatedAt,
       filtersText: filterParts.length ? filterParts.join(' · ') : 'Без фильтров',
     };
+  },
+
+  async turnover(query) {
+    return computeTurnoverReport({
+      from: query.from,
+      to: query.to,
+      dpoId: query.dpoId || undefined,
+      positionId: query.positionId || undefined,
+      gender: query.gender || undefined,
+      groupBy: query.groupBy || undefined,
+      sort: query.sort || undefined,
+      order: query.order || undefined,
+    });
   },
 };

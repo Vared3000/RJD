@@ -20,3 +20,4 @@ export const useWarehousesReport = (params) =>
   useReport('warehouses', reportsApi.warehouses, params);
 export const useEmployeesReport = (params) => useReport('employees', reportsApi.employees, params);
 export const useDpoReport = (params) => useReport('dpo', reportsApi.dpo, params);
+export const useTurnoverReport = (params) => useReport('turnover', reportsApi.turnover, params);
