@@ -3,7 +3,7 @@ import { success } from '../../utils/respond.js';
 import { employeesService } from './employees.service.js';
 
 const referenceController = createReferenceController(employeesService, {
-  filterFields: ['dpoId'],
+  filterFields: ['dpoId', 'region', 'status'],
 });
 
 export const employeesController = {

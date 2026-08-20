@@ -58,6 +58,7 @@ export function createReportsRouter() {
                 'repairs',
                 'warehouses',
                 'employees',
+                'employees-list',
                 'dpo',
               ],
             },

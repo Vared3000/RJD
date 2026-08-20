@@ -2,9 +2,57 @@ import { reportsRepository } from './reports.repository.js';
 import { stockService } from '../warehouses/stock/stock.service.js';
 import { computeCoverageDays } from './coverage.service.js';
 import { resolvePeriodFromQuery } from './period.js';
+import {
+  EMPLOYEE_STATUSES,
+  EMPLOYEE_STATUS_LABELS,
+  computeEmployeeStatus,
+} from '../employees/employee-status.js';
 
 const num = (value) => Number(value ?? 0);
-const GENDER_LABELS = { male: 'Мужской', female: 'Женский' };
+
+const PERSONNEL_LIST_SORT_FIELDS = [
+  'fullName',
+  'personnelNumber',
+  'region',
+  'position',
+  'dpo',
+  'status',
+];
+const PERSONNEL_STATUS_RANK = { active: 0, terminated: 1, archived: 2 };
+
+function compareRu(a, b) {
+  return String(a ?? '').localeCompare(String(b ?? ''), 'ru', { numeric: true });
+}
+
+function sortPersonnelListRows(rows, sort, order) {
+  const direction = String(order).toUpperCase() === 'DESC' ? -1 : 1;
+  const key = PERSONNEL_LIST_SORT_FIELDS.includes(sort) ? sort : null;
+  const chain = key ? [key, 'region', 'dpo', 'fullName'] : ['region', 'dpo', 'fullName'];
+  rows.sort((left, right) => {
+    for (const field of chain) {
+      const primary = field === key;
+      const dir = primary ? direction : 1;
+      let cmp;
+      if (field === 'status') {
+        cmp =
+          (PERSONNEL_STATUS_RANK[left.statusCode] - PERSONNEL_STATUS_RANK[right.statusCode]) * dir;
+      } else if (field === 'personnelNumber') {
+        cmp = compareRu(left.personnelNumber, right.personnelNumber) * dir;
+      } else if (field === 'position') {
+        cmp = compareRu(left.positionName, right.positionName) * dir;
+      } else if (field === 'dpo') {
+        cmp = compareRu(left.dpoName, right.dpoName) * dir;
+      } else if (field === 'region') {
+        cmp = compareRu(left.region, right.region) * dir;
+      } else {
+        cmp = compareRu(left.fullName, right.fullName) * dir;
+      }
+      if (cmp !== 0) return cmp;
+    }
+    return 0;
+  });
+  return rows;
+}
 
 function sumBy(items, fn) {
   return items.reduce((sum, item) => sum + fn(item), 0);
@@ -326,26 +374,59 @@ export const reportsService = {
     return { from, to, rows, totals };
   },
 
-  // Экспорт текущего списка со страницы "Работники" (не период-отчёт — тот
-  // же список, что и GET /employees, только в Excel/PDF с теми же фильтрами:
-  // ДПО и архивные). Колонки повторяют таблицу на странице.
+  // Печатная форма «Список работников» (Релиз В,
+  // docs/TZ_NEXT_RELEASES_2026-08-19.md) — не период-отчёт: строго шесть
+  // колонок (ФИО, Табельный номер, Регион, Должность, ДПО, Статус), статус
+  // вычисляется на дату формирования. Не путать с периодическим
+  // reportsService.employees (показатели обеспеченности, другая форма) —
+  // это ровно тот список, что и GET /employees на экране, с теми же
+  // фильтрами (ДПО, регион, статус, архивные), чтобы экран и выгрузка
+  // совпадали (см. employeesController/employeeRepository.list).
   async employeesList(query) {
     const dpoId = query.dpoId || undefined;
+    const region = query.region || undefined;
+    const status = EMPLOYEE_STATUSES.includes(query.status) ? query.status : undefined;
+    const search = query.search || undefined;
     const includeArchived = query.includeArchived === 'true' || query.includeArchived === true;
-    const employees = await reportsRepository.findEmployeesForExport({ dpoId, includeArchived });
-    const today = new Date();
-    const rows = employees.map((employee) => ({
-      fullName: employee.fullName,
-      gender: GENDER_LABELS[employee.gender] ?? '—',
-      organizationName: employee.organization?.name ?? null,
-      subdivisionName: employee.subdivision?.name ?? null,
-      positionName: employee.position?.name ?? null,
-      dpoName: employee.dpo?.name ?? null,
-      hireDate: employee.hireDate,
-      tenureDays: tenureDays(employee.hireDate, employee.terminationDate, today),
-      terminationDate: employee.terminationDate,
-      status: employee.archivedAt ? 'В архиве' : 'Активно',
-    }));
-    return { rows, totals: { employeesCount: rows.length } };
+    const generatedAt = new Date();
+
+    const employees = await reportsRepository.findEmployeesForPersonnelList({
+      dpoId,
+      region,
+      status,
+      search,
+      includeArchived,
+    });
+
+    const rows = employees.map((employee) => {
+      const statusCode = computeEmployeeStatus(employee, generatedAt);
+      return {
+        fullName: employee.fullName,
+        personnelNumber: employee.personnelNumber,
+        region: employee.dpo?.region ?? null,
+        positionName: employee.position?.name ?? null,
+        dpoName: employee.dpo?.name ?? null,
+        statusCode,
+        status: EMPLOYEE_STATUS_LABELS[statusCode],
+      };
+    });
+    sortPersonnelListRows(rows, query.sort, query.order);
+
+    const filterParts = [];
+    if (dpoId) {
+      const [dpo] = await reportsRepository.findDpos({ dpoId, includeArchived: true });
+      if (dpo) filterParts.push(`ДПО: ${dpo.name}`);
+    }
+    if (region) filterParts.push(`Регион: ${region}`);
+    if (status) filterParts.push(`Статус: ${EMPLOYEE_STATUS_LABELS[status]}`);
+    if (search) filterParts.push(`Поиск: «${search}»`);
+    if (includeArchived) filterParts.push('включая архивных');
+
+    return {
+      rows,
+      totals: { employeesCount: rows.length },
+      generatedAt,
+      filtersText: filterParts.length ? filterParts.join(' · ') : 'Без фильтров',
+    };
   },
 };

@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { models } from '../../database/models/index.js';
 import { toDateOnly } from './period.js';
+import { addOrGroup, applyEmployeeStatusFilter } from '../employees/employee-status.js';
 
 const {
   ReceivingDocument,
@@ -13,6 +14,7 @@ const {
   Instance,
   Employee,
   Dpo,
+  Position,
   Warehouse,
   Supplier,
   IssuanceDocument,
@@ -126,18 +128,47 @@ export const reportsRepository = {
     });
   },
 
-  findEmployeesForExport({ dpoId, includeArchived = false } = {}) {
+  // Список работников (Релиз В, docs/TZ_NEXT_RELEASES_2026-08-19.md) —
+  // лёгкая выборка под шесть колонок печатной формы (ФИО, Табельный номер,
+  // Регион, Должность, ДПО, Статус) для reportsService.employeesList;
+  // заменяет прежнюю findEmployeesForExport (тянула Organization/Subdivision
+  // для колонок, убранных этим релизом). Итоговая сортировка (регион -> ДПО
+  // -> ФИО по умолчанию, либо явный ключ) применяется в reports.service.js в
+  // JS — выборка не постраничная (печатная форма отдаёт всех сразу).
+  async findEmployeesForPersonnelList({
+    dpoId,
+    region,
+    status,
+    search,
+    includeArchived = false,
+  } = {}) {
     const where = includeArchived ? {} : { archivedAt: null };
     if (dpoId) where.dpoId = dpoId;
+    applyEmployeeStatusFilter(where, status);
+    if (search) {
+      addOrGroup(
+        where,
+        ['fullName', 'personnelNumber'].map((field) => ({
+          [field]: { [Op.iLike]: `%${search}%` },
+        })),
+      );
+    }
+    // Регион принадлежит Dpo, не Employee — тот же приём, что в
+    // employeeRepository.list(): два простых запроса вместо where на include
+    // (там это было обязательно из-за subQuery-оборачивания findAndCountAll с
+    // hasMany; здесь findAll без пагинации, но держим один способ фильтрации
+    // по региону в обоих местах, чтобы не расходились).
+    if (region) {
+      const matchingDpos = await Dpo.findAll({ where: { region }, attributes: ['id'] });
+      const regionDpoIds = matchingDpos.map((dpo) => dpo.id);
+      where.dpoId = dpoId ? regionDpoIds.filter((id) => id === dpoId) : { [Op.in]: regionDpoIds };
+    }
     return Employee.findAll({
       where,
       include: [
-        { model: models.Organization, as: 'organization', attributes: ['id', 'name'] },
-        { model: models.Subdivision, as: 'subdivision', attributes: ['id', 'name'] },
-        { model: models.Position, as: 'position', attributes: ['id', 'name'] },
-        { model: Dpo, as: 'dpo', attributes: ['id', 'name'] },
+        { model: Position, as: 'position', attributes: ['id', 'name'] },
+        { model: Dpo, as: 'dpo', attributes: ['id', 'name', 'region'] },
       ],
-      order: [['fullName', 'ASC']],
     });
   },
 

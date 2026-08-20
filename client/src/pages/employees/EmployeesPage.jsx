@@ -37,6 +37,41 @@ const columns = [
   },
 ];
 
+// Три статуса печатной формы «Список работников» (Релиз В,
+// docs/TZ_NEXT_RELEASES_2026-08-19.md) — вычисляются на бэкенде
+// (employees/employee-status.js), здесь только подписи для select-фильтра.
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Активен' },
+  { value: 'terminated', label: 'Уволен' },
+  { value: 'archived', label: 'В архиве' },
+];
+
+const STATUS_BADGE_CLASS = {
+  active: catalogStyles.active,
+  terminated: catalogStyles.terminated,
+  archived: catalogStyles.archived,
+};
+
+// Узкий renderer для встроенной колонки статуса CatalogPage
+// (CLAUDE_REVIEW_TASK.md пункт 2) — item.status/item.statusCode приходят
+// уже посчитанными с бэкенда (employees.repository.js#list, тот же
+// приоритет В архиве -> Уволен -> Активен, что и у печатной формы), поэтому
+// здесь нет собственной бизнес-логики вычисления статуса — только выбор
+// CSS-класса значка по уже готовому коду статуса.
+function renderEmployeeStatus(item) {
+  const badgeClass = STATUS_BADGE_CLASS[item.statusCode] ?? catalogStyles.active;
+  return <span className={badgeClass}>{item.status ?? '—'}</span>;
+}
+
+const SORT_OPTIONS = [
+  { value: 'fullName', label: 'ФИО' },
+  { value: 'personnelNumber', label: 'Табельный номер' },
+  { value: 'region', label: 'Регион' },
+  { value: 'position', label: 'Должность' },
+  { value: 'dpo', label: 'ДПО' },
+  { value: 'status', label: 'Статус' },
+];
+
 export function EmployeesPage() {
   const { data: dpos } = createCatalogHooks('dpo').useList(false);
   const dpoFilter = {
@@ -44,6 +79,15 @@ export function EmployeesPage() {
     label: 'ДПО',
     options: (dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name })),
   };
+  const regions = [...new Set((dpos ?? []).map((dpo) => dpo.region).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'ru'),
+  );
+  const regionFilter = {
+    name: 'region',
+    label: 'Регион',
+    options: regions.map((region) => ({ value: region, label: region })),
+  };
+  const statusFilter = { name: 'status', label: 'Статус', options: STATUS_OPTIONS };
 
   return (
     <CatalogPage
@@ -56,8 +100,10 @@ export function EmployeesPage() {
       viewPermission="employees.view"
       managePermission="employees.manage"
       searchable
-      filters={[dpoFilter]}
+      filters={[dpoFilter, regionFilter, statusFilter]}
+      sortOptions={SORT_OPTIONS}
       exportReport="employees-list"
+      archiveColumnRender={renderEmployeeStatus}
     />
   );
 }

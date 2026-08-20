@@ -16,8 +16,19 @@ import styles from './CatalogPage.module.css';
 //   [{ name, label, options: [{ value, label }] }]. name должен совпадать с
 //   именем query-параметра, который бэкенд принимает в filterFields
 //   (см. reference-crud.factory.js).
+// sortOptions — необязательный список [{ value, label }] для ручной
+//   сортировки сверх серверного значения по умолчанию: рендерит select +
+//   переключатель направления, sort/order уходят в useList и в exportReport
+//   тем же query-параметром, который понимает parsePagination на бэкенде.
 // exportReport — id отчёта в report-export.service.js REPORTS для кнопок
 //   "Скачать Excel/PDF" текущего (отфильтрованного) списка; необязателен.
+// archiveColumnRender — необязательный (item) => ReactNode, заменяет
+//   стандартное содержимое встроенной колонки архивации/восстановления
+//   (по умолчанию — бинарное "В архиве"/"Активно" по item.archivedAt).
+//   Нужен сущностям с более чем двумя вычисляемыми статусами (например,
+//   работники: Активен/Уволен/В архиве, см. CLAUDE_REVIEW_TASK.md) — узкая
+//   точка расширения вместо специфичной для employees проверки внутри
+//   этого общего компонента (см. docs/architecture.md).
 export function CatalogPage({
   resource,
   title,
@@ -27,8 +38,10 @@ export function CatalogPage({
   viewPermission = 'catalogs.view',
   managePermission = 'catalogs.manage',
   archiveColumnLabel = 'Статус',
+  archiveColumnRender,
   searchable = false,
   filters = [],
+  sortOptions,
   exportReport,
   description,
 }) {
@@ -40,10 +53,13 @@ export function CatalogPage({
   const [filterValues, setFilterValues] = useState(() =>
     Object.fromEntries(filters.map((filter) => [filter.name, searchParams.get(filter.name) ?? ''])),
   );
+  const [sortField, setSortField] = useState(searchParams.get('sort') ?? '');
+  const [sortOrder, setSortOrder] = useState(searchParams.get('order') ?? 'ASC');
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const activeFilters = Object.fromEntries(
     Object.entries(filterValues).filter(([, value]) => value),
   );
+  const sortParams = sortOptions ? { sort: sortField || undefined, order: sortOrder } : {};
   const {
     data: items,
     meta,
@@ -54,6 +70,7 @@ export function CatalogPage({
   } = useList(showArchived, {
     ...(searchable ? { search: debouncedSearch } : {}),
     ...activeFilters,
+    ...sortParams,
     page,
     limit: 50,
   });
@@ -83,12 +100,26 @@ export function CatalogPage({
           if (value) next.set(name, value);
           else next.delete(name);
         }
+        if (sortOptions) {
+          if (sortField) next.set('sort', sortField);
+          else next.delete('sort');
+          next.set('order', sortOrder);
+        }
         next.set('page', String(page));
         return next;
       },
       { replace: true },
     );
-  }, [debouncedSearch, filterValues, page, setSearchParams, showArchived]);
+  }, [
+    debouncedSearch,
+    filterValues,
+    page,
+    setSearchParams,
+    showArchived,
+    sortField,
+    sortOrder,
+    sortOptions,
+  ]);
 
   function goToPage(nextPage) {
     setSearchParams((current) => {
@@ -173,6 +204,36 @@ export function CatalogPage({
             ))}
           </select>
         ))}
+        {sortOptions && (
+          <>
+            <select
+              aria-label="Сортировка"
+              value={sortField}
+              onChange={(event) => {
+                setSortField(event.target.value);
+                goToPage(1);
+              }}
+            >
+              <option value="">Сортировка: по умолчанию</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setSortOrder((current) => (current === 'ASC' ? 'DESC' : 'ASC'));
+                goToPage(1);
+              }}
+              disabled={!sortField}
+            >
+              {sortOrder === 'ASC' ? '↑ по возрастанию' : '↓ по убыванию'}
+            </Button>
+          </>
+        )}
       </div>
 
       {exportReport && (
@@ -181,6 +242,7 @@ export function CatalogPage({
           params={{
             ...(searchable ? { search: debouncedSearch } : {}),
             ...activeFilters,
+            ...sortParams,
             includeArchived: showArchived || undefined,
           }}
         />
@@ -244,7 +306,9 @@ export function CatalogPage({
                   </td>
                 ))}
                 <td>
-                  {item.archivedAt ? (
+                  {archiveColumnRender ? (
+                    archiveColumnRender(item)
+                  ) : item.archivedAt ? (
                     <span className={styles.archived}>В архиве</span>
                   ) : (
                     <span className={styles.active}>Активно</span>

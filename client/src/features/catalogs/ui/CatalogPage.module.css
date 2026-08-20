@@ -195,6 +195,16 @@
   font-weight: 600;
 }
 
+.terminated {
+  display: inline-flex;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .actions {
   display: flex;
   gap: var(--space-3);
