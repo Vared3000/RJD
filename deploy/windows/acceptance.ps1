@@ -1,0 +1,238 @@
+[CmdletBinding()]
+param([switch]$SkipElevation)
+
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+
+Assert-WindowsHost
+if (-not $SkipElevation) {
+    Ensure-Administrator -ScriptPath $PSCommandPath
+}
+$logPath = New-DeploymentLog -Operation 'acceptance'
+$reportDirectory = Join-Path $script:RepositoryRoot 'logs\acceptance'
+$checks = [Collections.Generic.List[object]]::new()
+
+function Add-AcceptanceCheck {
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][ValidateSet('pass', 'fail', 'manual')][string]$Status,
+        [Parameter(Mandatory = $true)][string]$Detail
+    )
+
+    $checks.Add([PSCustomObject]@{
+        id = $Id
+        name = $Name
+        status = $Status
+        detail = $Detail
+    })
+    $level = if ($Status -eq 'fail') { 'ERROR' } elseif ($Status -eq 'manual') { 'WARN' } else { 'INFO' }
+    Write-DeploymentLog -LogPath $logPath -Message "[$($Status.ToUpperInvariant())] $Name - $Detail" -Level $level
+}
+
+function Test-HttpHealth {
+    param([Parameter(Mandatory = $true)][string]$Uri)
+
+    try {
+        $result = Invoke-RestMethod -Uri $Uri -TimeoutSec 10
+        return $result.status -eq 'ok'
+    } catch {
+        return $false
+    }
+}
+
+function Get-CommandMajorVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Command,
+        [Parameter(Mandatory = $true)][string]$VersionArgument
+    )
+
+    $resolved = Get-Command $Command -ErrorAction SilentlyContinue
+    if (-not $resolved) {
+        return 0
+    }
+    $version = [string](& $resolved.Source $VersionArgument 2>$null)
+    if ($version -match '(\d+)(?:\.\d+)?') {
+        return [int]$Matches[1]
+    }
+    return 0
+}
+
+function Test-BackupEvidence {
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$EnvironmentValues
+    )
+
+    $backupRoot = $EnvironmentValues['BACKUP_ROOT']
+    $secondaryRoot = $EnvironmentValues['BACKUP_SECONDARY_PATH']
+    if (-not $backupRoot -or -not (Test-Path -LiteralPath $backupRoot)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'BACKUP_ROOT is missing or unavailable.' }
+    }
+    $latest = Get-ChildItem -LiteralPath (Join-Path $backupRoot 'daily') -Filter '*.dump' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+    if (-not $latest) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'No daily dump was found.' }
+    }
+    $manifestPath = "$($latest.FullName).json"
+    $shaPath = "$($latest.FullName).sha256"
+    $verificationPath = "$($latest.FullName).verified.json"
+    if (-not (Test-Path -LiteralPath $manifestPath) -or -not (Test-Path -LiteralPath $shaPath) -or -not (Test-Path -LiteralPath $verificationPath)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Manifest, SHA, or restore verification is missing for $($latest.Name)." }
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $actualHash = (Get-FileHash -LiteralPath $latest.FullName -Algorithm SHA256).Hash
+    if ($actualHash -ne $manifest.sha256) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "SHA256 mismatch for $($latest.Name)." }
+    }
+    if (-not $secondaryRoot -or -not (Test-Path -LiteralPath $secondaryRoot)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'BACKUP_SECONDARY_PATH is missing or unavailable.' }
+    }
+    $secondaryFile = Join-Path (Join-Path $secondaryRoot 'daily') $latest.Name
+    if (-not (Test-Path -LiteralPath $secondaryFile)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Secondary copy is missing for $($latest.Name)." }
+    }
+    if ((Get-FileHash -LiteralPath $secondaryFile -Algorithm SHA256).Hash -ne $actualHash) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Secondary SHA256 mismatch for $($latest.Name)." }
+    }
+    $verification = Get-Content -LiteralPath $verificationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($verification.result -ne 'ok') {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Restore verification is not successful for $($latest.Name)." }
+    }
+    return [PSCustomObject]@{ Passed = $true; Detail = "Primary and secondary copies match: $($latest.Name)." }
+}
+
+function Test-ScheduledTaskSuccess {
+    param([Parameter(Mandatory = $true)][string]$TaskName)
+
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if (-not $task) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Task is missing: $TaskName" }
+    }
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName
+    if ($info.LastRunTime.Year -lt 2000) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Task has never run: $TaskName" }
+    }
+    if ($info.LastTaskResult -ne 0) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Last result is $($info.LastTaskResult): $TaskName" }
+    }
+    return [PSCustomObject]@{ Passed = $true; Detail = "Last run succeeded at $($info.LastRunTime.ToString('s'))." }
+}
+
+try {
+    Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'acceptanceStarted')
+    $values = Read-DeploymentEnv
+
+    $os = Get-CimInstance Win32_OperatingSystem
+    $osPassed = ([version]$os.Version).Major -ge 10
+    Add-AcceptanceCheck -Id 'windows' -Name (Get-DeploymentMessage 'acceptWindows') -Status $(if ($osPassed) { 'pass' } else { 'fail' }) -Detail "$($os.Caption), $($os.Version)"
+
+    $nodeMajor = Get-CommandMajorVersion -Command 'node.exe' -VersionArgument '--version'
+    Add-AcceptanceCheck -Id 'node' -Name (Get-DeploymentMessage 'acceptNode') -Status $(if ($nodeMajor -eq 24) { 'pass' } else { 'fail' }) -Detail "major=$nodeMajor"
+    $pnpmMajor = Get-CommandMajorVersion -Command 'pnpm.cmd' -VersionArgument '--version'
+    Add-AcceptanceCheck -Id 'pnpm' -Name (Get-DeploymentMessage 'acceptPnpm') -Status $(if ($pnpmMajor -eq 11) { 'pass' } else { 'fail' }) -Detail "major=$pnpmMajor"
+
+    $postgresBin = Get-PostgresBinDirectory -RequiredMajor 18
+    $postgresService = Get-PostgresService -RequiredMajor 18
+    $postgresPassed = $postgresBin -and $postgresService -and $postgresService.Status -eq 'Running'
+    $postgresDetail = if ($postgresService) { "$($postgresService.Name): $($postgresService.Status)" } else { 'PostgreSQL 18 service not found.' }
+    Add-AcceptanceCheck -Id 'postgres' -Name (Get-DeploymentMessage 'acceptPostgres') -Status $(if ($postgresPassed) { 'pass' } else { 'fail' }) -Detail $postgresDetail
+
+    $service = Get-CimInstance Win32_Service -Filter "Name='$script:WorkwearServiceName'" -ErrorAction SilentlyContinue
+    $servicePassed = $service -and $service.State -eq 'Running' -and $service.StartMode -eq 'Auto'
+    $serviceDetail = if ($service) { "state=$($service.State), startMode=$($service.StartMode)" } else { 'WorkwearERP service not found.' }
+    Add-AcceptanceCheck -Id 'service' -Name (Get-DeploymentMessage 'acceptService') -Status $(if ($servicePassed) { 'pass' } else { 'fail' }) -Detail $serviceDetail
+
+    $loopbackHealth = Test-HttpHealth -Uri 'http://127.0.0.1/health'
+    Add-AcceptanceCheck -Id 'health-loopback' -Name (Get-DeploymentMessage 'acceptHealthLocal') -Status $(if ($loopbackHealth) { 'pass' } else { 'fail' }) -Detail 'http://127.0.0.1/health'
+    $clientOrigin = $values['CLIENT_ORIGIN']
+    $lanHealth = $clientOrigin -and (Test-HttpHealth -Uri "$($clientOrigin.TrimEnd('/'))/health")
+    Add-AcceptanceCheck -Id 'health-lan' -Name (Get-DeploymentMessage 'acceptHealthLan') -Status $(if ($lanHealth) { 'pass' } else { 'fail' }) -Detail $(if ($clientOrigin) { "$($clientOrigin.TrimEnd('/'))/health" } else { 'CLIENT_ORIGIN is missing.' })
+
+    $lanSubnet = $values['LAN_SUBNET']
+    $firewall = Get-NetFirewallRule -DisplayName 'Workwear ERP LAN HTTP' -ErrorAction SilentlyContinue | Select-Object -First 1
+    $firewallPassed = $false
+    if ($firewall -and $lanSubnet) {
+        $portFilter = Get-NetFirewallPortFilter -AssociatedNetFirewallRule $firewall
+        $addressFilter = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $firewall
+        $firewallPassed = $firewall.Enabled -eq 'True' -and $firewall.Direction -eq 'Inbound' -and $firewall.Action -eq 'Allow' -and
+            $portFilter.Protocol -eq 'TCP' -and $portFilter.LocalPort -contains '80' -and $addressFilter.RemoteAddress -contains $lanSubnet
+    }
+    Add-AcceptanceCheck -Id 'firewall' -Name (Get-DeploymentMessage 'acceptFirewall') -Status $(if ($firewallPassed) { 'pass' } else { 'fail' }) -Detail $(if ($lanSubnet) { "TCP 80, subnet=$lanSubnet" } else { 'LAN_SUBNET is missing.' })
+
+    $unsafeListeners = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {
+        $_.LocalPort -in 4000, 5432 -and $_.LocalAddress -notin '127.0.0.1', '::1'
+    })
+    $listenerDetail = if ($unsafeListeners.Count -eq 0) { 'Ports 4000 and 5432 are loopback-only or closed.' } else { ($unsafeListeners | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" }) -join ', ' }
+    Add-AcceptanceCheck -Id 'private-ports' -Name (Get-DeploymentMessage 'acceptPrivatePorts') -Status $(if ($unsafeListeners.Count -eq 0) { 'pass' } else { 'fail' }) -Detail $listenerDetail
+
+    $cloudflaredArtifacts = [Collections.Generic.List[string]]::new()
+    if (Get-Process -Name 'cloudflared' -ErrorAction SilentlyContinue) { $cloudflaredArtifacts.Add('process') }
+    if (Get-Service -Name '*cloudflared*' -ErrorAction SilentlyContinue) { $cloudflaredArtifacts.Add('service') }
+    $cloudflaredTask = Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
+        $actionExecutables = @($_.Actions | ForEach-Object {
+            if ($_.PSObject.Properties['Execute']) { [string]$_.Execute }
+        }) -join ' '
+        $_.TaskName -match 'cloudflared|cloudflare' -or $actionExecutables -match 'cloudflared'
+    }
+    if ($cloudflaredTask) { $cloudflaredArtifacts.Add('scheduled-task') }
+    $startupTunnel = Join-Path ([Environment]::GetFolderPath('Startup')) 'run-tunnel-hidden.vbs'
+    if (Test-Path -LiteralPath $startupTunnel) { $cloudflaredArtifacts.Add('startup') }
+    Add-AcceptanceCheck -Id 'no-tunnel' -Name (Get-DeploymentMessage 'acceptNoTunnel') -Status $(if ($cloudflaredArtifacts.Count -eq 0) { 'pass' } else { 'fail' }) -Detail $(if ($cloudflaredArtifacts.Count -eq 0) { 'No cloudflared artifacts found.' } else { $cloudflaredArtifacts -join ', ' })
+
+    $backupTask = Test-ScheduledTaskSuccess -TaskName 'Workwear ERP Daily Backup'
+    Add-AcceptanceCheck -Id 'backup-task' -Name (Get-DeploymentMessage 'acceptBackupTask') -Status $(if ($backupTask.Passed) { 'pass' } else { 'fail' }) -Detail $backupTask.Detail
+    $restoreTask = Test-ScheduledTaskSuccess -TaskName 'Workwear ERP Monthly Restore Test'
+    Add-AcceptanceCheck -Id 'restore-task' -Name (Get-DeploymentMessage 'acceptRestoreTask') -Status $(if ($restoreTask.Passed) { 'pass' } else { 'fail' }) -Detail $restoreTask.Detail
+    $backupEvidence = Test-BackupEvidence -EnvironmentValues $values
+    Add-AcceptanceCheck -Id 'backup-evidence' -Name (Get-DeploymentMessage 'acceptBackupEvidence') -Status $(if ($backupEvidence.Passed) { 'pass' } else { 'fail' }) -Detail $backupEvidence.Detail
+
+    Add-AcceptanceCheck -Id 'reboot' -Name (Get-DeploymentMessage 'acceptReboot') -Status 'manual' -Detail (Get-DeploymentMessage 'acceptManualDetail')
+    Add-AcceptanceCheck -Id 'two-workstations' -Name (Get-DeploymentMessage 'acceptWorkstations') -Status 'manual' -Detail (Get-DeploymentMessage 'acceptManualDetail')
+    Add-AcceptanceCheck -Id 'external-access' -Name (Get-DeploymentMessage 'acceptExternal') -Status 'manual' -Detail (Get-DeploymentMessage 'acceptManualDetail')
+
+    New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $jsonPath = Join-Path $reportDirectory "acceptance-$timestamp.json"
+    $markdownPath = Join-Path $reportDirectory "acceptance-$timestamp.md"
+    $git = Get-Command 'git.exe' -ErrorAction SilentlyContinue
+    $commit = if ($git) { [string](& $git.Source -C $script:RepositoryRoot rev-parse HEAD 2>$null) } else { 'unknown' }
+    $failedCount = @($checks | Where-Object status -eq 'fail').Count
+    $passedCount = @($checks | Where-Object status -eq 'pass').Count
+    $manualCount = @($checks | Where-Object status -eq 'manual').Count
+    $report = [ordered]@{
+        generatedAt = (Get-Date).ToString('o')
+        computer = $env:COMPUTERNAME
+        commit = $commit.Trim()
+        summary = [ordered]@{ passed = $passedCount; failed = $failedCount; manual = $manualCount }
+        checks = $checks
+    }
+    $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+
+    $markdown = [Collections.Generic.List[string]]::new()
+    $markdown.Add("# $(Get-DeploymentMessage 'acceptanceTitle')")
+    $markdown.Add('')
+    $markdown.Add("- $(Get-DeploymentMessage 'acceptanceGenerated'): $($report.generatedAt)")
+    $markdown.Add("- $(Get-DeploymentMessage 'acceptanceComputer'): $($report.computer)")
+    $markdown.Add("- Commit: $($report.commit)")
+    $markdown.Add('')
+    $markdown.Add("| $(Get-DeploymentMessage 'acceptanceCheck') | $(Get-DeploymentMessage 'acceptanceStatus') | $(Get-DeploymentMessage 'acceptanceDetail') |")
+    $markdown.Add('|---|---|---|')
+    foreach ($check in $checks) {
+        $safeDetail = ([string]$check.detail).Replace('|', '\|').Replace("`r", ' ').Replace("`n", ' ')
+        $markdown.Add("| $($check.name) | $($check.status) | $safeDetail |")
+    }
+    $markdown | Set-Content -LiteralPath $markdownPath -Encoding UTF8
+
+    Write-Host "$(Get-DeploymentMessage 'acceptanceReport') $markdownPath"
+    Write-Host "JSON: $jsonPath"
+    if ($failedCount -gt 0) {
+        Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'acceptanceFailed' @($failedCount)) -Level ERROR
+        exit 1
+    }
+    Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'acceptanceComplete' @($passedCount, $manualCount))
+    exit 0
+} catch {
+    Write-OperationFailure -LogPath $logPath -ErrorRecord $_
+    exit 1
+}

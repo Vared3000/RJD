@@ -12,7 +12,7 @@ async function read(relativePath) {
   return readFile(path.join(repositoryRoot, relativePath), 'utf8');
 }
 
-test('Windows-комплект содержит семь тонких bat-оболочек', async () => {
+test('Windows-комплект содержит восемь тонких bat-оболочек', async () => {
   const wrappers = new Map([
     ['Установить программу.bat', 'install.ps1'],
     ['Запустить программу.bat', 'start.ps1'],
@@ -21,6 +21,7 @@ test('Windows-комплект содержит семь тонких bat-обо
     ['Создать резервную копию.bat', 'backup-now.ps1'],
     ['Восстановить из копии.bat', 'restore-ui.ps1'],
     ['Обновить программу.bat', 'update.ps1'],
+    ['Провести приёмку.bat', 'acceptance.ps1'],
   ]);
 
   for (const [fileName, target] of wrappers) {
@@ -107,6 +108,22 @@ test('диагностика различает остановку прилож�
   assert.match(status, /statusBroken'[\s\S]+exit 3/);
 });
 
+test('приёмка сервера формирует отчёт и не подменяет внешние проверки', async () => {
+  const acceptance = await read('deploy/windows/acceptance.ps1');
+
+  assert.match(acceptance, /Get-CimInstance Win32_Service/);
+  assert.match(acceptance, /Get-NetFirewallRule/);
+  assert.match(acceptance, /Get-NetTCPConnection/);
+  assert.match(acceptance, /Get-ScheduledTaskInfo/);
+  assert.match(acceptance, /Get-FileHash/);
+  assert.match(acceptance, /verified\.json/);
+  assert.match(acceptance, /ConvertTo-Json/);
+  assert.match(acceptance, /acceptance-[^\n]+\.md/);
+  assert.match(acceptance, /'reboot'[\s\S]+Status 'manual'/);
+  assert.match(acceptance, /'two-workstations'[\s\S]+Status 'manual'/);
+  assert.match(acceptance, /'external-access'[\s\S]+Status 'manual'/);
+});
+
 test(
   'PowerShell-файлы комплекта синтаксически корректны',
   { skip: process.platform !== 'win32' },
@@ -127,6 +144,6 @@ test(
     });
 
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    assert.ok(files.length >= 7);
+    assert.ok(files.length >= 9);
   },
 );
