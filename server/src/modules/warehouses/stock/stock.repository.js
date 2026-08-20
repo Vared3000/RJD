@@ -8,10 +8,12 @@ export const stockRepository = {
   // (раздел "Следующая задача" в HANDOFF.md). Группируем по складу/модели/
   // размеру без include, чтобы не собирать вручную полный список колонок
   // GROUP BY для присоединённых таблиц — подписи довешиваются в сервисе.
-  getBalanceGroups({ warehouseId, modelId } = {}) {
+  getBalanceGroups({ warehouseId, modelId, genderCategory, sizeId, heightSizeId } = {}) {
     const where = { status: 'in_stock', archivedAt: null };
     if (warehouseId) where.warehouseId = warehouseId;
     if (modelId) where.modelId = modelId;
+    if (sizeId) where.sizeId = sizeId;
+    if (heightSizeId) where.heightSizeId = heightSizeId;
 
     return Instance.findAll({
       attributes: [
@@ -19,9 +21,14 @@ export const stockRepository = {
         'modelId',
         'sizeId',
         'heightSizeId',
-        [fn('COUNT', col('id')), 'quantity'],
+        [fn('COUNT', col('Instance.id')), 'quantity'],
       ],
       where,
+      // Категория по полу — свойство модели, а не экземпляра: фильтруем через
+      // INNER JOIN без выборки колонок модели, чтобы не расширять GROUP BY.
+      include: genderCategory
+        ? [{ model: NomenclatureModel, as: 'model', attributes: [], where: { genderCategory } }]
+        : [],
       group: ['warehouseId', 'modelId', 'sizeId', 'heightSizeId'],
       raw: true,
     });
@@ -34,7 +41,7 @@ export const stockRepository = {
   findModels(ids) {
     return NomenclatureModel.findAll({
       where: { id: ids },
-      attributes: ['id', 'name', 'article', 'unit'],
+      attributes: ['id', 'name', 'article', 'unit', 'genderCategory'],
     });
   },
 

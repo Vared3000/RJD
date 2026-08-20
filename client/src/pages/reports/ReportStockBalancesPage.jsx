@@ -23,6 +23,7 @@ function formatSize(size) {
 
 const columns = [
   { key: 'warehouse', label: 'Склад', render: (r) => r.warehouse?.name ?? '—' },
+  { key: 'genderCategoryLabel', label: 'Категория по полу' },
   { key: 'model', label: 'Модель', render: (r) => r.model?.name ?? '—' },
   { key: 'size', label: 'Размер', render: (r) => formatSize(r.size) },
   { key: 'heightSize', label: 'Рост', render: (r) => r.heightSize?.value ?? '—' },
@@ -34,6 +35,7 @@ const totalColumns = [
   { key: 'blank1', label: '', render: () => '' },
   { key: 'blank2', label: '', render: () => '' },
   { key: 'blank3', label: '', render: () => '' },
+  { key: 'blank4', label: '', render: () => '' },
   { key: 'quantity', label: '', render: (t) => t.quantity },
 ];
 

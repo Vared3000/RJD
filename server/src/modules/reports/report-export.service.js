@@ -12,8 +12,9 @@ const REPORTS = {
     method: 'stockBalances',
     title: 'Остатки по складам',
     columns: [
-      ['warehouse.name', 'Склад', 24],
-      ['model.name', 'Модель', 38],
+      ['warehouse.name', 'Склад', 22],
+      ['genderCategoryLabel', 'Категория по полу', 18],
+      ['model.name', 'Модель', 34],
       ['size.value', 'Размер', 12],
       ['heightSize.value', 'Рост', 10],
       ['quantity', 'Количество', 14, 'number'],
@@ -145,9 +146,16 @@ const REPORTS = {
 };
 
 function periodText(result) {
-  return result.from && result.to
-    ? `Период: ${dateLabel(result.from)} — ${dateLabel(result.to)}`
-    : 'На текущий момент';
+  const parts = [
+    result.from && result.to
+      ? `Период: ${dateLabel(result.from)} — ${dateLabel(result.to)}`
+      : 'На текущий момент',
+  ];
+  if (result.filtersText) parts.push(result.filtersText);
+  if (result.generatedAt) {
+    parts.push(`Сформировано ${new Date(result.generatedAt).toLocaleString('ru-RU')}`);
+  }
+  return parts.join(' · ');
 }
 
 export const reportExportService = {

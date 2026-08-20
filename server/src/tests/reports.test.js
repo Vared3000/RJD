@@ -297,14 +297,15 @@ test('отчёты: дни обеспечения по ДПО/работника
       ).find((rowNumber) => sheet.getCell(rowNumber, 1).value === 'Склад');
       assert.ok(headerRowNumber);
       const headerRow = sheet.getRow(headerRowNumber);
-      assert.deepEqual(headerRow.values.slice(1, 6), [
+      assert.deepEqual(headerRow.values.slice(1, 7), [
         'Склад',
+        'Категория по полу',
         'Модель',
         'Размер',
         'Рост',
         'Количество',
       ]);
-      assert.equal(headerRow.cellCount, 5);
+      assert.equal(headerRow.cellCount, 6);
     }
 
     const pdf = await auth(agent.get(`/api/v1/reports/${report}/export`))

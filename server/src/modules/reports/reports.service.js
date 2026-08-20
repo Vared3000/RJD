@@ -22,13 +22,16 @@ export const reportsService = {
     const rows = await stockService.getBalances({
       warehouseId: query.warehouseId,
       modelId: query.modelId,
+      genderCategory: query.genderCategory,
+      sizeId: query.sizeId,
+      heightSizeId: query.heightSizeId,
       sort: query.sort,
       order: query.order,
     });
     const totals = {
       quantity: sumBy(rows, (r) => r.quantity),
     };
-    return { rows, totals };
+    return { rows, totals, generatedAt: new Date() };
   },
 
   async propertyCost(query) {

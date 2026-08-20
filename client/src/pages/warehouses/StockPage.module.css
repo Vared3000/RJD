@@ -1,11 +1,16 @@
 .filters {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: var(--space-4);
-  max-width: 640px;
 }
 
 .filters > * {
-  flex: 1;
+  flex: 1 1 160px;
+}
+
+.filters > button {
+  flex: 0 0 auto;
 }
 
 .sortButton {
