@@ -1,0 +1,23 @@
+.chevron {
+  display: inline-block;
+  width: 14px;
+  color: var(--color-text-muted);
+}
+
+.groupMeta {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.subRow td {
+  color: var(--color-text-muted);
+}
+
+.subRow td:nth-child(2) {
+  color: var(--color-text);
+}
+
+.subRow td:first-child {
+  font-weight: 400;
+}

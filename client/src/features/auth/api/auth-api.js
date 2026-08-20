@@ -6,11 +6,6 @@ export const authApi = {
     return data.data;
   },
 
-  async refresh() {
-    const { data } = await httpClient.post('/auth/refresh');
-    return data.data;
-  },
-
   async logout() {
     await httpClient.post('/auth/logout');
   },

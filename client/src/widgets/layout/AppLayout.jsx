@@ -48,7 +48,7 @@ export function AppLayout() {
     }
     if (lastShown === today) return;
     notify.warning(
-      `Незавершённых задач на дособор: ${openTasksCount}. Смотрите раздел «Задачи на дособор».`,
+      `Незавершённых задач на доукомплектовку: ${openTasksCount}. Смотрите раздел «Задачи на доукомплектовку».`,
     );
     try {
       localStorage.setItem(TASKS_REMINDER_STORAGE_KEY, today);

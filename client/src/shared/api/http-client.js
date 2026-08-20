@@ -15,7 +15,33 @@ httpClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Общий лок на весь /auth/refresh: и интерцептор при 401, и useBootstrapSession
+// при монтировании приложения должны переиспользовать один и тот же запрос,
+// иначе два параллельных refresh-запроса используют один и тот же
+// httpOnly-cookie, backend ротирует токен по первому же и отклоняет второй —
+// второй вызов молча разлогинивает пользователя, хотя первый уже успешно
+// обновил сессию (воспроизводится в dev из-за двойного вызова эффектов
+// React.StrictMode).
 let refreshPromise = null;
+
+export function refreshSession() {
+  if (!refreshPromise) {
+    refreshPromise = httpClient
+      .post('/auth/refresh')
+      .then(({ data }) => {
+        useSessionStore.getState().setSession(data.data);
+        return data.data;
+      })
+      .catch((refreshError) => {
+        useSessionStore.getState().clearSession();
+        throw refreshError;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
 
 function isAuthEndpoint(url = '') {
   return url.includes('/auth/login') || url.includes('/auth/refresh');
@@ -33,17 +59,10 @@ httpClient.interceptors.response.use(
     config._retried = true;
 
     try {
-      if (!refreshPromise) {
-        refreshPromise = httpClient.post('/auth/refresh').finally(() => {
-          refreshPromise = null;
-        });
-      }
-      const { data } = await refreshPromise;
-      useSessionStore.getState().setSession(data.data);
-      config.headers.Authorization = `Bearer ${data.data.accessToken}`;
+      const data = await refreshSession();
+      config.headers.Authorization = `Bearer ${data.accessToken}`;
       return httpClient(config);
     } catch (refreshError) {
-      useSessionStore.getState().clearSession();
       return Promise.reject(refreshError);
     }
   },

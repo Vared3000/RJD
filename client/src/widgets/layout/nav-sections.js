@@ -17,7 +17,7 @@ export const NAV_SECTIONS = [
       { to: '/issuance/returns', label: 'Возвраты', icon: '←', permission: 'issuance.manage' },
       {
         to: '/issuance/tasks',
-        label: 'Задачи на дособор',
+        label: 'Задачи на доукомплектовку',
         icon: '✎',
         permission: 'issuance.manage',
         badge: 'issuance-open-tasks',
