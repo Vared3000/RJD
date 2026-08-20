@@ -7,6 +7,7 @@ const FIELD_LABELS = {
   name: 'Краткое наименование',
   fullName: 'Полное наименование',
   code: 'Код',
+  region: 'Регион',
   address: 'Адрес',
   okpo: 'ОКПО',
   businessUnitCode: 'БЕ',

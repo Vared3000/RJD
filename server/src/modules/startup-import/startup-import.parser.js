@@ -13,6 +13,9 @@ export const STARTUP_IMPORT_HEADERS = {
       'Код подразделения',
       'ФИО руководителя',
     ],
+    // Необязательная колонка (раздел А1 ТЗ от 19.08.2026) — старые файлы без
+    // неё продолжают импортироваться, см. detectHeaders().
+    optionalHeaders: ['Регион'],
   },
   models: {
     sheet: 'Номенклатура',
@@ -26,6 +29,8 @@ export const STARTUP_IMPORT_HEADERS = {
       'НДС аренды, %',
       'Описание',
     ],
+    // Необязательная колонка (раздел А2 ТЗ от 19.08.2026).
+    optionalHeaders: ['Категория по полу'],
   },
   employees: {
     sheet: 'Работники',
@@ -65,6 +70,19 @@ const TYPE_MAP = new Map([
   ['перчатки', 'gloves'],
   ['none', null],
   ['без размера', null],
+]);
+const GENDER_CATEGORY_MAP = new Map([
+  ['male', 'male'],
+  ['мужское', 'male'],
+  ['мужской', 'male'],
+  ['female', 'female'],
+  ['женское', 'female'],
+  ['женский', 'female'],
+  ['unisex', 'unisex'],
+  ['унисекс', 'unisex'],
+  ['unspecified', 'unspecified'],
+  ['не определено', 'unspecified'],
+  ['', 'unspecified'],
 ]);
 const CONDITION_MAP = new Map([
   ['новая', 'new'],
@@ -138,6 +156,18 @@ function parseNumber(value, label, protocol, location, { integer = false, requir
   return number;
 }
 
+// Необязательные колонки допускаются только последними в листе — если ячейка
+// сразу после базового набора совпадает с ожидаемым названием, считаем её
+// присутствующей; иначе лист читается по старому набору колонок (обратная
+// совместимость со старыми файлами, см. optionalHeaders в definition).
+function detectHeaders(sheet, definition) {
+  const optional = definition.optionalHeaders ?? [];
+  if (optional.length === 0) return definition.headers;
+  const nextCell = cellValue(sheet.getCell(1, definition.headers.length + 1));
+  if (nextCell === optional[0]) return [...definition.headers, optional[0]];
+  return definition.headers;
+}
+
 function assertHeaders(sheet, expected) {
   const actual = expected.map((_, index) => cellValue(sheet.getCell(1, index + 1)));
   const mismatch = expected.findIndex((header, index) => actual[index] !== header);
@@ -202,13 +232,15 @@ export async function parseStartupWorkbook(buffer) {
   for (const [key, definition] of Object.entries(STARTUP_IMPORT_HEADERS)) {
     const sheet = workbook.getWorksheet(definition.sheet);
     if (!sheet) throw ApiError.badRequest(`В книге нет обязательного листа «${definition.sheet}»`);
-    assertHeaders(sheet, definition.headers);
-    sheets[key] = readRows(sheet, definition.headers);
+    const effectiveHeaders = detectHeaders(sheet, definition);
+    assertHeaders(sheet, effectiveHeaders);
+    sheets[key] = readRows(sheet, effectiveHeaders);
   }
 
   const protocol = [];
   const dpos = sheets.dpos.map(({ rowNumber, values }) => {
-    const [name, fullName, code, address, okpo, businessUnitCode, directorFullName] = values;
+    const [name, fullName, code, address, okpo, businessUnitCode, directorFullName, region] =
+      values;
     const location = `ДПО, строка ${rowNumber}`;
     if (!name) protocol.push({ level: 'error', location, message: 'Наименование обязательно' });
     if (!fullName)
@@ -222,6 +254,7 @@ export async function parseStartupWorkbook(buffer) {
       okpo: nullable(okpo),
       businessUnitCode: nullable(businessUnitCode),
       directorFullName: nullable(directorFullName),
+      region: nullable(region),
     };
   });
 
@@ -235,6 +268,7 @@ export async function parseStartupWorkbook(buffer) {
       rentalPriceValue,
       rentalVatRateValue,
       description,
+      rawGenderCategory,
     ] = values;
     const location = `Номенклатура, строка ${rowNumber}`;
     if (!name) protocol.push({ level: 'error', location, message: 'Наименование обязательно' });
@@ -255,6 +289,14 @@ export async function parseStartupWorkbook(buffer) {
         message: 'Рост можно требовать только для типа clothing',
       });
     }
+    const genderCategoryKey = lower(rawGenderCategory);
+    if (!GENDER_CATEGORY_MAP.has(genderCategoryKey)) {
+      protocol.push({
+        level: 'error',
+        location,
+        message: `Неизвестная категория по полу «${rawGenderCategory}»`,
+      });
+    }
     return {
       rowNumber,
       name,
@@ -262,6 +304,7 @@ export async function parseStartupWorkbook(buffer) {
       unit: nullable(unit) || 'шт',
       sizeType,
       requiresHeightSize,
+      genderCategory: GENDER_CATEGORY_MAP.get(genderCategoryKey) ?? 'unspecified',
       rentalPrice:
         parseNumber(
           rentalPriceValue === '' ? 0 : rentalPriceValue,

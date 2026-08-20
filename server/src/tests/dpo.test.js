@@ -38,11 +38,13 @@ test('ДПО: CRUD, поиск, архивация, история измене�
     name: unique,
     fullName: `${unique} — структурное подразделение ЦДПО`,
     code: `${unique}-CODE`,
+    region: 'Свердловская',
     directorFullName: 'Иванов Иван Иванович',
     contractNumber: '686/ОКЭ-ЦДПО/20/1/1',
     contractDate: '2021-02-02',
   });
   assert.equal(created.status, 201);
+  assert.equal(created.body.data.region, 'Свердловская');
   const dpoId = created.body.data.id;
   dpoIds.push(dpoId);
 
@@ -64,9 +66,11 @@ test('ДПО: CRUD, поиск, архивация, история измене�
     directorFullName: 'Петров Пётр Петрович',
     additionalAgreementNumber: 'ДС-1',
     additionalAgreementDate: '2025-01-10',
+    region: 'Московская',
   });
   assert.equal(update1.status, 200);
   assert.equal(update1.body.data.directorFullName, 'Петров Пётр Петрович');
+  assert.equal(update1.body.data.region, 'Московская');
 
   const historyAfter1 = await auth(agent.get(`/api/v1/dpo/${dpoId}/history`));
   assert.equal(historyAfter1.status, 200);
@@ -75,6 +79,8 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   assert.equal(historyAfter1.body.data[0].changes.directorFullName.to, 'Петров Пётр Петрович');
   assert.equal(historyAfter1.body.data[0].changes.additionalAgreementNumber.from, null);
   assert.equal(historyAfter1.body.data[0].changes.additionalAgreementNumber.to, 'ДС-1');
+  assert.equal(historyAfter1.body.data[0].changes.region.from, 'Свердловская');
+  assert.equal(historyAfter1.body.data[0].changes.region.to, 'Московская');
 
   // --- Правка №2: снова меняем ответственное лицо (второе доп. соглашение) ---
   const update2 = await auth(agent.patch(`/api/v1/dpo/${dpoId}`)).send({

@@ -65,3 +65,51 @@ test('стартовый импорт: цена аренды и нулевая �
   assert.equal(parsed.payload.models[0].rentalPrice, 1234.5);
   assert.equal(parsed.payload.models[0].rentalVatRate, 0);
 });
+
+test('стартовый импорт: регион ДПО и категория по полу читаются из необязательных колонок', async () => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet('ДПО').addRows([
+    [...STARTUP_IMPORT_HEADERS.dpos.headers, 'Регион'],
+    ['ДПО-Р', 'Дирекция Р', 'DPO-R', '', '', '', '', 'Свердловская'],
+  ]);
+  workbook.addWorksheet('Номенклатура').addRows([
+    [...STARTUP_IMPORT_HEADERS.models.headers, 'Категория по полу'],
+    ['Куртка женская', 'К-2', 'шт', 'clothing', 'Нет', 500, 5, '', 'Женское'],
+  ]);
+  workbook.addWorksheet('Работники').addRow(STARTUP_IMPORT_HEADERS.employees.headers);
+  workbook.addWorksheet('Остатки').addRow(STARTUP_IMPORT_HEADERS.balances.headers);
+
+  const parsed = await parseStartupWorkbook(await workbook.xlsx.writeBuffer());
+  assert.equal(parsed.protocol.length, 0);
+  assert.equal(parsed.payload.dpos[0].region, 'Свердловская');
+  assert.equal(parsed.payload.models[0].genderCategory, 'female');
+});
+
+test('стартовый импорт: старые файлы без колонок региона/категории по-прежнему импортируются', async () => {
+  const buffer = await workbookBuffer({
+    dpos: [['ДПО-Б', 'Дирекция Б', 'DPO-B']],
+    models: [['Куртка', 'К-3', 'шт', 'clothing', 'Нет', 500, 5, '']],
+  });
+  const parsed = await parseStartupWorkbook(buffer);
+  assert.equal(parsed.protocol.length, 0);
+  assert.equal(parsed.payload.dpos[0].region, null);
+  assert.equal(parsed.payload.models[0].genderCategory, 'unspecified');
+});
+
+test('стартовый импорт: нераспознанная категория по полу отклоняется с ошибкой', async () => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet('ДПО').addRow(STARTUP_IMPORT_HEADERS.dpos.headers);
+  workbook.addWorksheet('Номенклатура').addRows([
+    [...STARTUP_IMPORT_HEADERS.models.headers, 'Категория по полу'],
+    ['Куртка', 'К-4', 'шт', 'clothing', 'Нет', 500, 5, '', 'Смешанное'],
+  ]);
+  workbook.addWorksheet('Работники').addRow(STARTUP_IMPORT_HEADERS.employees.headers);
+  workbook.addWorksheet('Остатки').addRow(STARTUP_IMPORT_HEADERS.balances.headers);
+
+  const parsed = await parseStartupWorkbook(await workbook.xlsx.writeBuffer());
+  assert.ok(
+    parsed.protocol.some(
+      (item) => item.level === 'error' && item.message.includes('категория по полу'),
+    ),
+  );
+});

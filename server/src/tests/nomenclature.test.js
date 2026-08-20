@@ -32,7 +32,15 @@ test('номенклатура: модель -> размер -> экземпля
     if (createdInstanceIds.length > 0) {
       await models.Instance.destroy({ where: { id: createdInstanceIds } });
     }
-    await models.NomenclatureModel.destroy({ where: { name: `Test Model ${unique}` } });
+    await models.NomenclatureModel.destroy({
+      where: {
+        name: [
+          `Test Model ${unique}`,
+          `Test Model Gender ${unique}`,
+          `Test Model BadGender ${unique}`,
+        ],
+      },
+    });
     await models.Size.destroy({ where: { value: `TEST-${unique}` } });
   });
 
@@ -41,6 +49,26 @@ test('номенклатура: модель -> размер -> экземпля
     sizeType: 'clothing',
   });
   assert.equal(model.status, 201);
+  assert.equal(
+    model.body.data.genderCategory,
+    'unspecified',
+    'категория по полу по умолчанию — «не определено»',
+  );
+
+  const modelWithGender = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: `Test Model Gender ${unique}`,
+    sizeType: 'clothing',
+    genderCategory: 'female',
+  });
+  assert.equal(modelWithGender.status, 201);
+  assert.equal(modelWithGender.body.data.genderCategory, 'female');
+
+  const modelWithBadGender = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: `Test Model BadGender ${unique}`,
+    sizeType: 'clothing',
+    genderCategory: 'other',
+  });
+  assert.equal(modelWithBadGender.status, 400);
 
   const modelSearch = await auth(agent.get('/api/v1/nomenclature-models')).query({
     search: `Model ${unique}`,

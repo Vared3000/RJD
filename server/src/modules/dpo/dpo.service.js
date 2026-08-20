@@ -9,6 +9,7 @@ const TRACKED_FIELDS = [
   'name',
   'fullName',
   'code',
+  'region',
   'address',
   'okpo',
   'businessUnitCode',

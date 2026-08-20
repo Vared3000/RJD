@@ -10,6 +10,13 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
+const GENDER_CATEGORY_LABELS = {
+  male: 'Мужское',
+  female: 'Женское',
+  unisex: 'Унисекс',
+  unspecified: 'Не определено',
+};
+
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
 
 const schema = z
@@ -22,6 +29,7 @@ const schema = z
       z.enum(['clothing', 'height', 'shoe', 'headwear', 'belt', 'gloves']).optional(),
     ),
     requiresHeightSize: z.boolean().default(false),
+    genderCategory: z.enum(['male', 'female', 'unisex', 'unspecified']).default('unspecified'),
     rentalPrice: z.coerce.number().nonnegative('Цена аренды не может быть отрицательной'),
     rentalVatRate: z.coerce.number().min(0).max(100),
     description: z.string().max(1000).optional().or(z.literal('')),
@@ -46,6 +54,11 @@ const columns = [
     render: (item) => (item.requiresHeightSize ? 'Да' : 'Нет'),
   },
   {
+    key: 'genderCategory',
+    label: 'Категория по полу',
+    render: (item) => GENDER_CATEGORY_LABELS[item.genderCategory] ?? 'Не определено',
+  },
+  {
     key: 'rentalPrice',
     label: 'Цена аренды без НДС',
     render: (item) => `${Number(item.rentalPrice ?? 0).toLocaleString('ru-RU')} ₽`,
@@ -68,6 +81,13 @@ const fields = [
     label: 'Требует указания роста (только для типа «Одежда»)',
     type: 'checkbox',
     defaultValue: false,
+  },
+  {
+    name: 'genderCategory',
+    label: 'Категория по полу',
+    type: 'select',
+    defaultValue: 'unspecified',
+    options: Object.entries(GENDER_CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
   },
   {
     name: 'rentalPrice',

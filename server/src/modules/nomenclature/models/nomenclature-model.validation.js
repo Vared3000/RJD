@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SIZE_TYPES } from '../../../database/models/size.model.js';
+import { GENDER_CATEGORIES } from '../../../database/models/nomenclature-model.model.js';
 
 const emptyToNull = (value) => (value === '' || value === undefined ? null : value);
 
@@ -11,6 +12,9 @@ const fields = {
   // комплекта выбирает соответствующий индивидуальный размер работника.
   sizeType: z.preprocess(emptyToNull, z.enum(SIZE_TYPES).nullable()),
   requiresHeightSize: z.boolean().default(false),
+  // Категория модели по полу (раздел А2 ТЗ от 19.08.2026) — отдельно от
+  // PositionKitItem.gender (применимость вещи в конкретном комплекте).
+  genderCategory: z.enum(GENDER_CATEGORIES).default('unspecified'),
   rentalPrice: z.coerce.number().nonnegative('Цена аренды не может быть отрицательной').default(0),
   rentalVatRate: z.coerce.number().min(0).max(100).default(5),
   description: z.string().max(1000).optional().nullable().or(z.literal('')),
@@ -34,6 +38,7 @@ export const updateNomenclatureModelSchema = z
     name: fields.name.optional(),
     sizeType: fields.sizeType.optional(),
     requiresHeightSize: fields.requiresHeightSize.optional(),
+    genderCategory: fields.genderCategory.optional(),
     rentalPrice: fields.rentalPrice.optional(),
     rentalVatRate: fields.rentalVatRate.optional(),
     unit: fields.unit.optional(),

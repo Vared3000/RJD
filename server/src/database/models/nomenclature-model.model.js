@@ -1,5 +1,10 @@
 import { DataTypes } from 'sequelize';
 
+// Категория модели по полу (не путать с PositionKitItem.gender — тем, для
+// какого пола применима конкретная строка комплекта должности; здесь —
+// свойство самой модели номенклатуры, раздел А2 ТЗ от 19.08.2026).
+export const GENDER_CATEGORIES = ['male', 'female', 'unisex', 'unspecified'];
+
 export function defineNomenclatureModel(sequelize) {
   return sequelize.define(
     'NomenclatureModel',
@@ -30,6 +35,12 @@ export function defineNomenclatureModel(sequelize) {
         allowNull: false,
         defaultValue: 5,
         field: 'rental_vat_rate',
+      },
+      genderCategory: {
+        type: DataTypes.STRING(16),
+        allowNull: false,
+        defaultValue: 'unspecified',
+        field: 'gender_category',
       },
       description: { type: DataTypes.STRING(1000), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },

@@ -59,6 +59,7 @@ function addDatabaseChecks(parsed, existing) {
         'okpo',
         'businessUnitCode',
         'directorFullName',
+        'region',
       ])
     ) {
       databaseDuplicates.dpos += 1;
@@ -86,6 +87,7 @@ function addDatabaseChecks(parsed, existing) {
         'unit',
         'sizeType',
         'requiresHeightSize',
+        'genderCategory',
         'description',
       ]) &&
       Number(found.rentalPrice) === Number(row.rentalPrice) &&

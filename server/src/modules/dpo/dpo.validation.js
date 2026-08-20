@@ -9,6 +9,7 @@ export const createDpoSchema = z.object({
   name: z.string().min(1, 'Укажите краткое наименование').max(255),
   fullName: z.string().min(1, 'Укажите полное наименование').max(500),
   code: optionalString(32).optional(),
+  region: optionalString(255).optional(),
   address: optionalString(500).optional(),
   okpo: optionalString(16).optional(),
   businessUnitCode: optionalString(32).optional(),

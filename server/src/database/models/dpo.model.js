@@ -33,6 +33,7 @@ export function defineDpo(sequelize) {
         allowNull: true,
         field: 'additional_agreement_date',
       },
+      region: { type: DataTypes.STRING(255), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
     { tableName: 'dpos' },
