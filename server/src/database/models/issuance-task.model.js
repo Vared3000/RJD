@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 
-export const ISSUANCE_TASK_STATUSES = ['open', 'completed'];
+export const ISSUANCE_TASK_STATUSES = ['open', 'in_progress', 'completed'];
 
 export function defineIssuanceTask(sequelize) {
   return sequelize.define(
@@ -8,10 +8,10 @@ export function defineIssuanceTask(sequelize) {
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       sourceDocumentId: { type: DataTypes.UUID, allowNull: false, field: 'source_document_id' },
-      fulfillingDocumentId: {
+      draftDocumentId: {
         type: DataTypes.UUID,
         allowNull: true,
-        field: 'fulfilling_document_id',
+        field: 'draft_document_id',
       },
       employeeId: { type: DataTypes.UUID, allowNull: false, field: 'employee_id' },
       warehouseId: { type: DataTypes.UUID, allowNull: false, field: 'warehouse_id' },

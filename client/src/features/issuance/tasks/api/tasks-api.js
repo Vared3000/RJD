@@ -11,8 +11,8 @@ export const tasksApi = {
     const { data } = await httpClient.get(`${BASE}/count`);
     return data.data.count;
   },
-  async complete(id) {
-    const { data } = await httpClient.post(`${BASE}/${id}/complete`);
+  async createDraft(taskIds) {
+    const { data } = await httpClient.post(`${BASE}/create-draft`, { taskIds });
     return data.data;
   },
 };

@@ -941,7 +941,7 @@ test('выдача: задание на сборку строится по ст�
   assert.equal(sheet.getCell(6, 4).value, 3, 'строка итогов суммирует количество');
 });
 
-test('выдача: частичная нехватка остатка выдаёт доступное и создаёт задачу на дособор, задача закрывается вручную', async (t) => {
+test('выдача: частичная нехватка остатка выдаёт доступное и создаёт задачу на доукомплектовку', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
     t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
     return;
@@ -1074,59 +1074,7 @@ test('выдача: частичная нехватка остатка выда�
   const countResponse = await auth(agent.get('/api/v1/issuance/tasks/count'));
   assert.equal(countResponse.status, 200);
   assert.ok(countResponse.body.data.count >= 1);
-
-  // Остатка всё ещё нет — завершить нельзя.
-  const failedComplete = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
-  assert.equal(failedComplete.status, 400, 'без остатка завершить задачу нельзя');
-  const stillOpenTask = await models.IssuanceTask.findByPk(task.id);
-  assert.equal(stillOpenTask.status, 'open');
-
-  // Довозим недостающую единицу.
-  const secondReceiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
-    supplierId: supplier.body.data.id,
-    warehouseId,
-    documentDate: '2026-08-05',
-  });
-  state.receivingDocIds.push(secondReceiving.body.data.id);
-  await auth(agent.post(`/api/v1/purchases/receiving/${secondReceiving.body.data.id}/lines`)).send({
-    modelId,
-    sizeId,
-    quantity: 1,
-    purchasePrice: 1000,
-  });
-  const secondReceivingPosted = await auth(
-    agent.post(`/api/v1/purchases/receiving/${secondReceiving.body.data.id}/post`),
-  );
-  state.batchIds.push(secondReceivingPosted.body.data.batchId);
-  const allInstancesAfterSecondReceiving = await models.Instance.findAll({ where: { modelId } });
-  const newInstanceIds = allInstancesAfterSecondReceiving
-    .map((i) => i.id)
-    .filter((id) => !state.instanceIds.includes(id));
-  state.instanceIds.push(...newInstanceIds);
-
-  const completed = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
-  assert.equal(completed.status, 200, 'с появившимся остатком задача должна закрыться');
-  assert.equal(completed.body.data.status, 'completed');
-  assert.ok(completed.body.data.fulfillingDocumentId);
-  state.issuanceDocIds.push(completed.body.data.fulfillingDocumentId);
-
-  const fulfillingDocument = await auth(
-    agent.get(`/api/v1/issuance/documents/${completed.body.data.fulfillingDocumentId}`),
-  );
-  assert.equal(fulfillingDocument.body.data.status, 'posted');
-  assert.equal(fulfillingDocument.body.data.employeeId, employeeId);
-  assert.equal(fulfillingDocument.body.data.lines.length, 1);
-  assert.equal(fulfillingDocument.body.data.lines[0].quantity, 1);
-
-  const completedTasks = await auth(agent.get('/api/v1/issuance/tasks')).query({
-    status: 'completed',
-  });
-  const completedTask = completedTasks.body.data.find((item) => item.id === task.id);
-  assert.ok(completedTask);
-  assert.ok(completedTask.fulfillingDocument);
-  assert.equal(completedTask.fulfillingDocument.id, completed.body.data.fulfillingDocumentId);
-
-  // Повторное завершение уже закрытой задачи отклоняется.
-  const doubleComplete = await auth(agent.post(`/api/v1/issuance/tasks/${task.id}/complete`));
-  assert.equal(doubleComplete.status, 409);
+  // Оформление довыдачи по этой задаче (черновик → проведение → закрытие
+  // задачи, включая случай "остатка всё ещё нет") — отдельный файл
+  // issuance-tasks-draft.test.js, покрывающий все сценарии Релиза Д.
 });

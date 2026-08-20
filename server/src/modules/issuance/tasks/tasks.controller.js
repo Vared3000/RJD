@@ -14,8 +14,11 @@ export const tasksController = {
     return success(res, { count });
   },
 
-  async complete(req, res) {
-    const item = await tasksService.complete(req.params.id, { userId: req.user.sub });
-    return success(res, item);
+  async createDraft(req, res) {
+    const document = await tasksService.createDraft({
+      taskIds: req.validatedBody.taskIds,
+      userId: req.user.sub,
+    });
+    return success(res, document, 201);
   },
 };

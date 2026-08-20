@@ -14,7 +14,7 @@ import {
 } from '../../nomenclature/instances/instance-dependency-check.js';
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
-import { tasksRepository } from '../tasks/tasks.repository.js';
+import { tasksRepository, issuanceTaskKey } from '../tasks/tasks.repository.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -277,6 +277,76 @@ async function applyIssuanceSideEffects(
   return { instanceIds: allInstanceIds, shortages };
 }
 
+// Релиз Д: сопоставляет задачи на доукомплектовку, связанные с этим
+// документом (переданы вызывающей стороной — post() ищет их по
+// draftDocumentId, revise() восстанавливает список через уже существующие
+// issuance_task_fulfillments), с фактически выданным количеством по их
+// (modelId,sizeId,heightSizeId). Распределяет FIFO — задачи старше
+// закрываются первыми — создаёт запись в issuance_task_fulfillments на
+// фактически закрытую часть и уменьшает quantity задачи "на месте": если
+// дошло до 0 — задача completed, иначе снова open (черновик уже отработал,
+// оставшаяся потребность ждёт новой довыдачи). Строка могла быть удалена
+// пользователем до проведения (или revise() убрал её совсем) — тогда для
+// этого ключа просто нет строки, actualIssued=0, задача целиком возвращается
+// в open с прежним quantity. Возвращает набор "обработанных" ключей — post()
+// использует его, чтобы не завести ЕЩЁ одну orphan-задачу на тот же дефицит
+// через generic-механизм shortages (иначе получились бы дублирующие задачи
+// на одну и ту же нехватку — ровно то, что явно запрещено ТЗ Релиза Д).
+async function reconcileTaskFulfillments({
+  documentId,
+  tasks,
+  lines,
+  shortages,
+  userId,
+  transaction,
+}) {
+  if (tasks.length === 0) return new Set();
+
+  const missingByKey = new Map(shortages.map((s) => [issuanceTaskKey(s), s.missingQuantity]));
+  const linesByKey = new Map(lines.map((l) => [issuanceTaskKey(l), l]));
+  const groups = new Map();
+  for (const task of tasks) {
+    const key = issuanceTaskKey(task);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  }
+  for (const group of groups.values()) {
+    group.sort(
+      (a, b) =>
+        new Date(a.createdAt) - new Date(b.createdAt) || String(a.id).localeCompare(String(b.id)),
+    );
+  }
+
+  for (const [key, group] of groups) {
+    const line = linesByKey.get(key);
+    const actualIssued = line ? line.quantity - (missingByKey.get(key) ?? 0) : 0;
+    let remaining = actualIssued;
+    for (const task of group) {
+      const allocate = Math.min(task.quantity, remaining);
+      remaining -= allocate;
+      if (allocate > 0) {
+        await tasksRepository.createFulfillments(
+          [{ taskId: task.id, documentId, quantity: allocate }],
+          { transaction },
+        );
+      }
+      const nextQuantity = task.quantity - allocate;
+      await tasksRepository.updateProgress(
+        task.id,
+        {
+          quantity: nextQuantity,
+          status: nextQuantity <= 0 ? 'completed' : 'open',
+          completedAt: nextQuantity <= 0 ? new Date() : null,
+          completedByUserId: nextQuantity <= 0 ? userId : null,
+          draftDocumentId: null,
+        },
+        { transaction },
+      );
+    }
+  }
+  return new Set(groups.keys());
+}
+
 export const issuanceService = {
   list(options) {
     return issuanceRepository.list(options);
@@ -312,6 +382,16 @@ export const issuanceService = {
     await sequelize.transaction(async (transaction) => {
       const document = await issuanceRepository.findLocked(id, { transaction });
       assertDraft(document);
+      // Релиз Д: если черновик был создан из задач на доукомплектовку
+      // ("Оформить довыдачу"), при его удалении задачи возвращаются в open —
+      // никакая выдача так и не состоялась.
+      const draftTasks = await tasksRepository.findByDraftDocument(id, { transaction });
+      if (draftTasks.length > 0) {
+        await tasksRepository.releaseToOpen(
+          draftTasks.map((task) => task.id),
+          { transaction },
+        );
+      }
       await issuanceRepository.deleteDraft(id, { transaction });
     });
   },
@@ -490,10 +570,12 @@ export const issuanceService = {
   // Нехватка остатка больше не откатывает всю транзакцию целиком (было так
   // до задачи "Отдать в сборку" с частичной выдачей): по строке выдаётся
   // сколько есть, недостача по каждой строке становится отдельной задачей
-  // на дособор (issuance_tasks, см. tasks/tasks.service.js#complete) —
-  // кладовщик закрывает её вручную на странице "Задачи", когда остаток
+  // на дособор (issuance_tasks) — кладовщик оформляет по ней довыдачу на
+  // странице "Задачи" (см. tasks/tasks.service.js#createDraft), когда остаток
   // появится на складе. Если ДОСТУПНОГО остатка нет вообще ни по одной
   // строке — проведение отклоняется целиком (нечего выдавать прямо сейчас).
+  // Если сам этот документ — довыдача по ранее открытым задачам, связанные
+  // задачи закрываются/уменьшаются здесь же (см. reconcileTaskFulfillments).
   async post(documentId, { userId }) {
     let shortages = [];
     await sequelize.transaction(async (transaction) => {
@@ -519,6 +601,23 @@ export const issuanceService = {
 
       await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
 
+      // Релиз Д: если этот документ — довыдача по задачам ("Оформить
+      // довыдачу"), закрываем/уменьшаем связанные задачи по фактически
+      // выданному количеству ДО generic-обработки shortages ниже — иначе
+      // нехватка по такой строке породила бы одновременно и переоткрытую
+      // исходную задачу (из reconcileTaskFulfillments), и новую orphan-
+      // задачу на тот же дефицит (из generic-кода) — запрещённый ТЗ дубль.
+      const draftTasks = await tasksRepository.findByDraftDocument(documentId, { transaction });
+      const reconciledKeys = await reconcileTaskFulfillments({
+        documentId,
+        tasks: draftTasks,
+        lines: document.lines,
+        shortages,
+        userId,
+        transaction,
+      });
+      shortages = shortages.filter((shortage) => !reconciledKeys.has(issuanceTaskKey(shortage)));
+
       if (shortages.length > 0) {
         await tasksRepository.bulkCreate(
           shortages.map((shortage) => ({
@@ -536,45 +635,6 @@ export const issuanceService = {
     });
 
     return { document: await issuanceRepository.findById(documentId), shortages };
-  },
-
-  // Используется tasks/tasks.service.js#complete() при закрытии задачи на
-  // дособор: создаёт и сразу проводит документ на одну строку в той же
-  // транзакции, что лочит и закрывает саму задачу — без прохождения через
-  // отдельный видимый пользователю черновик. tolerateShortage не передаётся
-  // (остаётся false) — на этом шаге отсутствие остатка уже настоящая ошибка,
-  // а не повод создавать вторую задачу поверх первой.
-  async createAndPostForTask(
-    {
-      employeeId,
-      warehouseId,
-      documentDate,
-      responsibleUserId,
-      note,
-      modelId,
-      sizeId,
-      heightSizeId,
-      quantity,
-    },
-    { userId, transaction },
-  ) {
-    const number = await generateDocumentNumber();
-    const document = await issuanceRepository.createDocument(
-      { number, employeeId, warehouseId, documentDate, responsibleUserId, status: 'draft', note },
-      { transaction },
-    );
-    const line = await issuanceRepository.createLine(
-      document.id,
-      { modelId, sizeId, heightSizeId, quantity },
-      { transaction },
-    );
-    await applyIssuanceSideEffects(
-      { id: document.id, number, employeeId, warehouseId, documentDate },
-      [line.get({ plain: true })],
-      { userId, transaction },
-    );
-    await issuanceRepository.markPosted(document.id, { postedByUserId: userId }, { transaction });
-    return document.id;
   },
 
   // Задача 22: контролируемое перепроведение уже проведённой Выдачи.
@@ -609,6 +669,49 @@ export const issuanceService = {
       const { lines: previousLines, ...headerSnapshot } = document;
       const previousData = { header: headerSnapshot, lines: previousLines };
 
+      // Релиз Д: если этот документ когда-либо закрывал задачи на
+      // доукомплектовку (issuance_task_fulfillments), редакция должна не
+      // "сломать" их статус — реверсируем прежнее закрытие (возвращаем
+      // quantity, задача снова open) и ниже, после применения новых строк,
+      // заново прогоняем ту же реконсиляцию по свежим данным. tolerateShortage
+      // в applyIssuanceSideEffects() ниже остаётся false (как и раньше для
+      // revise) — значит либо весь пересчёт пройдёт полностью, либо упадёт
+      // 400 ДО коммита, и реверс задач откатится вместе со всей транзакцией.
+      const ownFulfillments = await tasksRepository.findFulfillmentsByDocument(documentId, {
+        transaction,
+      });
+      let reconciledTasks = [];
+      if (ownFulfillments.length > 0) {
+        const addBackByTask = new Map();
+        for (const fulfillment of ownFulfillments) {
+          addBackByTask.set(
+            fulfillment.taskId,
+            (addBackByTask.get(fulfillment.taskId) ?? 0) + fulfillment.quantity,
+          );
+        }
+        const tasksToReverse = await tasksRepository.findManyLocked([...addBackByTask.keys()], {
+          transaction,
+        });
+        for (const task of tasksToReverse) {
+          await tasksRepository.updateProgress(
+            task.id,
+            {
+              quantity: task.quantity + addBackByTask.get(task.id),
+              status: 'open',
+              completedAt: null,
+              completedByUserId: null,
+              draftDocumentId: null,
+            },
+            { transaction },
+          );
+        }
+        await tasksRepository.deleteFulfillmentsByDocument(documentId, { transaction });
+        reconciledTasks = tasksToReverse.map((task) => ({
+          ...task.get({ plain: true }),
+          quantity: task.quantity + addBackByTask.get(task.id),
+        }));
+      }
+
       await issuanceRepository.deleteOwnInstanceEvents(documentId, { transaction });
       await issuanceRepository.deleteOwnMovements(documentId, { transaction });
       if (instanceIds.length > 0) {
@@ -635,6 +738,17 @@ export const issuanceService = {
       const updatedDocument = { ...document, ...header, id: documentId, number: document.number };
 
       await applyIssuanceSideEffects(updatedDocument, createdLines, { userId, transaction });
+
+      if (reconciledTasks.length > 0) {
+        await reconcileTaskFulfillments({
+          documentId,
+          tasks: reconciledTasks,
+          lines: createdLines,
+          shortages: [],
+          userId,
+          transaction,
+        });
+      }
 
       const nextRevision = document.revisionNumber + 1;
       await issuanceRepository.markRevised(

@@ -24,15 +24,16 @@ export function useOpenTasksCount(enabled) {
 
 export function useTasksMutations() {
   const queryClient = useQueryClient();
-  const complete = useMutation({
-    mutationFn: (id) => tasksApi.complete(id),
+  // Складские остатки/движения здесь не инвалидируются — "Оформить довыдачу"
+  // только создаёт черновик, остатки меняются позже, при штатном "Провести"
+  // (см. use-issuance-queries.js — та мутация уже инвалидирует их сама).
+  const createDraft = useMutation({
+    mutationFn: (taskIds) => tasksApi.createDraft(taskIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [KEY] });
       queryClient.invalidateQueries({ queryKey: ['issuance-documents'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-balances'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
     },
-    meta: { successMessage: 'Задача завершена, работник довыдан' },
+    meta: { successMessage: 'Черновик довыдачи создан' },
   });
-  return { complete };
+  return { createDraft };
 }

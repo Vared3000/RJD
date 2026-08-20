@@ -23,6 +23,7 @@ import { definePositionKitItem } from './position-kit-item.model.js';
 import { defineIssuanceDocument } from './issuance-document.model.js';
 import { defineIssuanceLine } from './issuance-line.model.js';
 import { defineIssuanceTask } from './issuance-task.model.js';
+import { defineIssuanceTaskFulfillment } from './issuance-task-fulfillment.model.js';
 import { defineReturnDocument } from './return-document.model.js';
 import { defineReturnLine } from './return-line.model.js';
 import { defineLaundryDocument } from './laundry-document.model.js';
@@ -74,6 +75,7 @@ const PositionKitItem = definePositionKitItem(sequelize);
 const IssuanceDocument = defineIssuanceDocument(sequelize);
 const IssuanceLine = defineIssuanceLine(sequelize);
 const IssuanceTask = defineIssuanceTask(sequelize);
+const IssuanceTaskFulfillment = defineIssuanceTaskFulfillment(sequelize);
 const ReturnDocument = defineReturnDocument(sequelize);
 const ReturnLine = defineReturnLine(sequelize);
 const LaundryDocument = defineLaundryDocument(sequelize);
@@ -227,8 +229,8 @@ IssuanceLine.belongsTo(NomenclaturePrice, { foreignKey: 'priceSourceId', as: 'pr
 
 IssuanceTask.belongsTo(IssuanceDocument, { foreignKey: 'sourceDocumentId', as: 'sourceDocument' });
 IssuanceTask.belongsTo(IssuanceDocument, {
-  foreignKey: 'fulfillingDocumentId',
-  as: 'fulfillingDocument',
+  foreignKey: 'draftDocumentId',
+  as: 'draftDocument',
 });
 IssuanceTask.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
 IssuanceTask.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
@@ -236,6 +238,9 @@ IssuanceTask.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' }
 IssuanceTask.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
 IssuanceTask.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 IssuanceTask.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
+IssuanceTask.hasMany(IssuanceTaskFulfillment, { foreignKey: 'taskId', as: 'fulfillments' });
+IssuanceTaskFulfillment.belongsTo(IssuanceTask, { foreignKey: 'taskId', as: 'task' });
+IssuanceTaskFulfillment.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'document' });
 
 // Документ "Возврат": шапка -> строки (конкретный экземпляр + состояние при
 // возврате), в отличие от "Выдачи" — по экземплярам, не по модели/размеру,
@@ -416,6 +421,7 @@ export const models = {
   IssuanceDocument,
   IssuanceLine,
   IssuanceTask,
+  IssuanceTaskFulfillment,
   ReturnDocument,
   ReturnLine,
   LaundryDocument,
