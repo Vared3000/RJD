@@ -6,6 +6,14 @@ import { asyncHandler } from '../../../utils/async-handler.js';
 import { extendSwaggerPaths } from '../../../config/swagger.js';
 import { printFormTemplatesController } from './print-form-templates.controller.js';
 
+const TEMPLATE_FORM_TYPES = [
+  'fpu-26',
+  'appendix-1-5',
+  'appendix-1-7',
+  'personal-card',
+  'preservation-receipt',
+];
+
 // Только этот роутер получает multer с memoryStorage — не трогает глобальный
 // express.json() в app.js. 5 МБ синхронизировано с лимитом в
 // shared/template-safety.js.
@@ -50,7 +58,7 @@ export function createPrintFormTemplatesRouter() {
             name: 'formType',
             in: 'path',
             required: true,
-            schema: { type: 'string', enum: ['fpu-26', 'preservation-receipt'] },
+            schema: { type: 'string', enum: TEMPLATE_FORM_TYPES },
           },
         ],
         responses: { 200: { description: 'Список версий' } },
@@ -65,7 +73,7 @@ export function createPrintFormTemplatesRouter() {
             name: 'formType',
             in: 'path',
             required: true,
-            schema: { type: 'string', enum: ['fpu-26', 'preservation-receipt'] },
+            schema: { type: 'string', enum: TEMPLATE_FORM_TYPES },
           },
         ],
         requestBody: { content: { 'multipart/form-data': {} } },
@@ -82,11 +90,27 @@ export function createPrintFormTemplatesRouter() {
           {
             name: 'dpoId',
             in: 'query',
-            required: true,
+            description: 'Обязателен для всех форм, кроме личной карточки',
             schema: { type: 'string', format: 'uuid' },
           },
-          { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
-          { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          {
+            name: 'employeeId',
+            in: 'query',
+            description: 'Обязателен для личной карточки работника',
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'from',
+            in: 'query',
+            description: 'Обязательна для всех форм, кроме личной карточки',
+            schema: { type: 'string', format: 'date' },
+          },
+          {
+            name: 'to',
+            in: 'query',
+            description: 'Обязательна для всех форм, кроме личной карточки',
+            schema: { type: 'string', format: 'date' },
+          },
         ],
         responses: { 200: { description: 'Файл предпросмотра' } },
       },

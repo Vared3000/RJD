@@ -8,6 +8,10 @@ import { Op } from 'sequelize';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models } from '../database/models/index.js';
+import { loadContext } from '../modules/print-forms/shared/load-context.js';
+import { buildAppendix15 } from '../modules/print-forms/appendix-1-5/appendix-1-5.builder.js';
+import { appendix15ExcelMapper } from '../modules/print-forms/appendix-1-5/appendix-1-5.excel-mapper.js';
+import { generateExcelFromMarkedTemplate } from '../modules/print-forms/shared/excel-template-engine.js';
 import {
   binaryParser,
   setupApp,
@@ -71,7 +75,7 @@ function currentActive(list) {
     .sort((a, b) => new Date(b.activatedAt) - new Date(a.activatedAt))[0];
 }
 
-test('конструктор макетов ФПУ-26: загрузка, валидация маркеров, безопасность, активация/откат', async (t) => {
+test('конструктор макетов: пять форм, валидация, безопасность, активация и откат', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
     t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
     return;
@@ -166,28 +170,107 @@ test('конструктор макетов ФПУ-26: загрузка, вал�
   assert.equal(visualSheet.getCell('B7').alignment.horizontal, 'right');
   assert.equal(visualSheet.getCell('B7').fill.fgColor.argb, 'FFFFFF00');
 
-  // Тот же round-trip работает для второго поддерживаемого макета.
-  const preservationBase = await baseTemplateBuffer('preservation-receipt');
-  const preservationEditor = await auth(
-    agent.get(`/api/v1/print-forms/templates/versions/${preservationBase.id}/layout`),
+  // Тот же round-trip чтения, пробной генерации и сохранения работает для
+  // всех остальных маркерных форм, включая личную карточку с employeeId.
+  for (const { formType, expectedMarker, query } of [
+    {
+      formType: 'preservation-receipt',
+      expectedMarker: 'RECEIPT_DATE',
+      query: FPU26_QUERY,
+    },
+    { formType: 'appendix-1-5', expectedMarker: 'ACT_TITLE', query: FPU26_QUERY },
+    { formType: 'appendix-1-7', expectedMarker: 'ACT_DATE', query: FPU26_QUERY },
+    {
+      formType: 'personal-card',
+      expectedMarker: 'EMPLOYEE_LINE',
+      query: { ...FPU26_QUERY, employeeId: state.employeeId },
+    },
+  ]) {
+    const formBase = await baseTemplateBuffer(formType);
+    assert.ok(formBase, `ожидалась активная версия ${formType}`);
+    const editor = await auth(
+      agent.get(`/api/v1/print-forms/templates/versions/${formBase.id}/layout`),
+    );
+    assert.equal(editor.status, 200, JSON.stringify(editor.body));
+    assert.ok(editor.body.data.layout.allowedMarkers.includes(expectedMarker));
+
+    const formPreview = await auth(
+      agent.get(`/api/v1/print-forms/templates/versions/${formBase.id}/preview`),
+    )
+      .query({ ...query, format: 'xlsx' })
+      .buffer(true)
+      .parse(binaryParser);
+    assert.equal(formPreview.status, 200, formPreview.body.toString());
+    assert.equal(formPreview.body.subarray(0, 2).toString(), 'PK');
+
+    const saved = await auth(
+      agent.post(`/api/v1/print-forms/templates/versions/${formBase.id}/layout`),
+    ).send({
+      ...query,
+      comment: `round-trip ${formType}`,
+      layout: editor.body.data.layout,
+    });
+    assert.equal(saved.status, 201, JSON.stringify(saved.body));
+    assert.equal(saved.body.data.validationResult.valid, true, JSON.stringify(saved.body));
+    otherTemplateIds.push(saved.body.data.id);
+  }
+
+  const personalWithoutEmployee = await auth(
+    agent.get('/api/v1/print-forms/templates/personal-card/layout/new'),
   );
-  assert.equal(preservationEditor.status, 200, JSON.stringify(preservationEditor.body));
-  const preservationSave = await auth(
-    agent.post(`/api/v1/print-forms/templates/versions/${preservationBase.id}/layout`),
+  const rejectedPersonalPreview = await auth(
+    agent.post('/api/v1/print-forms/templates/personal-card/layout/new/preview'),
   ).send({
-    dpoId: FPU26_QUERY.dpoId,
-    from: FPU26_QUERY.from,
-    to: FPU26_QUERY.to,
-    comment: 'round-trip сохранной расписки',
-    layout: preservationEditor.body.data.layout,
+    ...FPU26_QUERY,
+    format: 'xlsx',
+    layout: personalWithoutEmployee.body.data.layout,
   });
-  assert.equal(preservationSave.status, 201, JSON.stringify(preservationSave.body));
-  assert.equal(
-    preservationSave.body.data.validationResult.valid,
-    true,
-    JSON.stringify(preservationSave.body),
-  );
-  otherTemplateIds.push(preservationSave.body.data.id);
+  assert.equal(rejectedPersonalPreview.status, 400);
+
+  // Повторяемая область маркерного шаблона сохраняет оформление и правильно
+  // сдвигает подвал при 0, 1 и 100 строках. Сто строк одной должности также
+  // проверяют перенос вертикальных объединений групп.
+  const appendixBase = await baseTemplateBuffer('appendix-1-5');
+  const appendixContext = await loadContext(FPU26_QUERY);
+  const appendixData = await buildAppendix15(appendixContext);
+  const sampleRow = appendixData.rows[0];
+  for (const requestedCount of [0, 1, 100]) {
+    const rows = Array.from({ length: requestedCount }, (_, index) => ({
+      ...sampleRow,
+      modelName: `${sampleRow.modelName} ${index + 1}`,
+    }));
+    const generated = await generateExcelFromMarkedTemplate(
+      {
+        ...appendixData,
+        rows,
+        parties: appendixContext.parties,
+        generatedAt: new Date().toISOString(),
+        dataSources: [],
+      },
+      {
+        templateBuffer: appendixBase.buffer,
+        spec: appendix15ExcelMapper.spec,
+        fill: appendix15ExcelMapper.fill,
+      },
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(generated);
+    const sheet = workbook.worksheets[0];
+    const renderedCount = Math.max(1, requestedCount);
+    assert.match(String(sheet.getCell(`B${13 + renderedCount}`).value), /Начальник/);
+    const markerValues = [];
+    sheet.eachRow((row) =>
+      row.eachCell((cell) => {
+        if (String(cell.value ?? '').includes('{{')) markerValues.push(cell.value);
+      }),
+    );
+    assert.deepEqual(markerValues, []);
+    if (requestedCount === 100) {
+      assert.equal(sheet.getCell('A7').isMerged, true);
+      assert.equal(sheet.getCell('A106').master.address, 'A7');
+      assert.match(sheet.pageSetup.printArea, /A1:L113/);
+    }
+  }
 
   async function upload({ buffer, comment }) {
     const response = await auth(agent.post('/api/v1/print-forms/templates/fpu-26/versions'))

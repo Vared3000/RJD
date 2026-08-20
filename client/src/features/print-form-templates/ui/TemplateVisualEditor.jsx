@@ -8,6 +8,9 @@ import styles from './TemplateVisualEditor.module.css';
 
 const FORM_LABELS = {
   'fpu-26': 'ФПУ-26',
+  'appendix-1-5': 'Приложение 1.5',
+  'appendix-1-7': 'Приложение 1.7',
+  'personal-card': 'Личная карточка работника',
   'preservation-receipt': 'Сохранная расписка',
 };
 
@@ -35,13 +38,26 @@ const MARKER_META = {
   CUSTOMER_OKPO: { label: 'ОКПО заказчика', group: 'parties' },
   DPO_NAME: { label: 'Краткое название ДПО', group: 'parties' },
   DPO_FULL_NAME: { label: 'Полное название ДПО', group: 'parties' },
+  DPO_LINE: { label: 'Строка подразделения ДПО', group: 'parties' },
   BUSINESS_UNIT_CODE: { label: 'Код подразделения', group: 'parties' },
   EXECUTOR_NAME: { label: 'Исполнитель: название', group: 'parties' },
   EXECUTOR_ADDRESS: { label: 'Адрес исполнителя', group: 'parties' },
   EXECUTOR_OKPO: { label: 'ОКПО исполнителя', group: 'parties' },
+  EXECUTOR_LINE: { label: 'Строка исполнителя', group: 'parties' },
   PERIOD_END: { label: 'Дата окончания периода', group: 'document' },
   PERIOD_DESCRIPTION: { label: 'Описание периода', group: 'document' },
+  ACT_TITLE: { label: 'Название акта', group: 'document' },
+  ACT_DATE: { label: 'Дата акта', group: 'document' },
+  ACT_NARRATIVE: { label: 'Вводный текст акта', group: 'document' },
   RECEIPT_DATE: { label: 'Дата расписки', group: 'document' },
+  OPENED_DATE: { label: 'Дата открытия карточки', group: 'document' },
+  EMPLOYEE_LINE: { label: 'Работник и должность', group: 'document' },
+  CLOTHING_SIZE_LINE: { label: 'Размер одежды и рост', group: 'document' },
+  GLOVES_SIZE_LINE: { label: 'Размер перчаток', group: 'document' },
+  HEADWEAR_SIZE_LINE: { label: 'Размер головного убора', group: 'document' },
+  BELT_SIZE_LINE: { label: 'Размер ремня', group: 'document' },
+  HIRE_DATE: { label: 'Дата приёма', group: 'document' },
+  TERMINATION_DATE: { label: 'Дата увольнения', group: 'document' },
   CONTRACT_LINE: { label: 'Договор', group: 'document' },
   SIGNATURE_CONTRACT_LINE: { label: 'Договор у подписей', group: 'signatures' },
   EXECUTOR_SIGNATORY: { label: 'Подписант исполнителя', group: 'signatures' },
@@ -57,15 +73,29 @@ const MARKER_META = {
   GRAND_TOTAL_COST_REPEAT: { label: 'Итого без НДС — повтор', group: 'totals' },
   GRAND_TOTAL_VAT_REPEAT: { label: 'Итого НДС — повтор', group: 'totals' },
   GRAND_TOTAL_REPEAT: { label: 'Итого с НДС — повтор', group: 'totals' },
+  TOTAL_VAT: { label: 'Итого НДС', group: 'totals' },
+  TOTAL_WITH_VAT: { label: 'Итого с НДС', group: 'totals' },
+  AMOUNT_IN_WORDS: { label: 'Сумма прописью', group: 'totals' },
+  CUSTOMER_SIGNATURE: { label: 'Подпись заказчика', group: 'signatures' },
   'ROW.SEQUENCE_NUMBER': { label: '№ строки', group: 'table' },
   'ROW.EMPLOYEE_NAME': { label: 'ФИО работника', group: 'table' },
   'ROW.PERSONNEL_NUMBER': { label: 'Табельный номер', group: 'table' },
+  'ROW.POSITION_NAME': { label: 'Должность', group: 'table' },
   'ROW.MODEL_NAME': { label: 'Наименование одежды', group: 'table' },
+  'ROW.INVENTORY_NUMBER': { label: 'Инвентарный номер', group: 'table' },
   'ROW.UNIT': { label: 'Единица измерения', group: 'table' },
   'ROW.QUANTITY': { label: 'Количество', group: 'table' },
+  'ROW.NORM_QUANTITY': { label: 'Количество по норме', group: 'table' },
+  'ROW.COVERAGE_DAYS': { label: 'Дни обеспечения', group: 'table' },
+  'ROW.SERVICE_LIFE_YEARS': { label: 'Срок использования', group: 'table' },
+  'ROW.ISSUED_QUANTITY': { label: 'Выдано: количество', group: 'table' },
+  'ROW.ISSUED_DATE': { label: 'Выдано: дата', group: 'table' },
+  'ROW.RETURNED_QUANTITY': { label: 'Возвращено: количество', group: 'table' },
+  'ROW.RETURNED_DATE': { label: 'Возвращено: дата', group: 'table' },
   'ROW.PRICE_WITHOUT_VAT': { label: 'Расчётная цена без НДС', group: 'table' },
   'ROW.DISPLAYED_PRICE_WITHOUT_VAT': { label: 'Цена без НДС в документе', group: 'table' },
   'ROW.COST_WITHOUT_VAT': { label: 'Стоимость без НДС', group: 'table' },
+  'ROW.TOTAL_WITHOUT_VAT': { label: 'Итого без НДС', group: 'table' },
   'ROW.VAT_AMOUNT': { label: 'Сумма НДС', group: 'table' },
   'ROW.TOTAL_WITH_VAT': { label: 'Стоимость с НДС', group: 'table' },
   'ROW.SIGNATURE': { label: 'Подпись работника', group: 'signatures' },
@@ -182,6 +212,7 @@ function ToolbarButton({ active = false, children, ...props }) {
 function LoadedTemplateVisualEditor({
   version,
   dpoId,
+  employeeId,
   from,
   to,
   onClose,
@@ -205,6 +236,7 @@ function LoadedTemplateVisualEditor({
       const payload = {
         layout,
         dpoId,
+        employeeId,
         from,
         to,
         comment,
@@ -338,8 +370,12 @@ function LoadedTemplateVisualEditor({
 
   function submitSave() {
     setLocalError('');
-    if (!dpoId) {
-      setLocalError('Перед открытием редактора выберите ДПО на странице конструктора');
+    if (version.formType === 'personal-card' ? !employeeId : !dpoId) {
+      setLocalError(
+        version.formType === 'personal-card'
+          ? 'Перед открытием редактора выберите работника на странице конструктора'
+          : 'Перед открытием редактора выберите ДПО на странице конструктора',
+      );
       return;
     }
     save.mutate();
@@ -347,8 +383,12 @@ function LoadedTemplateVisualEditor({
 
   async function preview(format) {
     setLocalError('');
-    if (!dpoId) {
-      setLocalError('Перед открытием редактора выберите ДПО на странице конструктора');
+    if (version.formType === 'personal-card' ? !employeeId : !dpoId) {
+      setLocalError(
+        version.formType === 'personal-card'
+          ? 'Перед открытием редактора выберите работника на странице конструктора'
+          : 'Перед открытием редактора выберите ДПО на странице конструктора',
+      );
       return;
     }
     setPreviewing(format);
@@ -357,6 +397,7 @@ function LoadedTemplateVisualEditor({
         layout,
         format,
         dpoId,
+        employeeId,
         from,
         to,
       };

@@ -41,3 +41,23 @@ test('складские операции собраны в одном разд�
   await expect(page.getByRole('heading', { name: 'Партии' })).toBeVisible();
   await expect(page.getByPlaceholder('Код партии, поставщик или примечание…')).toBeVisible();
 });
+
+test('конструктор предлагает все поддерживаемые печатные формы', async ({ page }) => {
+  await login(page);
+  const nav = page.getByRole('navigation', { name: 'Основное меню' });
+  await nav.getByRole('button', { name: /Настройки/i }).click();
+  await nav.getByRole('link', { name: 'Шаблоны печати' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Конструктор макетов печатных форм' }),
+  ).toBeVisible();
+
+  const formSelect = page.getByLabel('Печатная форма');
+  await expect(formSelect.locator('option')).toHaveText([
+    'Выберите…',
+    'ФПУ-26',
+    'Приложение 1.5',
+    'Приложение 1.7',
+    'Личная карточка работника',
+    'Сохранная расписка',
+  ]);
+});

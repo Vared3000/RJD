@@ -13,16 +13,24 @@ import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 import { fpu26ExcelMapper } from '../fpu-26/fpu-26.excel-mapper.js';
 import { buildPreservationReceipt } from '../preservation-receipt/preservation-receipt.builder.js';
 import { preservationReceiptExcelMapper } from '../preservation-receipt/preservation-receipt.excel-mapper.js';
+import { buildAppendix15 } from '../appendix-1-5/appendix-1-5.builder.js';
+import { appendix15ExcelMapper } from '../appendix-1-5/appendix-1-5.excel-mapper.js';
+import { buildAppendix17 } from '../appendix-1-7/appendix-1-7.builder.js';
+import { appendix17ExcelMapper } from '../appendix-1-7/appendix-1-7.excel-mapper.js';
+import {
+  loadPersonalCardContext,
+  buildPersonalCard,
+} from '../personal-card/personal-card.builder.js';
+import { personalCardExcelMapper } from '../personal-card/personal-card.excel-mapper.js';
 import {
   buildTemplateFromLayout,
   createBlankTemplateBuffer,
   readTemplateLayout,
 } from './template-layout.js';
 
-// Формы, уже переведённые на маркерную разметку (задача 19) — каждая знает,
-// как построить пробные данные (loadContext/build) и как разложить их по
-// шаблону (mapper.spec/mapper.fill). Остальные формы переносятся отдельным
-// следующим релизом.
+// Каждая маркерная форма знает, как построить пробные данные и разложить их
+// по шаблону. Личная карточка использует работника, остальные формы — ДПО и
+// период.
 const GENERATORS = {
   'fpu-26': {
     loadContext,
@@ -36,6 +44,24 @@ const GENERATORS = {
     mapper: preservationReceiptExcelMapper,
     blankLayout: { rowCount: 45, columnCount: 8 },
   },
+  'appendix-1-5': {
+    loadContext,
+    build: buildAppendix15,
+    mapper: appendix15ExcelMapper,
+    blankLayout: { rowCount: 20, columnCount: 12 },
+  },
+  'appendix-1-7': {
+    loadContext,
+    build: buildAppendix17,
+    mapper: appendix17ExcelMapper,
+    blankLayout: { rowCount: 24, columnCount: 12 },
+  },
+  'personal-card': {
+    loadContext: loadPersonalCardContext,
+    build: buildPersonalCard,
+    mapper: personalCardExcelMapper,
+    blankLayout: { rowCount: 38, columnCount: 13 },
+  },
 };
 
 function generatorFor(formType) {
@@ -46,8 +72,17 @@ function generatorFor(formType) {
   return generator;
 }
 
+function assertTrialQuery(formType, query) {
+  if (formType === 'personal-card') {
+    if (!query.employeeId) throw ApiError.badRequest('Выберите работника для пробной генерации');
+  } else if (!query.dpoId || !query.from || !query.to) {
+    throw ApiError.badRequest('Выберите ДПО и период для пробной генерации');
+  }
+}
+
 async function buildTrialData(formType, query) {
   const generator = generatorFor(formType);
+  assertTrialQuery(formType, query);
   const context = await generator.loadContext(query);
   const data = await generator.build(context);
   data.form = formType;
@@ -134,16 +169,16 @@ async function blankBuffer(formType) {
   return createBlankTemplateBuffer(generatorFor(formType).blankLayout);
 }
 
-async function previewLayoutBuffer(formType, templateBuffer, { format, dpoId, from, to }, label) {
+async function previewLayoutBuffer(formType, templateBuffer, query, label) {
   const generator = generatorFor(formType);
   try {
-    const data = await buildTrialData(formType, { dpoId, from, to });
+    const data = await buildTrialData(formType, query);
     data.templateVersion = label;
     const excelBuffer = await generateExcelFromMarkedTemplate(
       data,
       generatorOptions(generator, templateBuffer),
     );
-    if (format === 'pdf') {
+    if (query.format === 'pdf') {
       return {
         buffer: await generatePdfFromExcel(excelBuffer, data),
         contentType: 'application/pdf',
@@ -200,9 +235,19 @@ export const printFormTemplatesService = {
     };
   },
 
-  async upload(formType, { buffer, originalFileName, comment, dpoId, from, to }, { userId }) {
+  async upload(
+    formType,
+    { buffer, originalFileName, comment, dpoId, employeeId, from, to },
+    { userId },
+  ) {
     generatorFor(formType);
-    const validationResult = await validateBuffer(formType, buffer, { dpoId, from, to });
+    assertTrialQuery(formType, { dpoId, employeeId, from, to });
+    const validationResult = await validateBuffer(formType, buffer, {
+      dpoId,
+      employeeId,
+      from,
+      to,
+    });
     const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
     return sequelize.transaction((transaction) =>
       printFormTemplatesRepository.createVersion(
@@ -221,7 +266,7 @@ export const printFormTemplatesService = {
     );
   },
 
-  async saveEditorLayout(id, { layout, comment, dpoId, from, to }, { userId }) {
+  async saveEditorLayout(id, { layout, comment, dpoId, employeeId, from, to }, { userId }) {
     const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
     generatorFor(baseVersion.formType);
     const buffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
@@ -236,6 +281,7 @@ export const printFormTemplatesService = {
         originalFileName: `${baseName.slice(0, 220)}-visual.xlsx`,
         comment: comment || `Визуальная редакция версии ${baseVersion.versionNumber}`,
         dpoId,
+        employeeId,
         from,
         to,
       },
@@ -243,7 +289,11 @@ export const printFormTemplatesService = {
     );
   },
 
-  async saveNewEditorLayout(formType, { layout, comment, dpoId, from, to }, { userId }) {
+  async saveNewEditorLayout(
+    formType,
+    { layout, comment, dpoId, employeeId, from, to },
+    { userId },
+  ) {
     generatorFor(formType);
     const buffer = await buildTemplateFromLayout(await blankBuffer(formType), layout);
     return printFormTemplatesService.upload(
@@ -253,6 +303,7 @@ export const printFormTemplatesService = {
         originalFileName: `${formType}-custom.xlsx`,
         comment: comment || 'Собственный макет создан в визуальном редакторе',
         dpoId,
+        employeeId,
         from,
         to,
       },
@@ -260,32 +311,32 @@ export const printFormTemplatesService = {
     );
   },
 
-  async previewEditorLayout(id, { layout, format, dpoId, from, to }) {
+  async previewEditorLayout(id, { layout, format, dpoId, employeeId, from, to }) {
     const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
     const templateBuffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
     return previewLayoutBuffer(
       baseVersion.formType,
       templateBuffer,
-      { format, dpoId, from, to },
+      { format, dpoId, employeeId, from, to },
       `${baseVersion.versionNumber} (черновик)`,
     );
   },
 
-  async previewNewEditorLayout(formType, { layout, format, dpoId, from, to }) {
+  async previewNewEditorLayout(formType, { layout, format, dpoId, employeeId, from, to }) {
     generatorFor(formType);
     const templateBuffer = await buildTemplateFromLayout(await blankBuffer(formType), layout);
     return previewLayoutBuffer(
       formType,
       templateBuffer,
-      { format, dpoId, from, to },
+      { format, dpoId, employeeId, from, to },
       'новый черновик',
     );
   },
 
-  async preview(id, { format, dpoId, from, to }) {
+  async preview(id, { format, dpoId, employeeId, from, to }) {
     const version = await printFormTemplatesService.findVersionOrThrow(id);
     const generator = generatorFor(version.formType);
-    const data = await buildTrialData(version.formType, { dpoId, from, to });
+    const data = await buildTrialData(version.formType, { dpoId, employeeId, from, to });
     data.templateVersion = version.versionNumber;
     const excelBuffer = await generateExcelFromMarkedTemplate(
       data,

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { printFormTemplatesApi } from '../../features/print-form-templates/api/print-form-templates-api.js';
 import { TemplateVisualEditor } from '../../features/print-form-templates/ui/TemplateVisualEditor.jsx';
@@ -12,11 +12,15 @@ import {
 } from '../../shared/lib/parse-api-error.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { Select } from '../../shared/ui/Select.jsx';
+import { SearchableSelect } from '../../shared/ui/SearchableSelect.jsx';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from './PrintFormTemplatesPage.module.css';
 
 const FORM_TYPES = [
   { value: 'fpu-26', label: 'ФПУ-26' },
+  { value: 'appendix-1-5', label: 'Приложение 1.5' },
+  { value: 'appendix-1-7', label: 'Приложение 1.7' },
+  { value: 'personal-card', label: 'Личная карточка работника' },
   { value: 'preservation-receipt', label: 'Сохранная расписка' },
 ];
 
@@ -29,14 +33,32 @@ export function PrintFormTemplatesPage() {
   const queryClient = useQueryClient();
   const [range, setRange] = useState(() => resolvePreset('month'));
   const [dpoId, setDpoId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [debouncedEmployeeSearch, setDebouncedEmployeeSearch] = useState('');
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState('');
   const [formType, setFormType] = useState(FORM_TYPES[0].value);
   const [editorVersion, setEditorVersion] = useState(null);
   const fileInputRef = useRef(null);
+  const isPersonalCard = formType === 'personal-card';
+  const trialReady = Boolean(dpoId && (!isPersonalCard || employeeId));
 
   const { data: dpos } = createCatalogHooks('dpo').useList(false, { limit: 200 });
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedEmployeeSearch(employeeSearch.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [employeeSearch]);
+  const { data: employees, isFetching: employeesLoading } = createCatalogHooks('employees').useList(
+    false,
+    {
+      dpoId: dpoId || undefined,
+      search: debouncedEmployeeSearch || undefined,
+      limit: 40,
+    },
+    { enabled: Boolean(isPersonalCard && dpoId) },
+  );
   const versionsQuery = useQuery({
     queryKey: ['print-form-templates', formType],
     queryFn: () => printFormTemplatesApi.list(formType),
@@ -48,6 +70,7 @@ export function PrintFormTemplatesPage() {
       printFormTemplatesApi.upload(formType, {
         file: fileInputRef.current.files[0],
         dpoId,
+        employeeId: employeeId || undefined,
         from: range.from,
         to: range.to,
         comment,
@@ -74,8 +97,12 @@ export function PrintFormTemplatesPage() {
       setError('Выберите файл .xlsx');
       return;
     }
-    if (!dpoId) {
-      setError('Выберите ДПО для пробной генерации');
+    if (!dpoId || (isPersonalCard && !employeeId)) {
+      setError(
+        isPersonalCard
+          ? 'Выберите ДПО и работника для пробной генерации'
+          : 'Выберите ДПО для пробной генерации',
+      );
       return;
     }
     upload.mutate();
@@ -98,6 +125,7 @@ export function PrintFormTemplatesPage() {
       <TemplateVisualEditor
         version={editorVersion}
         dpoId={dpoId}
+        employeeId={employeeId}
         from={range.from}
         to={range.to}
         onClose={() => setEditorVersion(null)}
@@ -122,7 +150,7 @@ export function PrintFormTemplatesPage() {
         <div>
           <h2 className={styles.panelTitle}>Как создать свой шаблон</h2>
           <ol>
-            <li>Выберите печатную форму, ДПО и период проверки.</li>
+            <li>Выберите печатную форму и данные для пробной генерации.</li>
             <li>Нажмите «Создать свой макет» и оформите чистый лист A4.</li>
             <li>Выберите ячейку и добавляйте поля документа кнопками над таблицей.</li>
             <li>Сохраните версию, устраните показанные ошибки и проверьте Excel/PDF.</li>
@@ -134,15 +162,19 @@ export function PrintFormTemplatesPage() {
       <form className={styles.uploadPanel} onSubmit={submitUpload}>
         <h2 className={styles.panelTitle}>Выберите форму и данные для проверки</h2>
         <p className={styles.hint}>
-          ДПО и период нужны для пробной генерации — версия становится доступна для активации,
-          только если по этим данным реально строится документ.
+          ДПО и период нужны для пробной генерации; для личной карточки дополнительно выберите
+          работника. Версия становится доступна для активации, только если по этим данным реально
+          строится документ.
         </p>
         <div className={styles.uploadFields}>
           <Select
             label="Печатная форма"
+            name="printFormTemplateType"
             value={formType}
             onChange={(event) => {
               setFormType(event.target.value);
+              setEmployeeId('');
+              setEmployeeSearch('');
               setError('');
               setComment('');
               if (fileInputRef.current) fileInputRef.current.value = '';
@@ -151,10 +183,30 @@ export function PrintFormTemplatesPage() {
           />
           <Select
             label="ДПО"
+            name="printFormTemplateDpo"
             value={dpoId}
-            onChange={(event) => setDpoId(event.target.value)}
+            onChange={(event) => {
+              setDpoId(event.target.value);
+              setEmployeeId('');
+              setEmployeeSearch('');
+            }}
             options={(dpos ?? []).map((dpo) => ({ value: dpo.id, label: dpo.name }))}
           />
+          {isPersonalCard && (
+            <SearchableSelect
+              label="Работник для проверки"
+              value={employeeId}
+              onChange={setEmployeeId}
+              onSearch={setEmployeeSearch}
+              isLoading={employeesLoading}
+              disabled={!dpoId}
+              placeholder={dpoId ? 'Введите ФИО или табельный номер…' : 'Сначала выберите ДПО'}
+              options={(employees ?? []).map((employee) => ({
+                value: employee.id,
+                label: [employee.fullName, employee.personnelNumber].filter(Boolean).join(' · '),
+              }))}
+            />
+          )}
           <PeriodFilter from={range.from} to={range.to} onChange={setRange} />
         </div>
         <div className={catalogStyles.formActions}>
@@ -162,8 +214,12 @@ export function PrintFormTemplatesPage() {
             type="button"
             onClick={() => {
               setError('');
-              if (!dpoId) {
-                setError('Сначала выберите ДПО для проверки нового макета');
+              if (!dpoId || (isPersonalCard && !employeeId)) {
+                setError(
+                  isPersonalCard
+                    ? 'Сначала выберите ДПО и работника для проверки нового макета'
+                    : 'Сначала выберите ДПО для проверки нового макета',
+                );
                 return;
               }
               setEditorVersion({
@@ -305,13 +361,14 @@ export function PrintFormTemplatesPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
-                      disabled={Boolean(pending) || !dpoId}
-                      title={!dpoId ? 'Выберите ДПО и период выше' : undefined}
+                      disabled={Boolean(pending) || !trialReady}
+                      title={!trialReady ? 'Выберите данные для проверки выше' : undefined}
                       onClick={() =>
                         runAction(`preview-xlsx:${version.id}`, () =>
                           printFormTemplatesApi.preview(version.id, {
                             format: 'xlsx',
                             dpoId,
+                            employeeId: employeeId || undefined,
                             from: range.from,
                             to: range.to,
                           }),
@@ -323,13 +380,14 @@ export function PrintFormTemplatesPage() {
                     <button
                       type="button"
                       className={catalogStyles.linkButton}
-                      disabled={Boolean(pending) || !dpoId}
-                      title={!dpoId ? 'Выберите ДПО и период выше' : undefined}
+                      disabled={Boolean(pending) || !trialReady}
+                      title={!trialReady ? 'Выберите данные для проверки выше' : undefined}
                       onClick={() =>
                         runAction(`preview-pdf:${version.id}`, () =>
                           printFormTemplatesApi.preview(version.id, {
                             format: 'pdf',
                             dpoId,
+                            employeeId: employeeId || undefined,
                             from: range.from,
                             to: range.to,
                           }),

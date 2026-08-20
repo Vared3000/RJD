@@ -43,8 +43,13 @@ const BUILDERS = {
 
 // Формы, переведённые на маркерную разметку (задача 19): шаблон приходит
 // буфером из активной версии в БД, а не с диска по статическому пути.
-// Остальные формы продолжают работать через старый бандл-путь без изменений.
-const MARKER_BASED_FORMS = new Set(['fpu-26', 'preservation-receipt']);
+const MARKER_BASED_FORMS = new Set([
+  'fpu-26',
+  'appendix-1-5',
+  'appendix-1-7',
+  'personal-card',
+  'preservation-receipt',
+]);
 
 async function generateFormExcel(form, data, excelMapper) {
   if (MARKER_BASED_FORMS.has(form)) {

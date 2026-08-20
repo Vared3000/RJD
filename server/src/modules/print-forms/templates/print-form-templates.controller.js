@@ -39,6 +39,7 @@ export const printFormTemplatesController = {
         originalFileName: req.file.originalname,
         comment: body.comment,
         dpoId: body.dpoId,
+        employeeId: body.employeeId,
         from: body.from,
         to: body.to,
       },

@@ -1,9 +1,13 @@
 import { DataTypes } from 'sequelize';
 
-// Формы, уже переведённые на маркерную разметку (задача 19). Остальные
-// табличные формы (appendix-1-5, appendix-1-7, personal-card) переносятся
-// отдельным следующим релизом — список расширяется по мере переноса.
-export const PRINT_FORM_TEMPLATE_TYPES = ['fpu-26', 'preservation-receipt'];
+// Формы, переведённые на маркерную разметку и доступные в конструкторе.
+export const PRINT_FORM_TEMPLATE_TYPES = [
+  'fpu-26',
+  'appendix-1-5',
+  'appendix-1-7',
+  'personal-card',
+  'preservation-receipt',
+];
 
 export function definePrintFormTemplate(sequelize) {
   return sequelize.define(

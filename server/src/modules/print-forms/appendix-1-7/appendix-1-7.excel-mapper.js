@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url';
 import { set, formula, addSourceNote, mergeGroups } from '../shared/excel-template-engine.js';
 import {
   formatQuotedDate,
@@ -7,18 +6,52 @@ import {
   commonNarrative,
 } from '../shared/ru-format.js';
 
-function fillAppendix17(sheet, data, positions) {
+export const appendix17MarkerSpec = {
+  header: [
+    'ACT_DATE',
+    'ACT_NARRATIVE',
+    'TOTAL_VAT',
+    'TOTAL_WITH_VAT',
+    'DPO_HEAD_TITLE',
+    'DPO_DIRECTOR_SIGNATURE',
+  ],
+  row: [
+    'SEQUENCE_NUMBER',
+    'EMPLOYEE_NAME',
+    'PERSONNEL_NUMBER',
+    'MODEL_NAME',
+    'INVENTORY_NUMBER',
+    'UNIT',
+    'QUANTITY',
+    'PRICE_WITHOUT_VAT',
+    'COST_WITHOUT_VAT',
+    'VAT_AMOUNT',
+    'TOTAL_WITH_VAT',
+  ],
+};
+
+function columnLetter(sheet, column, row) {
+  return sheet.getCell(row, column).address.replace(/\d+$/, '');
+}
+
+function fillAppendix17(sheet, data, positions, markers) {
   const director = data.dpo.directorFullName || '';
-  sheet.getColumn(8).hidden = false;
-  set(sheet, 'B1', 'АКТ\nприема-передачи форменной одежды\n');
-  set(sheet, 'A2', 'г. Санкт-Петербург');
-  set(sheet, 'F2', formatQuotedDate(data.from).replace(/ "/, '"'));
+  const header = markers.header;
+  const rowColumn = markers.row;
+  sheet.getColumn(rowColumn.get('PRICE_WITHOUT_VAT')).hidden = false;
+
+  set(sheet, header.get('ACT_DATE'), formatQuotedDate(data.from).replace(/ "/, '"'));
   set(
     sheet,
-    'A4',
+    header.get('ACT_NARRATIVE'),
     `${commonNarrative(data, 'составили и подписали настоящий акт приема-передачи форменной одежды')}\n` +
       '1. В соответствии с настоящим актом Исполнитель передал Заказчику форменную одежду:',
   );
+
+  const quantityCol = columnLetter(sheet, rowColumn.get('QUANTITY'), positions.dataStart);
+  const priceCol = columnLetter(sheet, rowColumn.get('PRICE_WITHOUT_VAT'), positions.dataStart);
+  const vatCol = columnLetter(sheet, rowColumn.get('VAT_AMOUNT'), positions.dataStart);
+  const totalCol = columnLetter(sheet, rowColumn.get('TOTAL_WITH_VAT'), positions.dataStart);
 
   let number = 0;
   let previousEmployee = null;
@@ -27,54 +60,89 @@ function fillAppendix17(sheet, data, positions) {
     const employeeKey = JSON.stringify([row.fullName, row.personnelNumber]);
     if (employeeKey !== previousEmployee) number += 1;
     previousEmployee = employeeKey;
-    set(sheet, `A${rowNumber}`, number);
-    set(sheet, `B${rowNumber}`, row.fullName);
-    set(sheet, `C${rowNumber}`, row.personnelNumber);
-    set(sheet, `D${rowNumber}`, row.modelName);
-    addSourceNote(sheet.getCell(`D${rowNumber}`), row);
-    sheet.getCell(`E${rowNumber}`).value = row.inventoryNumber || null;
-    set(sheet, `F${rowNumber}`, row.unit || 'шт.');
-    set(sheet, `G${rowNumber}`, Number(row.quantity || 0));
-    set(sheet, `H${rowNumber}`, Number(row.priceWithoutVat || 0));
+    set(sheet, sheet.getCell(rowNumber, rowColumn.get('SEQUENCE_NUMBER')).address, number);
+    set(sheet, sheet.getCell(rowNumber, rowColumn.get('EMPLOYEE_NAME')).address, row.fullName);
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('PERSONNEL_NUMBER')).address,
+      row.personnelNumber,
+    );
+    const modelCell = sheet.getCell(rowNumber, rowColumn.get('MODEL_NAME'));
+    modelCell.value = row.modelName;
+    addSourceNote(modelCell, row);
+    sheet.getCell(rowNumber, rowColumn.get('INVENTORY_NUMBER')).value = row.inventoryNumber || null;
+    set(sheet, sheet.getCell(rowNumber, rowColumn.get('UNIT')).address, row.unit || 'шт.');
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('QUANTITY')).address,
+      Number(row.quantity || 0),
+    );
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('PRICE_WITHOUT_VAT')).address,
+      Number(row.priceWithoutVat || 0),
+    );
     const quantity = Number(row.quantity || 0);
     const unitVat = quantity > 0 ? Number(row.vatAmount || 0) / quantity : 0;
     const unitTotal = quantity > 0 ? Number(row.totalWithVat || 0) / quantity : 0;
-    set(sheet, `I${rowNumber}`, formula(`G${rowNumber}*H${rowNumber}`, row.subtotalWithoutVat));
-    set(sheet, `J${rowNumber}`, formula(`G${rowNumber}*${unitVat}`, row.vatAmount));
-    set(sheet, `K${rowNumber}`, formula(`G${rowNumber}*${unitTotal}`, row.totalWithVat));
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('COST_WITHOUT_VAT')).address,
+      formula(`${quantityCol}${rowNumber}*${priceCol}${rowNumber}`, row.subtotalWithoutVat),
+    );
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('VAT_AMOUNT')).address,
+      formula(`${quantityCol}${rowNumber}*${unitVat}`, row.vatAmount),
+    );
+    set(
+      sheet,
+      sheet.getCell(rowNumber, rowColumn.get('TOTAL_WITH_VAT')).address,
+      formula(`${quantityCol}${rowNumber}*${unitTotal}`, row.totalWithVat),
+    );
   });
   mergeGroups(
     sheet,
     data.rows,
     positions.dataStart,
     (row) => JSON.stringify([row.fullName, row.personnelNumber]),
-    [1, 2, 3],
+    [
+      rowColumn.get('SEQUENCE_NUMBER'),
+      rowColumn.get('EMPLOYEE_NAME'),
+      rowColumn.get('PERSONNEL_NUMBER'),
+    ],
   );
 
-  const total = positions.footerStart;
   set(
     sheet,
-    `J${total}`,
-    formula(`SUM(J${positions.dataStart}:J${positions.dataEnd})`, data.totals.vatAmount),
+    header.get('TOTAL_VAT'),
+    formula(
+      `SUM(${vatCol}${positions.dataStart}:${vatCol}${positions.dataEnd})`,
+      data.totals.vatAmount,
+    ),
   );
   set(
     sheet,
-    `K${total}`,
-    formula(`SUM(K${positions.dataStart}:K${positions.dataEnd})`, data.totals.totalWithVat),
+    header.get('TOTAL_WITH_VAT'),
+    formula(
+      `SUM(${totalCol}${positions.dataStart}:${totalCol}${positions.dataEnd})`,
+      data.totals.totalWithVat,
+    ),
   );
   set(
     sheet,
-    `B${total + 5}`,
+    header.get('DPO_HEAD_TITLE'),
     `Начальник ${unitGenitive(data.dpo).replace(/\s+пассажирских\s+обустройств$/i, '')}`,
   );
-  set(sheet, `B${total + 8}`, `__________________/${initialsFirst(director)}/`);
-  sheet.pageSetup.printArea = `A1:K${total + 8}`;
+  set(
+    sheet,
+    header.get('DPO_DIRECTOR_SIGNATURE'),
+    `__________________/${initialsFirst(director)}/`,
+  );
+  sheet.pageSetup.printArea = `A1:K${sheet.getCell(header.get('DPO_DIRECTOR_SIGNATURE')).row}`;
 }
 
 export const appendix17ExcelMapper = {
-  templatePath: fileURLToPath(new URL('./appendix-1-7.template.xlsx', import.meta.url)),
-  dataStart: 8,
-  prototypeRows: 1,
-  dataMerges: [],
+  spec: appendix17MarkerSpec,
   fill: fillAppendix17,
 };

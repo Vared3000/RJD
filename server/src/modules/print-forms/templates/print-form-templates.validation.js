@@ -2,21 +2,28 @@ import { z } from 'zod';
 
 const emptyToUndefined = (value) => (value === '' ? undefined : value);
 
-// dpoId/from/to обязательны и на загрузке, и на превью: вместо синтетических
-// тестовых данных валидность шаблона подтверждается пробной генерацией на
-// реальных параметрах (см. план задачи 19, раздел «Пробная генерация»).
+const optionalUuid = (message) =>
+  z.preprocess(emptyToUndefined, z.string().uuid(message).optional());
+const optionalDate = (message) =>
+  z.preprocess(emptyToUndefined, z.string().date(message).optional());
+
+// Для периодных форм сервис требует dpoId/from/to, для личной карточки —
+// employeeId. Схема принимает общий набор, а зависимое от formType правило
+// проверяет print-form-templates.service.js, которому известен path-параметр.
 export const uploadTemplateSchema = z.object({
-  dpoId: z.string().uuid('Выберите ДПО'),
-  from: z.string().date('Некорректная дата начала'),
-  to: z.string().date('Некорректная дата окончания'),
+  dpoId: optionalUuid('Выберите ДПО'),
+  employeeId: optionalUuid('Выберите работника'),
+  from: optionalDate('Некорректная дата начала'),
+  to: optionalDate('Некорректная дата окончания'),
   comment: z.preprocess(emptyToUndefined, z.string().max(2000).optional()),
 });
 
 export const previewQuerySchema = z.object({
   format: z.enum(['xlsx', 'pdf']).default('xlsx'),
-  dpoId: z.string().uuid('Выберите ДПО'),
-  from: z.string().date('Некорректная дата начала'),
-  to: z.string().date('Некорректная дата окончания'),
+  dpoId: optionalUuid('Выберите ДПО'),
+  employeeId: optionalUuid('Выберите работника'),
+  from: optionalDate('Некорректная дата начала'),
+  to: optionalDate('Некорректная дата окончания'),
 });
 
 const colorSchema = z
@@ -217,9 +224,10 @@ const editorLayoutSchema = z
 
 export const saveEditorLayoutSchema = z
   .object({
-    dpoId: z.string().uuid('Выберите ДПО'),
-    from: z.string().date('Некорректная дата начала'),
-    to: z.string().date('Некорректная дата окончания'),
+    dpoId: optionalUuid('Выберите ДПО'),
+    employeeId: optionalUuid('Выберите работника'),
+    from: optionalDate('Некорректная дата начала'),
+    to: optionalDate('Некорректная дата окончания'),
     comment: z.preprocess(emptyToUndefined, z.string().max(2000).optional()),
     layout: editorLayoutSchema,
   })

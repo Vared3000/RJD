@@ -24,10 +24,11 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
-  async upload(formType, { file, dpoId, from, to, comment }) {
+  async upload(formType, { file, dpoId, employeeId, from, to, comment }) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('dpoId', dpoId);
+    if (employeeId) formData.append('employeeId', employeeId);
     formData.append('from', from);
     formData.append('to', to);
     if (comment) formData.append('comment', comment);
@@ -50,10 +51,11 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
-  async saveLayout(id, { layout, dpoId, from, to, comment }) {
+  async saveLayout(id, { layout, dpoId, employeeId, from, to, comment }) {
     const { data } = await httpClient.post(`${BASE}/versions/${id}/layout`, {
       layout,
       dpoId,
+      employeeId,
       from,
       to,
       comment,
@@ -61,10 +63,11 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
-  async saveNewLayout(formType, { layout, dpoId, from, to, comment }) {
+  async saveNewLayout(formType, { layout, dpoId, employeeId, from, to, comment }) {
     const { data } = await httpClient.post(`${BASE}/${formType}/layout/new`, {
       layout,
       dpoId,
+      employeeId,
       from,
       to,
       comment,
@@ -72,10 +75,10 @@ export const printFormTemplatesApi = {
     return data.data;
   },
 
-  async previewLayout(id, { layout, format, dpoId, from, to }) {
+  async previewLayout(id, { layout, format, dpoId, employeeId, from, to }) {
     const response = await httpClient.post(
       `${BASE}/versions/${id}/layout/preview`,
-      { layout, format, dpoId, from, to },
+      { layout, format, dpoId, employeeId, from, to },
       { responseType: 'blob' },
     );
     downloadBlob(
@@ -85,10 +88,10 @@ export const printFormTemplatesApi = {
     );
   },
 
-  async previewNewLayout(formType, { layout, format, dpoId, from, to }) {
+  async previewNewLayout(formType, { layout, format, dpoId, employeeId, from, to }) {
     const response = await httpClient.post(
       `${BASE}/${formType}/layout/new/preview`,
-      { layout, format, dpoId, from, to },
+      { layout, format, dpoId, employeeId, from, to },
       { responseType: 'blob' },
     );
     downloadBlob(
@@ -105,9 +108,9 @@ export const printFormTemplatesApi = {
     downloadBlob(response.data, fileNameFromResponse(response), fallbackName);
   },
 
-  async preview(id, { format, dpoId, from, to }) {
+  async preview(id, { format, dpoId, employeeId, from, to }) {
     const response = await httpClient.get(`${BASE}/versions/${id}/preview`, {
-      params: { format, dpoId, from, to },
+      params: { format, dpoId, employeeId, from, to },
       responseType: 'blob',
     });
     downloadBlob(response.data, fileNameFromResponse(response), `preview.${format}`);
