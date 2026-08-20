@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import { swaggerSpec } from './config/swagger.js';
 import { logger } from './utils/logger.js';
@@ -39,6 +41,26 @@ import { createBarcodeRouter } from './modules/barcodes/barcode.routes.js';
 import { createPrintFormSettingsRouter } from './modules/print-forms/settings/print-form-settings.routes.js';
 import { createPrintFormTemplatesRouter } from './modules/print-forms/templates/print-form-templates.routes.js';
 import { createStartupImportRouter } from './modules/startup-import/startup-import.routes.js';
+
+const clientDistDirectory = fileURLToPath(new URL('../../client/dist/', import.meta.url));
+
+function serveProductionClient(app) {
+  if (env.NODE_ENV !== 'production' || !existsSync(clientDistDirectory)) return;
+
+  app.use(express.static(clientDistDirectory));
+  app.use((req, res, next) => {
+    if (
+      req.method !== 'GET' ||
+      req.path.startsWith('/api/') ||
+      req.path === '/health' ||
+      !req.accepts('html')
+    ) {
+      next();
+      return;
+    }
+    res.sendFile('index.html', { root: clientDistDirectory });
+  });
+}
 
 export function createApp() {
   const app = express();
@@ -93,6 +115,10 @@ export function createApp() {
   app.use('/api/v1/barcodes', createBarcodeRouter());
   app.use('/api/v1/print-form-settings', createPrintFormSettingsRouter());
   app.use('/api/v1/startup-import', createStartupImportRouter());
+
+  // Native Windows deployment serves the production SPA and API from the
+  // same service and port. Docker keeps using its dedicated Nginx container.
+  serveProductionClient(app);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
