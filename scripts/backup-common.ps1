@@ -200,28 +200,6 @@ function Write-BackupLog {
     }
 }
 
-function Remove-BackupSet {
-    param([Parameter(Mandatory = $true)][IO.FileInfo]$DumpFile)
-
-    foreach ($path in @($DumpFile.FullName, "$($DumpFile.FullName).json", "$($DumpFile.FullName).sha256", "$($DumpFile.FullName).verified.json")) {
-        if (Test-Path -LiteralPath $path) {
-            Remove-Item -LiteralPath $path -Force
-        }
-    }
-}
-
-function Invoke-BackupRotation {
-    param(
-        [Parameter(Mandatory = $true)][string]$Directory,
-        [Parameter(Mandatory = $true)][int]$Keep
-    )
-
-    $files = @(Get-ChildItem -LiteralPath $Directory -Filter 'workwear_erp_*.dump' -File | Sort-Object LastWriteTimeUtc -Descending)
-    foreach ($file in $files | Select-Object -Skip $Keep) {
-        Remove-BackupSet -DumpFile $file
-    }
-}
-
 function Copy-BackupSet {
     param(
         [Parameter(Mandatory = $true)][string]$DumpFile,

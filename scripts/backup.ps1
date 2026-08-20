@@ -4,8 +4,6 @@ param(
     [string]$SecondaryPath,
     [string]$DatabaseUrl,
     [string]$PgBin,
-    [ValidateRange(1, 3650)][int]$DailyRetention = 30,
-    [ValidateRange(1, 240)][int]$MonthlyRetention = 24,
     [ValidateRange(1, 3650)][int]$LogRetentionDays = 90,
     [switch]$ForceMonthly,
     [switch]$RequireSecondary,
@@ -74,23 +72,18 @@ try {
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$finalFile.json" -Encoding UTF8
     "$hash  $fileName" | Set-Content -LiteralPath "$finalFile.sha256" -Encoding ASCII
-    Invoke-BackupRotation -Directory $dailyDirectory -Keep $DailyRetention
-
     $isMonthly = $ForceMonthly -or (Get-Date).Day -eq 1
     if ($isMonthly) {
         Copy-BackupSet -DumpFile $finalFile -Destination $monthlyDirectory | Out-Null
-        Invoke-BackupRotation -Directory $monthlyDirectory -Keep $MonthlyRetention
         Write-BackupLog -Path $logPath -Message "Monthly archive created: $fileName"
     }
 
     if ($SecondaryPath) {
         $secondaryDaily = Join-Path $SecondaryPath 'daily'
         Copy-BackupSet -DumpFile $finalFile -Destination $secondaryDaily | Out-Null
-        Invoke-BackupRotation -Directory $secondaryDaily -Keep $DailyRetention
         if ($isMonthly) {
             $secondaryMonthly = Join-Path $SecondaryPath 'monthly'
             Copy-BackupSet -DumpFile $finalFile -Destination $secondaryMonthly | Out-Null
-            Invoke-BackupRotation -Directory $secondaryMonthly -Keep $MonthlyRetention
         }
         Write-BackupLog -Path $logPath -Message "Secondary copy verified: $SecondaryPath"
     } elseif ($RequireSecondary) {

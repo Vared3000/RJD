@@ -11,13 +11,13 @@ async function script(name) {
   return readFile(path.join(scriptsDirectory, name), 'utf8');
 }
 
-test('Windows backup создаёт custom dump, хеш, ротацию и вторую копию', async () => {
+test('Windows backup создаёт custom dump, хеш, бессрочный архив и вторую копию', async () => {
   const content = await script('backup.ps1');
 
   assert.match(content, /pg_dump/i);
   assert.match(content, /--format=custom/);
   assert.match(content, /SHA256/);
-  assert.match(content, /DailyRetention\s*=\s*30/);
+  assert.doesNotMatch(content, /Invoke-BackupRotation|DailyRetention|MonthlyRetention/);
   assert.match(content, /BACKUP_SECONDARY_PATH/);
   assert.match(content, /RequireSecondary/);
 });
