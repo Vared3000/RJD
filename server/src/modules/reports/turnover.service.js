@@ -183,7 +183,11 @@ export async function computeTurnoverReport({
     ? GENDER_FILTER_LABELS[resolvedGender]
     : ALL_GENDER_LABEL;
 
-  const employeeWhere = { archivedAt: null };
+  // archivedAt — техническая мягкая архивация карточки, а не дата увольнения.
+  // Исторический отчёт обязан опираться на hireDate/terminationDate и историю
+  // назначений, иначе архивирование задним числом меняет уже рассчитанные
+  // показатели прошлых периодов.
+  const employeeWhere = {};
   if (positionId) employeeWhere.positionId = positionId;
   if (resolvedGender) employeeWhere.gender = resolvedGender === 'none' ? null : resolvedGender;
 

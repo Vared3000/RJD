@@ -331,14 +331,25 @@ async function reconcileTaskFulfillments({
         );
       }
       const nextQuantity = task.quantity - allocate;
+      // post() получает задачу, связанную с текущим черновиком, и после
+      // проведения должен снять эту связь. revise() восстанавливает задачу
+      // по истории fulfillment, но у неё уже может быть ДРУГОЙ, более новый
+      // черновик. Его связь нельзя сбрасывать при пересчёте старого документа.
+      const pendingDraftDocumentId =
+        task.draftDocumentId && task.draftDocumentId !== documentId ? task.draftDocumentId : null;
+      if (nextQuantity <= 0 && pendingDraftDocumentId) {
+        throw ApiError.conflict(
+          'Задача уже оформляется в более новом черновике. Удалите этот черновик перед изменением старой довыдачи',
+        );
+      }
       await tasksRepository.updateProgress(
         task.id,
         {
           quantity: nextQuantity,
-          status: nextQuantity <= 0 ? 'completed' : 'open',
+          status: nextQuantity <= 0 ? 'completed' : pendingDraftDocumentId ? 'in_progress' : 'open',
           completedAt: nextQuantity <= 0 ? new Date() : null,
           completedByUserId: nextQuantity <= 0 ? userId : null,
-          draftDocumentId: null,
+          draftDocumentId: nextQuantity <= 0 ? null : pendingDraftDocumentId,
         },
         { transaction },
       );
@@ -693,23 +704,22 @@ export const issuanceService = {
           transaction,
         });
         for (const task of tasksToReverse) {
-          await tasksRepository.updateProgress(
-            task.id,
-            {
-              quantity: task.quantity + addBackByTask.get(task.id),
-              status: 'open',
-              completedAt: null,
-              completedByUserId: null,
-              draftDocumentId: null,
-            },
-            { transaction },
-          );
+          const pendingDraftDocumentId =
+            task.draftDocumentId && task.draftDocumentId !== documentId
+              ? task.draftDocumentId
+              : null;
+          const restoredTask = {
+            ...task.get({ plain: true }),
+            quantity: task.quantity + addBackByTask.get(task.id),
+            status: pendingDraftDocumentId ? 'in_progress' : 'open',
+            completedAt: null,
+            completedByUserId: null,
+            draftDocumentId: pendingDraftDocumentId,
+          };
+          await tasksRepository.updateProgress(task.id, restoredTask, { transaction });
+          reconciledTasks.push(restoredTask);
         }
         await tasksRepository.deleteFulfillmentsByDocument(documentId, { transaction });
-        reconciledTasks = tasksToReverse.map((task) => ({
-          ...task.get({ plain: true }),
-          quantity: task.quantity + addBackByTask.get(task.id),
-        }));
       }
 
       await issuanceRepository.deleteOwnInstanceEvents(documentId, { transaction });

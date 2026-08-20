@@ -315,6 +315,31 @@ test('отчёт сменяемости работников по ДПО: фор
   assert.equal(maleRow.start, 1);
   assert.equal(femaleRow.start, 1);
 
+  // === Сценарий 5: техническая архивация карточки не переписывает историю. ===
+  const periodArchived = { from: '2026-05-01', to: '2026-05-31' };
+  const dpoArchived = await createDpo('Archived');
+  const archivedEmployee = await createEmployee({
+    dpoId: dpoArchived.id,
+    hireDate: '2020-01-01',
+    terminationDate: '2026-05-10',
+  });
+  const archived = await auth(agent.delete(`/api/v1/employees/${archivedEmployee.id}`));
+  assert.equal(archived.status, 200);
+  const archivedRecord = await models.Employee.findByPk(archivedEmployee.id);
+  assert.ok(archivedRecord.archivedAt, 'карточка должна быть архивирована');
+
+  const archivedReport = await auth(agent.get('/api/v1/reports/turnover')).query({
+    ...periodArchived,
+    dpoId: dpoArchived.id,
+  });
+  assert.equal(archivedReport.status, 200);
+  assert.equal(archivedReport.body.data.length, 1);
+  const archivedRow = archivedReport.body.data[0];
+  assert.equal(archivedRow.start, 1, 'архивный работник учитывается на начало периода');
+  assert.equal(archivedRow.hired, 0);
+  assert.equal(archivedRow.terminated, 1, 'архивный работник учитывается в увольнениях');
+  assert.equal(archivedRow.end, 0);
+
   // === Валидация: период обязателен. ===
   const missingPeriod = await auth(agent.get('/api/v1/reports/turnover')).query({
     dpoId: dpoMain.id,

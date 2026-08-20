@@ -543,3 +543,107 @@ test('довыдача: revise() проведённого документа н�
   );
   assert.equal(fulfillmentsAfterRevise[0].quantity, 1);
 });
+
+test('довыдача: revise() старого проведения сохраняет связь с новым черновиком', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = `TaskDraft9 ${Date.now()}`;
+  const state = baseState();
+  t.after(() => cleanup(state, [unique]));
+
+  const fixture = await createFixture(auth, agent, state, unique);
+  const task = await createShortageTask(auth, agent, state, fixture, {
+    available: 1,
+    requested: 6,
+  });
+  assert.equal(task.quantity, 5);
+
+  await receiveStock(auth, agent, state, fixture, 2, '2026-08-02');
+
+  const firstDraft = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
+    taskIds: [task.id],
+  });
+  assert.equal(firstDraft.status, 201);
+  const firstDocumentId = firstDraft.body.data.id;
+  state.issuanceDocIds.push(firstDocumentId);
+
+  await auth(
+    agent.patch(
+      `/api/v1/issuance/documents/${firstDocumentId}/lines/${firstDraft.body.data.lines[0].id}`,
+    ),
+  ).send({ quantity: 2 });
+  const firstPosted = await auth(agent.post(`/api/v1/issuance/documents/${firstDocumentId}/post`));
+  assert.equal(firstPosted.status, 200);
+
+  const afterFirstPost = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(afterFirstPost.status, 'open');
+  assert.equal(afterFirstPost.quantity, 3);
+
+  const newerDraft = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
+    taskIds: [task.id],
+  });
+  assert.equal(newerDraft.status, 201);
+  const newerDocumentId = newerDraft.body.data.id;
+  state.issuanceDocIds.push(newerDocumentId);
+
+  // Старая довыдача уменьшается с 2 до 1. Остаток задачи становится 4,
+  // но уже созданный более новый черновик должен остаться прикреплённым.
+  const revised = await auth(
+    agent.post(`/api/v1/issuance/documents/${firstDocumentId}/revise`),
+  ).send({
+    header: {
+      employeeId: fixture.employeeId,
+      warehouseId: fixture.warehouseId,
+      documentDate: '2026-08-01',
+    },
+    lines: [{ modelId: fixture.modelId, sizeId: fixture.sizeId, quantity: 1 }],
+    reason: 'Уточнение старой частичной довыдачи',
+  });
+  assert.equal(revised.status, 200, JSON.stringify(revised.body));
+
+  const taskWithNewerDraft = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(taskWithNewerDraft.quantity, 4);
+  assert.equal(taskWithNewerDraft.status, 'in_progress');
+  assert.equal(taskWithNewerDraft.draftDocumentId, newerDocumentId);
+
+  const firstFulfillments = await models.IssuanceTaskFulfillment.findAll({
+    where: { taskId: task.id, documentId: firstDocumentId },
+  });
+  assert.equal(firstFulfillments.length, 1);
+  assert.equal(firstFulfillments[0].quantity, 1);
+
+  // Старую довыдачу нельзя увеличить так, чтобы она полностью закрыла уже
+  // оформляемую потребность: иначе новый черновик остался бы без задачи.
+  await receiveStock(auth, agent, state, fixture, 4, '2026-08-03');
+  const conflictingRevision = await auth(
+    agent.post(`/api/v1/issuance/documents/${firstDocumentId}/revise`),
+  ).send({
+    header: {
+      employeeId: fixture.employeeId,
+      warehouseId: fixture.warehouseId,
+      documentDate: '2026-08-01',
+    },
+    lines: [{ modelId: fixture.modelId, sizeId: fixture.sizeId, quantity: 5 }],
+    reason: 'Попытка закрыть потребность при активном новом черновике',
+  });
+  assert.equal(conflictingRevision.status, 409);
+  const taskAfterConflict = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(taskAfterConflict.quantity, 4, 'конфликт должен откатить пересчёт задачи');
+  assert.equal(taskAfterConflict.status, 'in_progress');
+  assert.equal(taskAfterConflict.draftDocumentId, newerDocumentId);
+
+  // Последующая штатная операция над сохранённой связью тоже остаётся
+  // рабочей: удаление нового черновика освобождает задачу без потери остатка.
+  const removed = await auth(agent.delete(`/api/v1/issuance/documents/${newerDocumentId}`));
+  assert.equal(removed.status, 200);
+  const releasedTask = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(releasedTask.quantity, 4);
+  assert.equal(releasedTask.status, 'open');
+  assert.equal(releasedTask.draftDocumentId, null);
+});
