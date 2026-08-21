@@ -200,24 +200,114 @@ function Write-BackupLog {
     }
 }
 
+function Resolve-BackupSecondaryPaths {
+    param(
+        [hashtable]$EnvironmentValues = @{},
+        [string[]]$SecondaryPaths,
+        [string]$LegacySecondaryPath
+    )
+
+    $rawValues = @()
+    if ($SecondaryPaths -and @($SecondaryPaths).Count -gt 0) {
+        $rawValues = @($SecondaryPaths)
+    } elseif ($LegacySecondaryPath) {
+        $rawValues = @($LegacySecondaryPath)
+    } elseif ($EnvironmentValues['BACKUP_SECONDARY_PATHS']) {
+        $rawValues = @($EnvironmentValues['BACKUP_SECONDARY_PATHS'])
+    } elseif ($EnvironmentValues['BACKUP_SECONDARY_PATH']) {
+        $rawValues = @($EnvironmentValues['BACKUP_SECONDARY_PATH'])
+    }
+
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $resolved = [Collections.Generic.List[string]]::new()
+    foreach ($rawValue in $rawValues) {
+        foreach ($candidate in ([string]$rawValue -split ';')) {
+            $trimmed = $candidate.Trim().TrimEnd('\', '/')
+            if ($trimmed -and $seen.Add($trimmed)) {
+                $resolved.Add($trimmed)
+            }
+        }
+    }
+    return @($resolved)
+}
+
 function Copy-BackupSet {
     param(
         [Parameter(Mandatory = $true)][string]$DumpFile,
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $sourceFiles = @($DumpFile, "$DumpFile.json", "$DumpFile.sha256")
     foreach ($source in $sourceFiles) {
-        Copy-Item -LiteralPath $source -Destination $Destination -Force
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Backup set source file is missing: $source"
+        }
     }
-    $copiedDump = Join-Path $Destination ([IO.Path]::GetFileName($DumpFile))
-    $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $DumpFile).Hash
-    $destinationHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $copiedDump).Hash
-    if ($sourceHash -ne $destinationHash) {
-        throw "Secondary backup hash mismatch: $copiedDump"
+
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    $finalFiles = @($sourceFiles | ForEach-Object { Join-Path $Destination ([IO.Path]::GetFileName($_)) })
+    $existingFiles = @($finalFiles | Where-Object { Test-Path -LiteralPath $_ })
+    if ($existingFiles.Count -gt 0) {
+        for ($index = 0; $index -lt $sourceFiles.Count; $index += 1) {
+            if (-not (Test-Path -LiteralPath $finalFiles[$index])) {
+                continue
+            }
+            $sourceFileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFiles[$index]).Hash
+            $existingFileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $finalFiles[$index]).Hash
+            if ($sourceFileHash -ne $existingFileHash) {
+                throw "Existing backup set differs and must not be overwritten: $($finalFiles[$index])"
+            }
+        }
+        if ($existingFiles.Count -eq $finalFiles.Count) {
+            return $finalFiles[0]
+        }
     }
-    return $copiedDump
+
+    $copyToken = [Guid]::NewGuid().ToString('N')
+    $pending = [Collections.Generic.List[object]]::new()
+    try {
+        for ($index = 0; $index -lt $sourceFiles.Count; $index += 1) {
+            $source = $sourceFiles[$index]
+            if (Test-Path -LiteralPath $finalFiles[$index]) {
+                continue
+            }
+            $name = [IO.Path]::GetFileName($source)
+            $temporary = Join-Path $Destination ".$name.$copyToken.partial"
+            $final = $finalFiles[$index]
+            Copy-Item -LiteralPath $source -Destination $temporary
+            $pending.Add([PSCustomObject]@{ Source = $source; Temporary = $temporary; Final = $final })
+        }
+
+        for ($index = 0; $index -lt $pending.Count; $index += 1) {
+            $sourceFileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pending[$index].Source).Hash
+            $temporaryFileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pending[$index].Temporary).Hash
+            if ($sourceFileHash -ne $temporaryFileHash) {
+                throw "Secondary backup hash mismatch before publish: $($pending[$index].Temporary)"
+            }
+        }
+
+        foreach ($item in $pending | Where-Object Source -ne $DumpFile) {
+            Move-Item -LiteralPath $item.Temporary -Destination $item.Final
+        }
+        $pendingDump = $pending | Where-Object Source -eq $DumpFile | Select-Object -First 1
+        if ($pendingDump) {
+            Move-Item -LiteralPath $pendingDump.Temporary -Destination $pendingDump.Final
+        }
+
+        $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $DumpFile).Hash
+        $destinationHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $finalFiles[0]).Hash
+        if ($sourceHash -ne $destinationHash) {
+            throw "Secondary backup hash mismatch: $($pending[0].Final)"
+        }
+        return $finalFiles[0]
+    } catch {
+        foreach ($item in $pending) {
+            if (Test-Path -LiteralPath $item.Temporary) {
+                Remove-Item -LiteralPath $item.Temporary -Force
+            }
+        }
+        throw
+    }
 }
 
 function Get-LatestBackup {

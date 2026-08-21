@@ -2,9 +2,11 @@
 param(
     [string]$BackupRoot,
     [string]$SecondaryPath,
+    [string[]]$SecondaryPaths,
     [string]$DatabaseUrl,
     [string]$PgBin,
     [ValidateRange(1, 3650)][int]$LogRetentionDays = 90,
+    [ValidateRange(0, 10)][int]$RequiredSecondaryCount = 0,
     [switch]$ForceMonthly,
     [switch]$RequireSecondary,
     [switch]$NotifyOnFailure
@@ -17,8 +19,12 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 $envValues = Read-DotEnvFile -Path (Join-Path $projectRoot '.env')
 if (-not $DatabaseUrl) { $DatabaseUrl = $envValues['DATABASE_URL'] }
 if (-not $BackupRoot) { $BackupRoot = if ($envValues['BACKUP_ROOT']) { $envValues['BACKUP_ROOT'] } else { Join-Path $projectRoot 'backups' } }
-if (-not $SecondaryPath) { $SecondaryPath = $envValues['BACKUP_SECONDARY_PATH'] }
 if (-not $DatabaseUrl) { throw 'DATABASE_URL is required in .env or -DatabaseUrl.' }
+$resolvedSecondaryPaths = @(Resolve-BackupSecondaryPaths -EnvironmentValues $envValues -SecondaryPaths $SecondaryPaths -LegacySecondaryPath $SecondaryPath)
+$minimumSecondaryCount = if ($RequiredSecondaryCount -gt 0) { $RequiredSecondaryCount } elseif ($RequireSecondary) { 1 } else { 0 }
+if ($resolvedSecondaryPaths.Count -lt $minimumSecondaryCount) {
+    throw "At least $minimumSecondaryCount secondary backup paths are required; configured: $($resolvedSecondaryPaths.Count)."
+}
 
 $BackupRoot = [IO.Path]::GetFullPath($BackupRoot)
 $dailyDirectory = Join-Path $BackupRoot 'daily'
@@ -72,24 +78,33 @@ try {
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$finalFile.json" -Encoding UTF8
     "$hash  $fileName" | Set-Content -LiteralPath "$finalFile.sha256" -Encoding ASCII
-    $isMonthly = $ForceMonthly -or (Get-Date).Day -eq 1
+    $hasMonthlyArchive = Get-ChildItem -LiteralPath $monthlyDirectory -Filter 'workwear_erp_*.dump' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $isMonthly = $ForceMonthly -or (Get-Date).Day -eq 1 -or -not $hasMonthlyArchive
     if ($isMonthly) {
         Copy-BackupSet -DumpFile $finalFile -Destination $monthlyDirectory | Out-Null
         Write-BackupLog -Path $logPath -Message "Monthly archive created: $fileName"
     }
 
-    if ($SecondaryPath) {
-        $secondaryDaily = Join-Path $SecondaryPath 'daily'
-        Copy-BackupSet -DumpFile $finalFile -Destination $secondaryDaily | Out-Null
-        if ($isMonthly) {
-            $secondaryMonthly = Join-Path $SecondaryPath 'monthly'
-            Copy-BackupSet -DumpFile $finalFile -Destination $secondaryMonthly | Out-Null
+    $secondaryFailures = [Collections.Generic.List[string]]::new()
+    foreach ($secondaryRoot in $resolvedSecondaryPaths) {
+        try {
+            $secondaryDaily = Join-Path $secondaryRoot 'daily'
+            Copy-BackupSet -DumpFile $finalFile -Destination $secondaryDaily | Out-Null
+            if ($isMonthly) {
+                $secondaryMonthly = Join-Path $secondaryRoot 'monthly'
+                Copy-BackupSet -DumpFile $finalFile -Destination $secondaryMonthly | Out-Null
+            }
+            Write-BackupLog -Path $logPath -Message "Secondary copy verified: $secondaryRoot"
+        } catch {
+            $secondaryFailures.Add("$secondaryRoot`: $($_.Exception.Message)")
+            Write-BackupLog -Path $logPath -Level 'ERROR' -Message "Secondary copy failed: $secondaryRoot"
         }
-        Write-BackupLog -Path $logPath -Message "Secondary copy verified: $SecondaryPath"
-    } elseif ($RequireSecondary) {
-        throw 'BACKUP_SECONDARY_PATH is required but was not configured.'
-    } else {
+    }
+    if ($resolvedSecondaryPaths.Count -eq 0) {
         Write-BackupLog -Path $logPath -Level 'WARN' -Message 'Secondary backup path is not configured.'
+    }
+    if ($secondaryFailures.Count -gt 0) {
+        throw "One or more secondary backups failed: $($secondaryFailures -join '; ')"
     }
 
     Get-ChildItem -LiteralPath $logDirectory -Filter 'backup_*.log' -File |

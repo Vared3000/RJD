@@ -6,6 +6,8 @@ param(
     [ValidatePattern('^[a-z][a-z0-9_]{0,62}$')][string]$DatabaseUser = 'workwear_app',
     [ValidatePattern('^[a-z][a-z0-9_]{0,62}$')][string]$BackupAdminUser = 'workwear_backup_admin',
     [string]$BackupSecondaryPath,
+    [string[]]$BackupSecondaryPaths,
+    [string]$BackupTaskUser,
     [switch]$InstallDependencies,
     [switch]$SkipBackupSchedule,
     [ValidateRange(2, 100)][int]$MinimumFreeSpaceGb = 5
@@ -13,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $script:RepositoryRoot 'scripts\backup-common.ps1')
 
 Assert-WindowsHost
 Ensure-Administrator -ScriptPath $PSCommandPath
@@ -223,12 +226,83 @@ function Write-ApplicationEnvironment {
         "POSTGRES_PASSWORD=$($Values.DatabasePassword)",
         'VITE_API_URL=/api/v1',
         "BACKUP_ROOT=$(Join-Path $script:RepositoryRoot 'backups')",
-        "BACKUP_SECONDARY_PATH=$($Values.BackupSecondaryPath)",
+        "BACKUP_SECONDARY_PATHS=$($Values.ModernBackupSecondaryPaths -join ';')",
+        "BACKUP_SECONDARY_PATH=$($Values.LegacyBackupSecondaryPath)",
+        "BACKUP_TASK_USER=$($Values.BackupTaskUser)",
         "BACKUP_ADMIN_DATABASE_URL=postgres://$(Escape-ConnectionPart $BackupAdminUser):$(Escape-ConnectionPart $Values.BackupAdminPassword)@127.0.0.1:5432/postgres"
     )
     [IO.File]::WriteAllLines($temporaryPath, $lines, [Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporaryPath -Destination $path -Force
-    & icacls.exe $path '/inheritance:r' '/grant:r' '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
+    $aclArguments = @($path, '/inheritance:r', '/grant:r', '*S-1-5-18:(F)', '*S-1-5-32-544:(F)')
+    if ($Values.BackupTaskUser -and $Values.BackupTaskUser -ne 'SYSTEM') {
+        $aclArguments += @('/grant:r', "$($Values.BackupTaskUser):(R)")
+    }
+    & icacls.exe @aclArguments | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to protect application environment: $path"
+    }
+}
+
+function Assert-BackupDestinationAcl {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $unsafeSids = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')
+    $unsafeRules = @((Get-Acl -LiteralPath $Path).Access | Where-Object {
+        if ($_.AccessControlType -ne 'Allow' -or [string]$_.FileSystemRights -notmatch 'Write|Modify|FullControl|CreateFiles') {
+            return $false
+        }
+        try {
+            $sid = $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+            return $sid -in $unsafeSids
+        } catch {
+            return $false
+        }
+    })
+    if ($unsafeRules.Count -gt 0) {
+        throw "$(Get-DeploymentMessage 'backupPathAclUnsafe') $Path"
+    }
+}
+
+function Protect-LocalBackupRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$TaskUser
+    )
+
+    New-Item -ItemType Directory -Force -Path $Path | Out-Null
+    $aclArguments = @($Path, '/inheritance:r', '/grant:r', '*S-1-5-18:(F)', '*S-1-5-32-544:(F)')
+    if ($TaskUser -ne 'SYSTEM') {
+        $aclArguments += @('/grant:r', "${TaskUser}:(M)")
+    }
+    & icacls.exe @aclArguments | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to protect local backup directory: $Path"
+    }
+}
+
+function Assert-BackupDestination {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not $Path.StartsWith('\\')) {
+        throw "$(Get-DeploymentMessage 'backupPathNotUnc') $Path"
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        throw "$(Get-DeploymentMessage 'backupPathMissing') $Path"
+    }
+    Assert-BackupDestinationAcl -Path $Path
+    $probe = Join-Path $Path ".workwear-write-test-$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $expected = [Guid]::NewGuid().ToString('N')
+        [IO.File]::WriteAllText($probe, $expected, [Text.UTF8Encoding]::new($false))
+        $actual = [IO.File]::ReadAllText($probe, [Text.Encoding]::UTF8)
+        if ($actual -ne $expected) {
+            throw "$(Get-DeploymentMessage 'backupPathProbeFailed') $Path"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probe) {
+            Remove-Item -LiteralPath $probe -Force
+        }
+    }
 }
 
 function Invoke-PsqlInput {
@@ -411,14 +485,32 @@ try {
     $refreshSecret = if ($existing['JWT_REFRESH_SECRET'] -and $existing['JWT_REFRESH_SECRET'] -notmatch '^replace-') { $existing['JWT_REFRESH_SECRET'] } else { New-DeploymentSecret }
     $backupAdminPassword = New-DeploymentSecret -Bytes 36
 
-    if (-not $SkipBackupSchedule -and -not $BackupSecondaryPath) {
-        $BackupSecondaryPath = if ($existing['BACKUP_SECONDARY_PATH']) { $existing['BACKUP_SECONDARY_PATH'] } else { Read-Host (Get-DeploymentMessage 'backupPathPrompt') }
+    $resolvedBackupSecondaryPaths = @(Resolve-BackupSecondaryPaths -EnvironmentValues $existing -SecondaryPaths $BackupSecondaryPaths -LegacySecondaryPath $BackupSecondaryPath)
+    $writeModernBackupPaths = (-not $SkipBackupSchedule) -or @($BackupSecondaryPaths).Count -gt 0 -or [bool]$existing['BACKUP_SECONDARY_PATHS']
+    if (-not $SkipBackupSchedule -and $resolvedBackupSecondaryPaths.Count -lt 2) {
+        $enteredBackupPaths = Read-Host (Get-DeploymentMessage 'backupPathPrompt')
+        $resolvedBackupSecondaryPaths = @(Resolve-BackupSecondaryPaths -SecondaryPaths @($enteredBackupPaths))
     }
-    if (-not $SkipBackupSchedule -and (-not $BackupSecondaryPath -or -not (Test-Path -LiteralPath $BackupSecondaryPath))) {
-        throw "$(Get-DeploymentMessage 'backupPathMissing') $BackupSecondaryPath"
+    if (-not $SkipBackupSchedule -and $resolvedBackupSecondaryPaths.Count -ne 2) {
+        throw "$(Get-DeploymentMessage 'backupPathCount') $($resolvedBackupSecondaryPaths.Count)"
+    }
+    if (-not $SkipBackupSchedule) {
+        foreach ($backupPath in $resolvedBackupSecondaryPaths) {
+            Assert-BackupDestination -Path $backupPath
+        }
+        $backupHosts = @($resolvedBackupSecondaryPaths | ForEach-Object { $_.TrimStart('\').Split('\')[0].ToLowerInvariant() } | Select-Object -Unique)
+        if ($backupHosts.Count -ne 2) {
+            throw (Get-DeploymentMessage 'backupPathHosts')
+        }
+        if (-not $BackupTaskUser) {
+            $BackupTaskUser = if ($existing['BACKUP_TASK_USER']) { $existing['BACKUP_TASK_USER'] } else { Read-Host (Get-DeploymentMessage 'backupTaskUserPrompt') }
+        }
+        if (-not $BackupTaskUser) { $BackupTaskUser = 'SYSTEM' }
     }
 
     Initialize-ApplicationDatabase -PostgresBin $postgres.Bin -AdminUser $dbAdminUser -AdminPassword $dbAdminPassword -DatabasePassword $databasePassword -BackupAdminPassword $backupAdminPassword
+    $legacyBackupSecondaryPath = if ($resolvedBackupSecondaryPaths.Count -gt 0) { $resolvedBackupSecondaryPaths[0] } else { '' }
+    $modernBackupSecondaryPaths = if ($writeModernBackupPaths) { $resolvedBackupSecondaryPaths } else { @() }
     Write-ApplicationEnvironment -Values ([PSCustomObject]@{
         LanAddress = $lan.Address
         LanSubnet = $lan.Subnet
@@ -428,8 +520,13 @@ try {
         AdminPassword = $adminPassword
         AccessSecret = $accessSecret
         RefreshSecret = $refreshSecret
-        BackupSecondaryPath = $BackupSecondaryPath
+        ModernBackupSecondaryPaths = $modernBackupSecondaryPaths
+        LegacyBackupSecondaryPath = $legacyBackupSecondaryPath
+        BackupTaskUser = $BackupTaskUser
     })
+    if (-not $SkipBackupSchedule) {
+        Protect-LocalBackupRoot -Path (Join-Path $script:RepositoryRoot 'backups') -TaskUser $BackupTaskUser
+    }
 
     $existingService = Get-WorkwearService
     if ($existingService -and $existingService.Status -ne 'Stopped') {
@@ -445,7 +542,7 @@ try {
     Install-WorkwearService -NodePath $tools.Node -PostgresServiceName $postgres.Service.Name
     & (Join-Path $script:RepositoryRoot 'deploy\configure-lan-firewall.ps1') -LanSubnet $lan.Subnet -Port 80
     if (-not $SkipBackupSchedule) {
-        & (Join-Path $script:RepositoryRoot 'scripts\install-backup-tasks.ps1')
+        & (Join-Path $script:RepositoryRoot 'scripts\install-backup-tasks.ps1') -TaskUser $BackupTaskUser -RequiredSecondaryCount 2 -RunBackupNow
     }
     New-ManagementShortcuts
     Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'healthWaiting')

@@ -3,7 +3,9 @@ param(
     [datetime]$DailyAt = '02:00',
     [datetime]$MonthlyVerifyAt = '03:00',
     [string]$TaskUser = 'SYSTEM',
-    [PSCredential]$TaskCredential
+    [PSCredential]$TaskCredential,
+    [ValidateRange(1, 2)][int]$RequiredSecondaryCount = 1,
+    [switch]$RunBackupNow
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,7 +18,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $backupScript = (Resolve-Path (Join-Path $PSScriptRoot 'backup.ps1')).Path
 $verifyScript = (Resolve-Path (Join-Path $PSScriptRoot 'verify-backup.ps1')).Path
 $powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-$backupAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -RequireSecondary -NotifyOnFailure"
+$backupAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -RequiredSecondaryCount $RequiredSecondaryCount -NotifyOnFailure"
 $verifyAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$verifyScript`" -LatestMonthly -TestRestore -OnlyIfMonthlyDue"
 $backupTrigger = New-ScheduledTaskTrigger -Daily -At $DailyAt
 $verifyTrigger = New-ScheduledTaskTrigger -Daily -At $MonthlyVerifyAt
@@ -37,6 +39,29 @@ if ($TaskUser -eq 'SYSTEM') {
     $credentialPassword = $TaskCredential.GetNetworkCredential().Password
     Register-ScheduledTask -TaskName 'Workwear ERP Daily Backup' -Action $backupAction -Trigger $backupTrigger -Settings $settings -User $credentialUser -Password $credentialPassword -RunLevel Highest -Force | Out-Null
     Register-ScheduledTask -TaskName 'Workwear ERP Monthly Restore Test' -Action $verifyAction -Trigger $verifyTrigger -Settings $settings -User $credentialUser -Password $credentialPassword -RunLevel Highest -Force | Out-Null
+}
+
+if ($RunBackupNow) {
+    $taskName = 'Workwear ERP Daily Backup'
+    $previousRunTime = (Get-ScheduledTaskInfo -TaskName $taskName).LastRunTime
+    Start-ScheduledTask -TaskName $taskName
+    $deadline = (Get-Date).AddMinutes(10)
+    do {
+        Start-Sleep -Seconds 2
+        $task = Get-ScheduledTask -TaskName $taskName
+        $taskInfo = Get-ScheduledTaskInfo -TaskName $taskName
+        $currentRunFinished = $taskInfo.LastRunTime -gt $previousRunTime -and $task.State -notin 'Running', 'Queued'
+    } while (-not $currentRunFinished -and (Get-Date) -lt $deadline)
+    if (-not $currentRunFinished) {
+        throw "Initial backup task did not finish within 10 minutes: $taskName"
+    }
+    if ($taskInfo.LastTaskResult -ne 0) {
+        throw "Initial backup task failed with result $($taskInfo.LastTaskResult): $taskName"
+    }
+    & $verifyScript -LatestMonthly -TestRestore
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Initial monthly restore verification failed.'
+    }
 }
 
 Write-Host "Scheduled tasks installed for $TaskUser. Daily backup: $($DailyAt.ToString('HH:mm')); monthly verification check: $($MonthlyVerifyAt.ToString('HH:mm'))."

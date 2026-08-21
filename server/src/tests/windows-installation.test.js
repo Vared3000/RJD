@@ -51,6 +51,11 @@ test('установщик проверяет среду, создаёт БД, �
   assert.match(content, /db:seed/);
   assert.match(content, /configure-lan-firewall\.ps1/);
   assert.match(content, /install-backup-tasks\.ps1/);
+  assert.match(content, /BACKUP_SECONDARY_PATHS/);
+  assert.match(content, /Resolve-BackupSecondaryPaths/);
+  assert.match(content, /RunBackupNow/);
+  assert.match(content, /-RequiredSecondaryCount 2/);
+  assert.match(content, /backupHosts\.Count -ne 2/);
   assert.match(content, /CommonDesktopDirectory/);
   assert.match(content, /Wait-WorkwearHealth/);
   assert.doesNotMatch(content, /--superpassword/i);
@@ -76,6 +81,9 @@ test('конфигурация создаётся атомарно и получ
   assert.match(content, /icacls\.exe/);
   assert.match(content, /S-1-5-18/);
   assert.match(content, /S-1-5-32-544/);
+  assert.match(content, /BackupTaskUser[\s\S]+:\(R\)/);
+  assert.match(content, /Assert-BackupDestinationAcl/);
+  assert.match(content, /Protect-LocalBackupRoot/);
   assert.match(common, /RandomNumberGenerator/);
 });
 
@@ -116,6 +124,10 @@ test('приёмка сервера формирует отчёт и не под
   assert.match(acceptance, /Get-NetTCPConnection/);
   assert.match(acceptance, /Get-ScheduledTaskInfo/);
   assert.match(acceptance, /Get-FileHash/);
+  assert.match(acceptance, /Exactly two secondary backup paths/);
+  assert.match(acceptance, /SHA256 sidecar does not describe/);
+  assert.match(acceptance, /Monthly restore verification is missing/);
+  assert.match(acceptance, /Test-BackupPathAclSafe/);
   assert.match(acceptance, /verified\.json/);
   assert.match(acceptance, /ConvertTo-Json/);
   assert.match(acceptance, /acceptance-[^\n]+\.md/);

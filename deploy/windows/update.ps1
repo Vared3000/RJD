@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $script:RepositoryRoot 'scripts\backup-common.ps1')
 
 Assert-WindowsHost
 Ensure-Administrator -ScriptPath $PSCommandPath
@@ -40,7 +41,14 @@ try {
         exit 0
     }
 
-    $backupOutput = & (Join-Path $script:RepositoryRoot 'scripts\backup.ps1') -RequireSecondary 2>&1
+    $environmentValues = Read-DeploymentEnv
+    $backupArguments = @{}
+    if ($environmentValues['BACKUP_SECONDARY_PATHS']) {
+        $backupArguments.RequiredSecondaryCount = 2
+    } else {
+        $backupArguments.RequireSecondary = $true
+    }
+    $backupOutput = & (Join-Path $script:RepositoryRoot 'scripts\backup.ps1') @backupArguments 2>&1
     $backupOutput | ForEach-Object {
         Add-Content -LiteralPath $logPath -Value ([string]$_) -Encoding UTF8
         Write-Host $_

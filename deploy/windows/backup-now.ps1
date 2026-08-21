@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $script:RepositoryRoot 'scripts\backup-common.ps1')
 
 Assert-WindowsHost
 $logPath = New-DeploymentLog -Operation 'backup'
@@ -10,7 +11,10 @@ $logPath = New-DeploymentLog -Operation 'backup'
 try {
     $values = Read-DeploymentEnv
     $arguments = @{}
-    if ($values['BACKUP_SECONDARY_PATH']) {
+    $secondaryPaths = @(Resolve-BackupSecondaryPaths -EnvironmentValues $values)
+    if ($values['BACKUP_SECONDARY_PATHS']) {
+        $arguments.RequiredSecondaryCount = 2
+    } elseif ($secondaryPaths.Count -gt 0) {
         $arguments.RequireSecondary = $true
     }
     $output = & (Join-Path $script:RepositoryRoot 'scripts\backup.ps1') @arguments 2>&1

@@ -3,6 +3,7 @@ param([switch]$SkipElevation)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $script:RepositoryRoot 'scripts\backup-common.ps1')
 
 Assert-WindowsHost
 if (-not $SkipElevation) {
@@ -58,15 +59,36 @@ function Get-CommandMajorVersion {
     return 0
 }
 
+function Test-BackupPathAclSafe {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $unsafeSids = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')
+    foreach ($rule in (Get-Acl -LiteralPath $Path).Access) {
+        if ($rule.AccessControlType -ne 'Allow' -or [string]$rule.FileSystemRights -notmatch 'Write|Modify|FullControl|CreateFiles') {
+            continue
+        }
+        try {
+            $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+            if ($sid -in $unsafeSids) {
+                return $false
+            }
+        } catch { }
+    }
+    return $true
+}
+
 function Test-BackupEvidence {
     param(
         [Parameter(Mandatory = $true)][hashtable]$EnvironmentValues
     )
 
     $backupRoot = $EnvironmentValues['BACKUP_ROOT']
-    $secondaryRoot = $EnvironmentValues['BACKUP_SECONDARY_PATH']
+    $secondaryRoots = @(Resolve-BackupSecondaryPaths -EnvironmentValues $EnvironmentValues)
     if (-not $backupRoot -or -not (Test-Path -LiteralPath $backupRoot)) {
         return [PSCustomObject]@{ Passed = $false; Detail = 'BACKUP_ROOT is missing or unavailable.' }
+    }
+    if (-not (Test-BackupPathAclSafe -Path $backupRoot)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "BACKUP_ROOT allows writes by ordinary users: $backupRoot" }
     }
     $latest = Get-ChildItem -LiteralPath (Join-Path $backupRoot 'daily') -Filter '*.dump' -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTimeUtc -Descending |
@@ -76,30 +98,58 @@ function Test-BackupEvidence {
     }
     $manifestPath = "$($latest.FullName).json"
     $shaPath = "$($latest.FullName).sha256"
-    $verificationPath = "$($latest.FullName).verified.json"
-    if (-not (Test-Path -LiteralPath $manifestPath) -or -not (Test-Path -LiteralPath $shaPath) -or -not (Test-Path -LiteralPath $verificationPath)) {
-        return [PSCustomObject]@{ Passed = $false; Detail = "Manifest, SHA, or restore verification is missing for $($latest.Name)." }
+    if (-not (Test-Path -LiteralPath $manifestPath) -or -not (Test-Path -LiteralPath $shaPath)) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Manifest or SHA is missing for $($latest.Name)." }
     }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $actualHash = (Get-FileHash -LiteralPath $latest.FullName -Algorithm SHA256).Hash
     if ($actualHash -ne $manifest.sha256) {
         return [PSCustomObject]@{ Passed = $false; Detail = "SHA256 mismatch for $($latest.Name)." }
     }
-    if (-not $secondaryRoot -or -not (Test-Path -LiteralPath $secondaryRoot)) {
-        return [PSCustomObject]@{ Passed = $false; Detail = 'BACKUP_SECONDARY_PATH is missing or unavailable.' }
+    $declaredHash = ((Get-Content -LiteralPath $shaPath -Raw -Encoding ASCII).Trim() -split '\s+')[0]
+    if ($declaredHash -ne $actualHash) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "SHA256 sidecar does not describe $($latest.Name)." }
     }
-    $secondaryFile = Join-Path (Join-Path $secondaryRoot 'daily') $latest.Name
-    if (-not (Test-Path -LiteralPath $secondaryFile)) {
-        return [PSCustomObject]@{ Passed = $false; Detail = "Secondary copy is missing for $($latest.Name)." }
+    if ($secondaryRoots.Count -ne 2) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Exactly two secondary backup paths are required; configured: $($secondaryRoots.Count)." }
     }
-    if ((Get-FileHash -LiteralPath $secondaryFile -Algorithm SHA256).Hash -ne $actualHash) {
-        return [PSCustomObject]@{ Passed = $false; Detail = "Secondary SHA256 mismatch for $($latest.Name)." }
+    $secondaryHosts = @($secondaryRoots | ForEach-Object { $_.TrimStart('\').Split('\')[0].ToLowerInvariant() } | Select-Object -Unique)
+    if ($secondaryHosts.Count -ne 2) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Secondary backup paths must use two different hosts.' }
     }
-    $verification = Get-Content -LiteralPath $verificationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $sourceSet = @($latest.FullName, $manifestPath, $shaPath)
+    foreach ($secondaryRoot in $secondaryRoots) {
+        if (-not (Test-Path -LiteralPath $secondaryRoot -PathType Container)) {
+            return [PSCustomObject]@{ Passed = $false; Detail = "Secondary backup path is unavailable: $secondaryRoot" }
+        }
+        if (-not (Test-BackupPathAclSafe -Path $secondaryRoot)) {
+            return [PSCustomObject]@{ Passed = $false; Detail = "Secondary backup path allows writes by ordinary users: $secondaryRoot" }
+        }
+        $secondaryDaily = Join-Path $secondaryRoot 'daily'
+        foreach ($sourceFile in $sourceSet) {
+            $secondaryFile = Join-Path $secondaryDaily ([IO.Path]::GetFileName($sourceFile))
+            if (-not (Test-Path -LiteralPath $secondaryFile -PathType Leaf)) {
+                return [PSCustomObject]@{ Passed = $false; Detail = "Secondary copy is missing: $secondaryFile" }
+            }
+            if ((Get-Item -LiteralPath $secondaryFile).Length -ne (Get-Item -LiteralPath $sourceFile).Length) {
+                return [PSCustomObject]@{ Passed = $false; Detail = "Secondary size mismatch: $secondaryFile" }
+            }
+            if ((Get-FileHash -LiteralPath $secondaryFile -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash) {
+                return [PSCustomObject]@{ Passed = $false; Detail = "Secondary SHA256 mismatch: $secondaryFile" }
+            }
+        }
+    }
+    $latestMonthly = Get-ChildItem -LiteralPath (Join-Path $backupRoot 'monthly') -Filter '*.dump' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+    if (-not $latestMonthly -or -not (Test-Path -LiteralPath "$($latestMonthly.FullName).verified.json")) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Monthly restore verification is missing.' }
+    }
+    $verification = Get-Content -LiteralPath "$($latestMonthly.FullName).verified.json" -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($verification.result -ne 'ok') {
-        return [PSCustomObject]@{ Passed = $false; Detail = "Restore verification is not successful for $($latest.Name)." }
+        return [PSCustomObject]@{ Passed = $false; Detail = "Restore verification is not successful for $($latestMonthly.Name)." }
     }
-    return [PSCustomObject]@{ Passed = $true; Detail = "Primary and secondary copies match: $($latest.Name)." }
+    return [PSCustomObject]@{ Passed = $true; Detail = "All three backup copies match: $($latest.Name)." }
 }
 
 function Test-ScheduledTaskSuccess {
