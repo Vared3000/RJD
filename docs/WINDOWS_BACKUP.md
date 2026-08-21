@@ -1,5 +1,9 @@
 # Резервное копирование на Windows
 
+Manifest format v2 содержит точный release, migration head, cluster/node id и
+время начала снимка. Эти поля использует мастер релиза П; аварийный запуск описан
+в `docs/WINDOWS_EMERGENCY_RECOVERY.md`.
+
 Скрипты релиза 16 работают в Windows PowerShell без Bash и без Docker:
 
 - `scripts/backup.ps1` — ежечасная и месячная копия без ограничения срока хранения на ПК №1, ПК №2 и ПК №3;

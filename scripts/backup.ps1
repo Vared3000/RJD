@@ -14,6 +14,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'backup-common.ps1')
+. (Join-Path $PSScriptRoot 'recovery-common.ps1')
 
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $envValues = Read-DotEnvFile -Path (Join-Path $projectRoot '.env')
@@ -39,6 +40,7 @@ $lockPath = Join-Path $BackupRoot 'backup.lock'
 $statusPath = Join-Path (Join-Path $BackupRoot 'status') 'latest.json'
 $lockStream = $null
 $backupStatus = $null
+$recoveryQuorum = $null
 $completedTargetIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
 function New-BackupTargetState {
@@ -134,6 +136,15 @@ try {
     }
     Write-BackupStatusFile -Path $statusPath -Status $backupStatus
 
+    $recoveryConfiguration = Get-RecoveryClusterSentinel -EnvironmentValues $envValues
+    if ($recoveryConfiguration) {
+        $recoveryQuorum = Get-PromotionQuorum -WitnessPaths $recoveryConfiguration.WitnessPaths `
+            -ExpectedClusterId $recoveryConfiguration.ClusterId -ExpectedWitnessNodeIds $recoveryConfiguration.WitnessNodeIds
+        if ($recoveryQuorum.activeNodeId -ne $recoveryConfiguration.NodeId) {
+            throw 'This node is fenced and cannot publish backup sets.'
+        }
+    }
+
     if (-not $DatabaseUrl) {
         throw 'DATABASE_URL is required in .env or -DatabaseUrl.'
     }
@@ -183,6 +194,10 @@ try {
     Write-BackupStatusFile -Path $statusPath -Status $backupStatus
 
     Write-BackupLog -Path $logPath -Message "Starting backup of database '$($configuration.Database)'."
+    $release = Get-ApplicationReleaseMetadata -ProjectRoot $projectRoot
+    if ($recoveryConfiguration -and ($release.isDirty -or -not $release.commit -or -not $release.tree -or -not $release.clientBuildSha256)) {
+        throw 'Cluster backup requires a clean immutable Git release fingerprint.'
+    }
     $counts = Get-DatabaseCounts -Psql $psql -Configuration $configuration
     $dumpArguments = @(
         "--host=$($configuration.Host)",
@@ -200,9 +215,15 @@ try {
 
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $finalFile).Hash
     $manifest = [ordered]@{
-        formatVersion = 1
+        formatVersion = 2
+        snapshotStartedAtUtc = $backupStatus.startedAtUtc
         createdAtUtc = (Get-Date).ToUniversalTime().ToString('o')
         fileName = $fileName
+        release = $release
+        clusterId = if ($envValues['WORKWEAR_CLUSTER_ID']) { $envValues['WORKWEAR_CLUSTER_ID'] } else { 'standalone' }
+        sourceNodeId = if ($envValues['WORKWEAR_NODE_ID']) { $envValues['WORKWEAR_NODE_ID'] } else { $env:COMPUTERNAME }
+        recoveryFenceConfigured = [bool]($recoveryConfiguration -and $recoveryQuorum)
+        recoveryEpoch = if ($recoveryQuorum) { [Int64]$recoveryQuorum.epoch } else { $null }
         database = $configuration.Database
         host = $configuration.Host
         size = (Get-Item -LiteralPath $finalFile).Length

@@ -12,7 +12,7 @@ async function read(relativePath) {
   return readFile(path.join(repositoryRoot, relativePath), 'utf8');
 }
 
-test('Windows-комплект содержит восемь тонких bat-оболочек', async () => {
+test('Windows-комплект содержит тонкие bat-оболочки управления и восстановления', async () => {
   const wrappers = new Map([
     ['Установить программу.bat', 'install.ps1'],
     ['Запустить программу.bat', 'start.ps1'],
@@ -22,6 +22,8 @@ test('Windows-комплект содержит восемь тонких bat-о
     ['Восстановить из копии.bat', 'restore-ui.ps1'],
     ['Обновить программу.bat', 'update.ps1'],
     ['Провести приёмку.bat', 'acceptance.ps1'],
+    ['Подготовить резервный ПК.bat', 'prepare-reserve.ps1'],
+    ['Аварийное восстановление.bat', 'emergency-recovery-ui.ps1'],
   ]);
 
   for (const [fileName, target] of wrappers) {
@@ -58,6 +60,9 @@ test('установщик проверяет среду, создаёт БД, �
   assert.match(content, /backupHosts\.Count -ne 2/);
   assert.match(content, /CommonDesktopDirectory/);
   assert.match(content, /Wait-WorkwearHealth/);
+  assert.match(content, /WORKWEAR_CLUSTER_ID/);
+  assert.match(content, /RECOVERY_WITNESS_PATHS/);
+  assert.match(content, /GRANT "\$DatabaseUser" TO "\$BackupAdminUser"/);
   assert.doesNotMatch(content, /--superpassword/i);
 });
 
@@ -76,12 +81,14 @@ test('конфигурация создаётся атомарно и получ
   const content = await read('deploy/windows/install.ps1');
   const common = await read('deploy/windows/common.ps1');
 
-  assert.match(content, /Join-Path \$script:RepositoryRoot '\.env\.new'/);
-  assert.match(content, /Move-Item[^\n]+-Force/);
-  assert.match(content, /icacls\.exe/);
-  assert.match(content, /S-1-5-18/);
-  assert.match(content, /S-1-5-32-544/);
-  assert.match(content, /BackupTaskUser[\s\S]+:\(R\)/);
+  assert.match(content, /Write-DeploymentLinesAtomic/);
+  assert.match(common, /FileOptions\]::WriteThrough/);
+  assert.match(common, /File\]::Replace/);
+  assert.match(content, /Protect-DeploymentPath[^\n]+SecretFile/);
+  assert.match(common, /SetAccessRuleProtection\(\$true, \$false\)/);
+  assert.match(common, /S-1-5-18/);
+  assert.match(common, /S-1-5-32-544/);
+  assert.match(common, /GetSecurityDescriptorSddlForm/);
   assert.match(content, /Assert-BackupDestinationAcl/);
   assert.match(content, /Protect-LocalBackupRoot/);
   assert.match(common, /RandomNumberGenerator/);
@@ -90,7 +97,7 @@ test('конфигурация создаётся атомарно и получ
 test('обновление делает backup до изменения кода и восстанавливает код и БД при ошибке', async () => {
   const content = await read('deploy/windows/update.ps1');
   const backupPosition = content.indexOf('scripts\\backup.ps1');
-  const mergePosition = content.indexOf("'merge', '--ff-only'");
+  const mergePosition = content.lastIndexOf("'merge', '--ff-only'");
 
   assert.ok(backupPosition > 0);
   assert.ok(mergePosition > backupPosition);
@@ -99,6 +106,36 @@ test('обновление делает backup до изменения кода 
   assert.match(content, /Wait-WorkwearHealth/);
   assert.match(content, /Install-CurrentBackupSchedule/);
   assert.match(content, /BACKUP_TASK_USER/);
+});
+
+test('обновление пассивного резерва меняет только код и остаётся выключенным', async () => {
+  const content = await read('deploy/windows/update.ps1');
+  const passiveBranch = content.match(
+    /if \(\$passiveReserve\) \{\s+Invoke-DeploymentCommand[\s\S]+?exit 0\s+\}/,
+  )?.[0];
+
+  assert.match(content, /scripts\\recovery-common\.ps1/);
+  assert.match(content, /Get-PromotionQuorum/);
+  assert.match(content, /Set-Service[^\n]+-StartupType Disabled/);
+  for (const taskName of [
+    'Workwear ERP Hourly Backup',
+    'Workwear ERP Monthly Restore Test',
+    'Workwear ERP Daily Backup',
+  ]) {
+    assert.match(content, new RegExp(taskName));
+  }
+  assert.ok(passiveBranch, 'не найдена отдельная ветка passive reserve');
+  assert.match(passiveBranch, /'merge', '--ff-only'/);
+  assert.match(passiveBranch, /'install', '--frozen-lockfile'/);
+  assert.match(passiveBranch, /'@workwear\/client', 'build'/);
+  assert.doesNotMatch(
+    passiveBranch,
+    /backup\.ps1|db:migrate|db:seed|Start-InstalledService|Wait-WorkwearHealth|Install-CurrentBackupSchedule/,
+  );
+  assert.match(
+    content,
+    /if \(\$passiveReserve\) \{[\s\S]+Disable-PassiveReserveRuntime[\s\S]+Passive reserve rollback completed/,
+  );
 });
 
 test('native Windows-служба раздаёт production frontend и API одним процессом', async () => {

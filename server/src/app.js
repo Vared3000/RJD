@@ -7,8 +7,11 @@ import swaggerUi from 'swagger-ui-express';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
+import { resolveRecoveryFence } from './config/recovery-fence.js';
 import { swaggerSpec } from './config/swagger.js';
+import { sequelize } from './database/models/index.js';
 import { logger } from './utils/logger.js';
+import { ApiError } from './utils/api-error.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
 import { createAuthRouter } from './modules/auth/auth.routes.js';
 import { createOrganizationsRouter } from './modules/catalogs/organizations/organizations.routes.js';
@@ -43,6 +46,150 @@ import { createPrintFormTemplatesRouter } from './modules/print-forms/templates/
 import { createStartupImportRouter } from './modules/startup-import/startup-import.routes.js';
 
 const clientDistDirectory = fileURLToPath(new URL('../../client/dist/', import.meta.url));
+const safeHttpMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function databaseNameFromUrl(databaseUrl) {
+  try {
+    const pathname = new URL(databaseUrl).pathname.replace(/^\/+/, '');
+    return pathname ? decodeURIComponent(pathname) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getCurrentDatabaseState(database) {
+  const [rows] = await database.query(`
+    SELECT
+      current_database() AS "database",
+      (SELECT MAX(name) FROM schema_migrations) AS "migrationHead"
+  `);
+  const state = rows?.[0];
+  if (
+    typeof state?.database !== 'string' ||
+    !state.database ||
+    typeof state.migrationHead !== 'string' ||
+    !state.migrationHead
+  ) {
+    throw new Error('PostgreSQL не вернул текущую базу и вершину миграций');
+  }
+  return state;
+}
+
+function getRecoveryExpectation(query) {
+  if (
+    typeof query.database !== 'string' ||
+    !query.database ||
+    typeof query.nodeId !== 'string' ||
+    !query.nodeId ||
+    typeof query.epoch !== 'string' ||
+    !/^[1-9]\d*$/.test(query.epoch) ||
+    typeof query.migrationHead !== 'string' ||
+    !query.migrationHead
+  ) {
+    throw new Error('Не заданы ожидаемые database, nodeId, epoch и migrationHead');
+  }
+  const epoch = Number(query.epoch);
+  if (!Number.isSafeInteger(epoch)) throw new Error('Некорректная ожидаемая эпоха');
+  return {
+    database: query.database,
+    nodeId: query.nodeId,
+    epoch,
+    migrationHead: query.migrationHead,
+  };
+}
+
+function createReadinessHandler({
+  database,
+  expectedDatabaseName,
+  recoveryFenceResolver,
+  requireRecoveryExpectation = false,
+}) {
+  return async (req, res) => {
+    try {
+      const recoveryExpectation = requireRecoveryExpectation
+        ? getRecoveryExpectation(req.query)
+        : undefined;
+      const fence = await recoveryFenceResolver();
+      if (
+        fence.enabled &&
+        (!Number.isSafeInteger(fence.epoch) ||
+          fence.epoch < 1 ||
+          !fence.nodeId ||
+          fence.nodeId !== fence.activeNodeId)
+      ) {
+        throw new Error('Текущий узел не подтверждён recovery fence');
+      }
+      if (
+        recoveryExpectation &&
+        (!fence.enabled ||
+          fence.nodeId !== recoveryExpectation.nodeId ||
+          fence.activeNodeId !== recoveryExpectation.nodeId ||
+          fence.epoch !== recoveryExpectation.epoch)
+      ) {
+        throw new Error('Recovery fence не совпадает с ожидаемыми узлом и эпохой');
+      }
+
+      const databaseState = await getCurrentDatabaseState(database);
+      if (
+        !expectedDatabaseName ||
+        databaseState.database !== expectedDatabaseName ||
+        (recoveryExpectation &&
+          (databaseState.database !== recoveryExpectation.database ||
+            databaseState.migrationHead !== recoveryExpectation.migrationHead))
+      ) {
+        throw new Error('База данных или вершина миграций не совпадает с ожидаемой');
+      }
+
+      return res.json({
+        status: 'ok',
+        env: env.NODE_ENV,
+        database: databaseState.database,
+        migrationHead: databaseState.migrationHead,
+        recovery: fence.enabled
+          ? {
+              mode: 'cluster',
+              clusterId: fence.clusterId,
+              nodeId: fence.nodeId,
+              epoch: fence.epoch,
+              activeNodeId: fence.activeNodeId,
+            }
+          : { mode: 'standalone' },
+      });
+    } catch (error) {
+      if (!env.NODE_ENV.includes('test')) {
+        req.log.warn({ err: error }, 'Readiness check заблокирован');
+      }
+      return res.status(503).json({
+        status: 'unavailable',
+        error: { code: 'READINESS_CHECK_FAILED' },
+      });
+    }
+  };
+}
+
+function createRecoveryWriteGate(recoveryFenceResolver) {
+  return async (req, res, next) => {
+    if (safeHttpMethods.has(req.method)) {
+      next();
+      return;
+    }
+
+    try {
+      const fence = await recoveryFenceResolver();
+      if (!fence.writable) throw new Error('Recovery fence запретил запись');
+      next();
+    } catch (error) {
+      if (!env.NODE_ENV.includes('test')) {
+        req.log.warn({ err: error }, 'Изменяющий запрос заблокирован recovery fence');
+      }
+      next(
+        new ApiError(503, 'Изменения временно заблокированы: активный узел не подтверждён', {
+          code: 'RECOVERY_FENCE_UNAVAILABLE',
+        }),
+      );
+    }
+  };
+}
 
 function serveProductionClient(app) {
   if (env.NODE_ENV !== 'production' || !existsSync(clientDistDirectory)) return;
@@ -52,7 +199,7 @@ function serveProductionClient(app) {
     if (
       req.method !== 'GET' ||
       req.path.startsWith('/api/') ||
-      req.path === '/health' ||
+      req.path.startsWith('/health') ||
       !req.accepts('html')
     ) {
       next();
@@ -62,7 +209,11 @@ function serveProductionClient(app) {
   });
 }
 
-export function createApp() {
+export function createApp({
+  database = sequelize,
+  expectedDatabaseName = databaseNameFromUrl(env.DATABASE_URL),
+  recoveryFenceResolver = resolveRecoveryFence,
+} = {}) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -77,13 +228,30 @@ export function createApp() {
   app.use(cookieParser());
   app.use(pinoHttp({ logger, autoLogging: !env.NODE_ENV.includes('test') }));
 
-  app.get('/health', (req, res) => {
+  app.get('/health/live', (req, res) => {
     res.json({ status: 'ok', env: env.NODE_ENV });
   });
+  const readinessHandler = createReadinessHandler({
+    database,
+    expectedDatabaseName,
+    recoveryFenceResolver,
+  });
+  app.get('/health', readinessHandler);
+  app.get('/health/ready', readinessHandler);
+  app.get(
+    '/health/recovery-ready',
+    createReadinessHandler({
+      database,
+      expectedDatabaseName,
+      recoveryFenceResolver,
+      requireRecoveryExpectation: true,
+    }),
+  );
 
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 
+  app.use('/api/v1', createRecoveryWriteGate(recoveryFenceResolver));
   app.use('/api/v1/auth', createAuthRouter());
   app.use('/api/v1/organizations', createOrganizationsRouter());
   app.use('/api/v1/subdivisions', createSubdivisionsRouter());

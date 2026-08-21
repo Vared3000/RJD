@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $script:RepositoryRoot 'scripts\backup-common.ps1')
+. (Join-Path $script:RepositoryRoot 'scripts\recovery-common.ps1')
 
 Assert-WindowsHost
 Ensure-Administrator -ScriptPath $PSCommandPath
@@ -14,6 +15,55 @@ $migrationStarted = $false
 $scheduleChanged = $false
 $backupTaskUser = 'SYSTEM'
 $backupTaskCredential = $null
+$passiveReserve = $false
+
+function Get-RecoveryUpdateState {
+    param([Parameter(Mandatory = $true)][hashtable]$EnvironmentValues)
+
+    try {
+        $configuration = Get-RecoveryClusterSentinel -EnvironmentValues $EnvironmentValues
+        if (-not $configuration) {
+            return [PSCustomObject]@{ Configured = $false; IsActive = $true; NodeId = $null; Reason = 'standalone' }
+        }
+        $quorum = Get-PromotionQuorum -WitnessPaths $configuration.WitnessPaths `
+            -ExpectedClusterId $configuration.ClusterId -ExpectedWitnessNodeIds $configuration.WitnessNodeIds
+        $isActive = [string]::Equals([string]$quorum.activeNodeId, $configuration.NodeId, [StringComparison]::Ordinal)
+        return [PSCustomObject]@{
+            Configured = $true
+            IsActive = $isActive
+            NodeId = $configuration.NodeId
+            Reason = if ($isActive) { 'current active quorum' } else { "active node is $($quorum.activeNodeId)" }
+        }
+    } catch {
+        return [PSCustomObject]@{ Configured = $true; IsActive = $false; NodeId = [string]$EnvironmentValues['WORKWEAR_NODE_ID']; Reason = $_.Exception.Message }
+    }
+}
+
+function Disable-PassiveReserveRuntime {
+    $service = Get-WorkwearService
+    if ($service) {
+        if ($service.Status -ne 'Stopped') {
+            Stop-Service -Name $script:WorkwearServiceName -Force
+            $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(60))
+        }
+        Set-Service -Name $script:WorkwearServiceName -StartupType Disabled
+    }
+
+    foreach ($taskName in @(
+        'Workwear ERP Hourly Backup',
+        'Workwear ERP Monthly Restore Test',
+        'Workwear ERP Daily Backup'
+    )) {
+        $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        if (-not $task) {
+            continue
+        }
+        if ($task.State -in @('Running', 'Queued')) {
+            Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        }
+        Disable-ScheduledTask -TaskName $taskName | Out-Null
+    }
+}
 
 function Start-InstalledService {
     $postgres = Get-PostgresService
@@ -44,7 +94,14 @@ try {
     Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'updateStarted')
     $git = (Get-Command 'git.exe' -ErrorAction Stop).Source
     $pnpm = (Get-Command 'pnpm.cmd' -ErrorAction Stop).Source
-    $dirtyFiles = (& $git -C $script:RepositoryRoot status --porcelain --untracked-files=no) -join ''
+    $environmentValues = Read-DeploymentEnv
+    $recoveryUpdateState = Get-RecoveryUpdateState -EnvironmentValues $environmentValues
+    $passiveReserve = $recoveryUpdateState.Configured -and -not $recoveryUpdateState.IsActive
+    if ($passiveReserve) {
+        Disable-PassiveReserveRuntime
+        Write-DeploymentLog -LogPath $logPath -Level WARN -Message "Passive reserve update: service and backup tasks are disabled ($($recoveryUpdateState.Reason))."
+    }
+    $dirtyFiles = (& $git -C $script:RepositoryRoot status --porcelain --untracked-files=all) -join ''
     if ($dirtyFiles.Trim()) {
         throw (Get-DeploymentMessage 'dirtyCheckout')
     }
@@ -56,7 +113,24 @@ try {
         exit 0
     }
 
-    $environmentValues = Read-DeploymentEnv
+    if (-not $passiveReserve -and $recoveryUpdateState.Configured) {
+        $recoveryUpdateState = Get-RecoveryUpdateState -EnvironmentValues $environmentValues
+        $passiveReserve = -not $recoveryUpdateState.IsActive
+        if ($passiveReserve) {
+            Disable-PassiveReserveRuntime
+            Write-DeploymentLog -LogPath $logPath -Level WARN -Message "Node lost the active recovery quorum before update ($($recoveryUpdateState.Reason)); using passive reserve mode."
+        }
+    }
+
+    if ($passiveReserve) {
+        Invoke-DeploymentCommand -FilePath $git -Arguments @('-C', $script:RepositoryRoot, 'merge', '--ff-only', 'origin/master') -LogPath $logPath
+        Invoke-DeploymentCommand -FilePath $pnpm -Arguments @('install', '--frozen-lockfile') -LogPath $logPath
+        Invoke-DeploymentCommand -FilePath $pnpm -Arguments @('--filter', '@workwear/client', 'build') -LogPath $logPath
+        Disable-PassiveReserveRuntime
+        Write-DeploymentLog -LogPath $logPath -Message 'Passive reserve code update completed; application and backup schedules remain disabled.'
+        exit 0
+    }
+
     if ($environmentValues['BACKUP_TASK_USER']) {
         $backupTaskUser = $environmentValues['BACKUP_TASK_USER']
     }
@@ -118,23 +192,28 @@ try {
             Invoke-DeploymentCommand -FilePath $pnpm -Arguments @('install', '--frozen-lockfile') -LogPath $logPath
             Invoke-DeploymentCommand -FilePath $pnpm -Arguments @('--filter', '@workwear/client', 'build') -LogPath $logPath
         }
-        if ($migrationStarted -and $backupFile -and (Test-Path -LiteralPath $backupFile)) {
-            & (Join-Path $script:RepositoryRoot 'scripts\restore.ps1') -BackupFile $backupFile -ApplicationServiceName $script:WorkwearServiceName -Force
-            if ($LASTEXITCODE -ne 0) {
-                throw 'Database rollback failed'
+        if ($passiveReserve) {
+            Disable-PassiveReserveRuntime
+            Write-DeploymentLog -LogPath $logPath -Message 'Passive reserve rollback completed; application and backup schedules remain disabled.'
+        } else {
+            if ($migrationStarted -and $backupFile -and (Test-Path -LiteralPath $backupFile)) {
+                & (Join-Path $script:RepositoryRoot 'scripts\restore.ps1') -BackupFile $backupFile -ApplicationServiceName $script:WorkwearServiceName -Force
+                if ($LASTEXITCODE -ne 0) {
+                    throw 'Database rollback failed'
+                }
             }
-        }
-        Start-InstalledService
-        if (-not (Wait-WorkwearHealth -TimeoutSeconds 90)) {
-            throw (Get-DeploymentMessage 'healthFailed')
-        }
-        if ($scheduleChanged) {
-            if (Get-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -ErrorAction SilentlyContinue) {
-                Unregister-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -Confirm:$false
+            Start-InstalledService
+            if (-not (Wait-WorkwearHealth -TimeoutSeconds 90)) {
+                throw (Get-DeploymentMessage 'healthFailed')
             }
-            Install-CurrentBackupSchedule
+            if ($scheduleChanged) {
+                if (Get-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -ErrorAction SilentlyContinue) {
+                    Unregister-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -Confirm:$false
+                }
+                Install-CurrentBackupSchedule
+            }
+            Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'updateRollbackComplete')
         }
-        Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'updateRollbackComplete')
     } catch {
         Write-DeploymentLog -LogPath $logPath -Message $_.Exception.Message -Level ERROR
     }

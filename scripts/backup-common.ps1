@@ -8,7 +8,7 @@ function Read-DotEnvFile {
         return $values
     }
 
-    foreach ($line in Get-Content -LiteralPath $Path) {
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
         $trimmed = $line.Trim()
         if (-not $trimmed -or $trimmed.StartsWith('#')) {
             continue
@@ -25,6 +25,88 @@ function Read-DotEnvFile {
         $values[$name] = $value
     }
     return $values
+}
+
+function Get-ApplicationReleaseMetadata {
+    param([Parameter(Mandatory = $true)][string]$ProjectRoot)
+
+    $packagePath = Join-Path $ProjectRoot 'package.json'
+    $packageVersion = 'unknown'
+    if (Test-Path -LiteralPath $packagePath) {
+        $package = Get-Content -LiteralPath $packagePath -Raw | ConvertFrom-Json
+        if ($package.version) {
+            $packageVersion = [string]$package.version
+        }
+    }
+
+    $migrationDirectory = Join-Path $ProjectRoot 'server\src\database\migrations'
+    $migrationHead = Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.js' -File -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        Select-Object -First 1 -ExpandProperty Name
+    if (-not $migrationHead) {
+        $migrationHead = 'unknown'
+    }
+
+    $clientBuildSha256 = $null
+    $clientBuildDirectory = Join-Path $ProjectRoot 'client\dist'
+    if (Test-Path -LiteralPath $clientBuildDirectory -PathType Container) {
+        $buildFiles = @(Get-ChildItem -LiteralPath $clientBuildDirectory -File -Recurse | Sort-Object FullName)
+        if ($buildFiles.Count -gt 0) {
+            $hasher = [Security.Cryptography.SHA256]::Create()
+            try {
+                foreach ($buildFile in $buildFiles) {
+                    $relativePath = $buildFile.FullName.Substring($clientBuildDirectory.Length).TrimStart('\').Replace('\', '/')
+                    $fileHash = (Get-FileHash -LiteralPath $buildFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                    $record = [Text.UTF8Encoding]::new($false).GetBytes("$relativePath`t$fileHash`n")
+                    [void]$hasher.TransformBlock($record, 0, $record.Length, $record, 0)
+                }
+                [void]$hasher.TransformFinalBlock([byte[]]@(), 0, 0)
+                $clientBuildSha256 = -join ($hasher.Hash | ForEach-Object { $_.ToString('x2') })
+            } finally {
+                $hasher.Dispose()
+            }
+        }
+    }
+
+    $commit = $null
+    $tree = $null
+    $isDirty = $true
+    $git = Get-Command 'git.exe' -ErrorAction SilentlyContinue
+    if ($git -and (Test-Path -LiteralPath (Join-Path $ProjectRoot '.git'))) {
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $gitOutput = & $git.Source -C $ProjectRoot rev-parse HEAD 2>$null
+            if ($LASTEXITCODE -eq 0 -and $gitOutput) {
+                $candidate = ([string]($gitOutput | Select-Object -First 1)).Trim().ToLowerInvariant()
+                if ($candidate -match '^[0-9a-f]{40}$') {
+                    $commit = $candidate
+                }
+            }
+            $treeOutput = & $git.Source -C $ProjectRoot rev-parse 'HEAD^{tree}' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $treeOutput) {
+                $candidateTree = ([string]($treeOutput | Select-Object -First 1)).Trim().ToLowerInvariant()
+                if ($candidateTree -match '^[0-9a-f]{40}$') {
+                    $tree = $candidateTree
+                }
+            }
+            $dirtyOutput = (& $git.Source -C $ProjectRoot status --porcelain --untracked-files=all 2>$null) -join ''
+            $isDirty = ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($dirtyOutput))
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+    }
+
+    $releaseId = if ($commit) { $commit.Substring(0, 12) } else { "v$packageVersion-$([IO.Path]::GetFileNameWithoutExtension($migrationHead))" }
+    return [PSCustomObject][ordered]@{
+        releaseId = $releaseId
+        commit = $commit
+        tree = $tree
+        isDirty = $isDirty
+        clientBuildSha256 = $clientBuildSha256
+        version = $packageVersion
+        migrationHead = $migrationHead
+    }
 }
 
 function Get-DatabaseConfiguration {

@@ -1,9 +1,17 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
+import { assertRecoveryFence } from './config/recovery-fence.js';
 import { sequelize } from './database/models/index.js';
 import { logger } from './utils/logger.js';
 
 async function main() {
+  const fence = await assertRecoveryFence();
+  if (fence.enabled) {
+    logger.info(
+      { recoveryEpoch: fence.epoch, activeNodeId: fence.activeNodeId },
+      'Проверен кворум аварийного переключения',
+    );
+  }
   await sequelize.authenticate();
   logger.info('Подключение к базе данных установлено');
 

@@ -33,6 +33,12 @@ test('Windows backup создаёт custom dump, хеш, бессрочный а
   assert.match(common, /\.partial/);
   assert.doesNotMatch(common, /Move-Item[^\n]+-Force/);
   assert.match(content, /RequireSecondary/);
+  assert.match(content, /formatVersion = 2/);
+  assert.match(content, /snapshotStartedAtUtc/);
+  assert.match(content, /Get-ApplicationReleaseMetadata/);
+  assert.match(content, /WORKWEAR_CLUSTER_ID/);
+  assert.match(content, /WORKWEAR_NODE_ID/);
+  assert.match(common, /migrationHead/);
 });
 
 test(
