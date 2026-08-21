@@ -1,4 +1,5 @@
 import { adminService } from './admin.service.js';
+import { backupStatusService } from './backup-status.service.js';
 import { success } from '../../utils/respond.js';
 
 function parseIsActive(value) {
@@ -7,6 +8,10 @@ function parseIsActive(value) {
 }
 
 export const adminController = {
+  async backupStatus(req, res) {
+    return success(res, await backupStatusService.read());
+  },
+
   async list(req, res) {
     const items = await adminService.list({
       search: req.query.search,

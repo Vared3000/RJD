@@ -97,6 +97,8 @@ test('обновление делает backup до изменения кода 
   assert.match(content, /reset', '--hard', \$previousCommit/);
   assert.match(content, /scripts\\restore\.ps1/);
   assert.match(content, /Wait-WorkwearHealth/);
+  assert.match(content, /Install-CurrentBackupSchedule/);
+  assert.match(content, /BACKUP_TASK_USER/);
 });
 
 test('native Windows-служба раздаёт production frontend и API одним процессом', async () => {
@@ -128,12 +130,33 @@ test('приёмка сервера формирует отчёт и не под
   assert.match(acceptance, /SHA256 sidecar does not describe/);
   assert.match(acceptance, /Monthly restore verification is missing/);
   assert.match(acceptance, /Test-BackupPathAclSafe/);
+  assert.match(acceptance, /Workwear ERP Hourly Backup/);
+  assert.match(acceptance, /PT1H/);
+  assert.match(acceptance, /RequiredSecondaryCount\\s\+2/);
+  assert.match(acceptance, /older than 90 minutes/);
+  assert.match(acceptance, /Backup status file is missing/);
   assert.match(acceptance, /verified\.json/);
   assert.match(acceptance, /ConvertTo-Json/);
   assert.match(acceptance, /acceptance-[^\n]+\.md/);
   assert.match(acceptance, /'reboot'[\s\S]+Status 'manual'/);
   assert.match(acceptance, /'two-workstations'[\s\S]+Status 'manual'/);
   assert.match(acceptance, /'external-access'[\s\S]+Status 'manual'/);
+});
+
+test('администратор видит три состояния backup и получает уведомление о новой ошибке', async () => {
+  const routes = await read('server/src/modules/admin/admin.routes.js');
+  const service = await read('server/src/modules/admin/backup-status.service.js');
+  const layout = await read('client/src/widgets/layout/AppLayout.jsx');
+  const dashboard = await read('client/src/pages/dashboard/DashboardPage.jsx');
+
+  assert.match(routes, /router\.use\(requireAuth, requirePermission\(PERMISSION\)\)/);
+  assert.match(routes, /\/backup-status/);
+  assert.match(service, /MAX_AGE_MS = 90 \* 60 \* 1000/);
+  assert.doesNotMatch(service, /host:\s*rawTarget|path:\s*rawTarget/);
+  assert.match(layout, /BACKUP_REMINDER_STORAGE_KEY/);
+  assert.match(layout, /useBackupStatus/);
+  assert.match(dashboard, /Резервные копии/);
+  assert.match(dashboard, /backupStatus\.targets\.map/);
 });
 
 test(

@@ -19,12 +19,8 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 $envValues = Read-DotEnvFile -Path (Join-Path $projectRoot '.env')
 if (-not $DatabaseUrl) { $DatabaseUrl = $envValues['DATABASE_URL'] }
 if (-not $BackupRoot) { $BackupRoot = if ($envValues['BACKUP_ROOT']) { $envValues['BACKUP_ROOT'] } else { Join-Path $projectRoot 'backups' } }
-if (-not $DatabaseUrl) { throw 'DATABASE_URL is required in .env or -DatabaseUrl.' }
 $resolvedSecondaryPaths = @(Resolve-BackupSecondaryPaths -EnvironmentValues $envValues -SecondaryPaths $SecondaryPaths -LegacySecondaryPath $SecondaryPath)
 $minimumSecondaryCount = if ($RequiredSecondaryCount -gt 0) { $RequiredSecondaryCount } elseif ($RequireSecondary) { 1 } else { 0 }
-if ($resolvedSecondaryPaths.Count -lt $minimumSecondaryCount) {
-    throw "At least $minimumSecondaryCount secondary backup paths are required; configured: $($resolvedSecondaryPaths.Count)."
-}
 
 $BackupRoot = [IO.Path]::GetFullPath($BackupRoot)
 $dailyDirectory = Join-Path $BackupRoot 'daily'
@@ -40,14 +36,151 @@ $fileName = "workwear_erp_$timestamp.dump"
 $partialFile = Join-Path $dailyDirectory "$fileName.partial"
 $finalFile = Join-Path $dailyDirectory $fileName
 $lockPath = Join-Path $BackupRoot 'backup.lock'
+$statusPath = Join-Path (Join-Path $BackupRoot 'status') 'latest.json'
 $lockStream = $null
+$backupStatus = $null
+$completedTargetIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+function New-BackupTargetState {
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][string]$HostName,
+        $PreviousStatus
+    )
+
+    $previousTarget = $null
+    if ($PreviousStatus -and $PreviousStatus.PSObject.Properties['targets'] -and $PreviousStatus.targets) {
+        $previousTarget = @($PreviousStatus.targets | Where-Object id -eq $Id | Select-Object -First 1)
+        if ($previousTarget.Count -gt 0) { $previousTarget = $previousTarget[0] } else { $previousTarget = $null }
+    }
+    $previousSuccess = if ($previousTarget -and $previousTarget.PSObject.Properties['lastSuccessfulAtUtc']) { $previousTarget.lastSuccessfulAtUtc } else { $null }
+    $previousFileName = if ($previousTarget -and $previousTarget.PSObject.Properties['fileName']) { $previousTarget.fileName } else { $null }
+    $previousSize = if ($previousTarget -and $previousTarget.PSObject.Properties['sizeBytes']) { $previousTarget.sizeBytes } else { $null }
+    return [PSCustomObject][ordered]@{
+        id = $Id
+        label = $Label
+        host = $HostName
+        status = 'pending'
+        messageCode = 'pending'
+        lastSuccessfulAtUtc = $previousSuccess
+        fileName = $previousFileName
+        sizeBytes = $previousSize
+        totalBytes = $null
+        freeBytes = $null
+        freePercent = $null
+    }
+}
+
+function Set-BackupTargetCapacity {
+    param(
+        [Parameter(Mandatory = $true)]$Target,
+        [Parameter(Mandatory = $true)]$Capacity
+    )
+
+    $Target.totalBytes = $Capacity.TotalBytes
+    $Target.freeBytes = $Capacity.AvailableBytes
+    $Target.freePercent = $Capacity.FreePercent
+    if ($Capacity.Status -eq 'critical') {
+        $Target.status = 'error'
+        $Target.messageCode = 'insufficient-space'
+    } elseif ($Capacity.Status -eq 'warning') {
+        $Target.status = 'warning'
+        $Target.messageCode = 'low-space'
+    }
+}
+
+function Complete-BackupTarget {
+    param(
+        [Parameter(Mandatory = $true)]$Target,
+        [Parameter(Mandatory = $true)][string]$CompletedFileName,
+        [Parameter(Mandatory = $true)][UInt64]$CompletedSizeBytes
+    )
+
+    if ($Target.status -ne 'warning') {
+        $Target.status = 'ok'
+        $Target.messageCode = 'ok'
+    }
+    $Target.lastSuccessfulAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    $Target.fileName = $CompletedFileName
+    $Target.sizeBytes = $CompletedSizeBytes
+    $completedTargetIds.Add($Target.id) | Out-Null
+}
 
 try {
     $lockStream = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $previousStatus = Read-BackupStatusFile -Path $statusPath
+    $targets = [Collections.Generic.List[object]]::new()
+    $localTarget = New-BackupTargetState -Id 'primary' -Label 'PC #1' -HostName (Get-BackupDestinationHost -Path $BackupRoot) -PreviousStatus $previousStatus
+    $targets.Add($localTarget)
+    $secondaryEntries = [Collections.Generic.List[object]]::new()
+    for ($index = 0; $index -lt $resolvedSecondaryPaths.Count; $index += 1) {
+        $secondaryId = "secondary-$($index + 1)"
+        $secondaryTarget = New-BackupTargetState -Id $secondaryId -Label "PC #$($index + 2)" -HostName (Get-BackupDestinationHost -Path $resolvedSecondaryPaths[$index]) -PreviousStatus $previousStatus
+        $targets.Add($secondaryTarget)
+        $secondaryEntries.Add([PSCustomObject]@{
+            Path = $resolvedSecondaryPaths[$index]
+            Target = $secondaryTarget
+            CanCopy = $true
+        })
+    }
+    $backupStatus = [PSCustomObject][ordered]@{
+        formatVersion = 1
+        attemptId = [Guid]::NewGuid().ToString('N')
+        startedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        finishedAtUtc = $null
+        status = 'running'
+        targets = @($targets)
+    }
+    Write-BackupStatusFile -Path $statusPath -Status $backupStatus
+
+    if (-not $DatabaseUrl) {
+        throw 'DATABASE_URL is required in .env or -DatabaseUrl.'
+    }
+    if ($resolvedSecondaryPaths.Count -lt $minimumSecondaryCount) {
+        throw "At least $minimumSecondaryCount secondary backup paths are required; configured: $($resolvedSecondaryPaths.Count)."
+    }
+
     $configuration = Get-DatabaseConfiguration -DatabaseUrl $DatabaseUrl
     $pgDump = Resolve-PostgresTool -Name 'pg_dump' -PgBin $PgBin
     $pgRestore = Resolve-PostgresTool -Name 'pg_restore' -PgBin $PgBin
     $psql = Resolve-PostgresTool -Name 'psql' -PgBin $PgBin
+
+    $databaseSizeBytes = Get-DatabaseSizeBytes -Psql $psql -Configuration $configuration
+    $hasMonthlyArchive = Get-ChildItem -LiteralPath $monthlyDirectory -Filter 'workwear_erp_*.dump' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $isMonthly = $ForceMonthly -or (Get-Date).Day -eq 1 -or -not $hasMonthlyArchive
+    [UInt64]$requiredBytes = ([UInt64]$databaseSizeBytes * $(if ($isMonthly) { 2 } else { 1 })) + 64MB
+
+    try {
+        $localCapacity = Get-BackupStorageInfo -Path $BackupRoot -RequiredBytes $requiredBytes
+        Set-BackupTargetCapacity -Target $localTarget -Capacity $localCapacity
+        if ($localCapacity.Status -eq 'critical') {
+            throw 'The primary backup destination does not have enough free space.'
+        }
+    } catch {
+        $localTarget.status = 'error'
+        if ($localTarget.messageCode -eq 'pending') { $localTarget.messageCode = 'unavailable' }
+        throw
+    }
+
+    $secondaryFailures = [Collections.Generic.List[string]]::new()
+    foreach ($entry in $secondaryEntries) {
+        try {
+            New-Item -ItemType Directory -Force -Path $entry.Path | Out-Null
+            $capacity = Get-BackupStorageInfo -Path $entry.Path -RequiredBytes $requiredBytes
+            Set-BackupTargetCapacity -Target $entry.Target -Capacity $capacity
+            if ($capacity.Status -eq 'critical') {
+                $entry.CanCopy = $false
+                $secondaryFailures.Add("$($entry.Path): insufficient free space")
+            }
+        } catch {
+            $entry.CanCopy = $false
+            $entry.Target.status = 'error'
+            if ($entry.Target.messageCode -eq 'pending') { $entry.Target.messageCode = 'unavailable' }
+            $secondaryFailures.Add("$($entry.Path): capacity check failed")
+        }
+    }
+    Write-BackupStatusFile -Path $statusPath -Status $backupStatus
 
     Write-BackupLog -Path $logPath -Message "Starting backup of database '$($configuration.Database)'."
     $counts = Get-DatabaseCounts -Psql $psql -Configuration $configuration
@@ -78,26 +211,31 @@ try {
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$finalFile.json" -Encoding UTF8
     "$hash  $fileName" | Set-Content -LiteralPath "$finalFile.sha256" -Encoding ASCII
-    $hasMonthlyArchive = Get-ChildItem -LiteralPath $monthlyDirectory -Filter 'workwear_erp_*.dump' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    $isMonthly = $ForceMonthly -or (Get-Date).Day -eq 1 -or -not $hasMonthlyArchive
     if ($isMonthly) {
         Copy-BackupSet -DumpFile $finalFile -Destination $monthlyDirectory | Out-Null
         Write-BackupLog -Path $logPath -Message "Monthly archive created: $fileName"
     }
+    [UInt64]$completedSize = (Get-Item -LiteralPath $finalFile).Length
+    Complete-BackupTarget -Target $localTarget -CompletedFileName $fileName -CompletedSizeBytes $completedSize
 
-    $secondaryFailures = [Collections.Generic.List[string]]::new()
-    foreach ($secondaryRoot in $resolvedSecondaryPaths) {
+    foreach ($entry in $secondaryEntries) {
+        if (-not $entry.CanCopy) {
+            continue
+        }
         try {
-            $secondaryDaily = Join-Path $secondaryRoot 'daily'
+            $secondaryDaily = Join-Path $entry.Path 'daily'
             Copy-BackupSet -DumpFile $finalFile -Destination $secondaryDaily | Out-Null
             if ($isMonthly) {
-                $secondaryMonthly = Join-Path $secondaryRoot 'monthly'
+                $secondaryMonthly = Join-Path $entry.Path 'monthly'
                 Copy-BackupSet -DumpFile $finalFile -Destination $secondaryMonthly | Out-Null
             }
-            Write-BackupLog -Path $logPath -Message "Secondary copy verified: $secondaryRoot"
+            Complete-BackupTarget -Target $entry.Target -CompletedFileName $fileName -CompletedSizeBytes $completedSize
+            Write-BackupLog -Path $logPath -Message "Secondary copy verified: $($entry.Path)"
         } catch {
-            $secondaryFailures.Add("$secondaryRoot`: $($_.Exception.Message)")
-            Write-BackupLog -Path $logPath -Level 'ERROR' -Message "Secondary copy failed: $secondaryRoot"
+            $entry.Target.status = 'error'
+            $entry.Target.messageCode = 'copy-failed'
+            $secondaryFailures.Add("$($entry.Path): $($_.Exception.Message)")
+            Write-BackupLog -Path $logPath -Level 'ERROR' -Message "Secondary copy failed: $($entry.Path)"
         }
     }
     if ($resolvedSecondaryPaths.Count -eq 0) {
@@ -111,13 +249,32 @@ try {
         Where-Object LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddDays(-$LogRetentionDays) |
         Remove-Item -Force
 
+    $backupStatus.status = if (@($targets | Where-Object status -eq 'warning').Count -gt 0) { 'warning' } else { 'ok' }
+    $backupStatus.finishedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    Write-BackupStatusFile -Path $statusPath -Status $backupStatus
     Write-BackupLog -Path $logPath -Message "Backup completed and verified: $finalFile"
     Write-Output $finalFile
 } catch {
+    $backupError = $_
     if (Test-Path -LiteralPath $partialFile) {
         Remove-Item -LiteralPath $partialFile -Force
     }
-    Write-BackupLog -Path $logPath -Level 'ERROR' -Message $_.Exception.Message
+    if ($backupStatus -and $lockStream) {
+        foreach ($target in $backupStatus.targets) {
+            if (-not $completedTargetIds.Contains($target.id) -and $target.status -ne 'error') {
+                $target.status = 'error'
+                $target.messageCode = 'backup-failed'
+            }
+        }
+        $backupStatus.status = 'error'
+        $backupStatus.finishedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        try {
+            Write-BackupStatusFile -Path $statusPath -Status $backupStatus
+        } catch {
+            Write-BackupLog -Path $logPath -Level 'ERROR' -Message 'Unable to write the backup status file.'
+        }
+    }
+    Write-BackupLog -Path $logPath -Level 'ERROR' -Message $backupError.Exception.Message
     if ($NotifyOnFailure -and (Get-Command msg.exe -ErrorAction SilentlyContinue)) {
         & msg.exe '*' "Workwear ERP backup failed. Check $logPath" 2>$null
     }

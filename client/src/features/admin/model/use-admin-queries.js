@@ -2,6 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../api/admin-api.js';
 
 const KEY = 'admin-users';
+const BACKUP_STATUS_KEY = 'admin-backup-status';
+
+export function useBackupStatus(enabled) {
+  return useQuery({
+    queryKey: [BACKUP_STATUS_KEY],
+    queryFn: () => adminApi.backupStatus(),
+    enabled,
+    refetchInterval: 5 * 60_000,
+    meta: { silent: true },
+  });
+}
 
 export function useAdminUsersList(filters) {
   return useQuery({

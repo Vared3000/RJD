@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
-    [datetime]$DailyAt = '02:00',
+    [Alias('DailyAt')][datetime]$HourlyStartAt = (Get-Date).AddHours(1),
     [datetime]$MonthlyVerifyAt = '03:00',
     [string]$TaskUser = 'SYSTEM',
     [PSCredential]$TaskCredential,
-    [ValidateRange(1, 2)][int]$RequiredSecondaryCount = 1,
+    [ValidateRange(1, 2)][int]$RequiredSecondaryCount = 2,
     [switch]$RunBackupNow
 )
 
@@ -20,13 +20,15 @@ $verifyScript = (Resolve-Path (Join-Path $PSScriptRoot 'verify-backup.ps1')).Pat
 $powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 $backupAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -RequiredSecondaryCount $RequiredSecondaryCount -NotifyOnFailure"
 $verifyAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$verifyScript`" -LatestMonthly -TestRestore -OnlyIfMonthlyDue"
-$backupTrigger = New-ScheduledTaskTrigger -Daily -At $DailyAt
+$backupTrigger = New-ScheduledTaskTrigger -Once -At $HourlyStartAt -RepetitionInterval (New-TimeSpan -Hours 1)
 $verifyTrigger = New-ScheduledTaskTrigger -Daily -At $MonthlyVerifyAt
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 4)
+$backupTaskName = 'Workwear ERP Hourly Backup'
+$legacyBackupTaskName = 'Workwear ERP Daily Backup'
 
 if ($TaskUser -eq 'SYSTEM') {
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName 'Workwear ERP Daily Backup' -Action $backupAction -Trigger $backupTrigger -Settings $settings -Principal $taskPrincipal -Force | Out-Null
+    Register-ScheduledTask -TaskName $backupTaskName -Action $backupAction -Trigger $backupTrigger -Settings $settings -Principal $taskPrincipal -Force | Out-Null
     Register-ScheduledTask -TaskName 'Workwear ERP Monthly Restore Test' -Action $verifyAction -Trigger $verifyTrigger -Settings $settings -Principal $taskPrincipal -Force | Out-Null
 } else {
     if (-not $TaskCredential) {
@@ -37,12 +39,15 @@ if ($TaskUser -eq 'SYSTEM') {
     }
     $credentialUser = $TaskCredential.UserName
     $credentialPassword = $TaskCredential.GetNetworkCredential().Password
-    Register-ScheduledTask -TaskName 'Workwear ERP Daily Backup' -Action $backupAction -Trigger $backupTrigger -Settings $settings -User $credentialUser -Password $credentialPassword -RunLevel Highest -Force | Out-Null
+    Register-ScheduledTask -TaskName $backupTaskName -Action $backupAction -Trigger $backupTrigger -Settings $settings -User $credentialUser -Password $credentialPassword -RunLevel Highest -Force | Out-Null
     Register-ScheduledTask -TaskName 'Workwear ERP Monthly Restore Test' -Action $verifyAction -Trigger $verifyTrigger -Settings $settings -User $credentialUser -Password $credentialPassword -RunLevel Highest -Force | Out-Null
+}
+if (Get-ScheduledTask -TaskName $legacyBackupTaskName -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskName $legacyBackupTaskName -Confirm:$false
 }
 
 if ($RunBackupNow) {
-    $taskName = 'Workwear ERP Daily Backup'
+    $taskName = $backupTaskName
     $previousRunTime = (Get-ScheduledTaskInfo -TaskName $taskName).LastRunTime
     Start-ScheduledTask -TaskName $taskName
     $deadline = (Get-Date).AddMinutes(10)
@@ -64,4 +69,4 @@ if ($RunBackupNow) {
     }
 }
 
-Write-Host "Scheduled tasks installed for $TaskUser. Daily backup: $($DailyAt.ToString('HH:mm')); monthly verification check: $($MonthlyVerifyAt.ToString('HH:mm'))."
+Write-Host "Scheduled tasks installed for $TaskUser. Hourly backup starts at $($HourlyStartAt.ToString('HH:mm')); monthly verification check: $($MonthlyVerifyAt.ToString('HH:mm'))."

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import { useStockBalances } from '../../features/warehouses/stock/model/use-stock-queries.js';
+import { useBackupStatus } from '../../features/admin/model/use-admin-queries.js';
 import { getVisibleNavSections } from '../../widgets/layout/nav-sections.js';
 import styles from './DashboardPage.module.css';
 
@@ -46,11 +47,35 @@ const WORKFLOW = [
   ['Списание', '/writeoff/documents', 'writeoff.manage'],
 ];
 
+const STATUS_LABELS = {
+  ok: 'Готово',
+  warning: 'Мало места',
+  error: 'Ошибка',
+  pending: 'Ожидание',
+};
+
+function formatBytes(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value < 1024 ** 2) return `${Math.round(value / 1024)} КБ`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} МБ`;
+  return `${(value / 1024 ** 3).toFixed(1)} ГБ`;
+}
+
+function formatDate(value) {
+  if (!value) return 'Успешных копий ещё нет';
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
 export function DashboardPage() {
   const user = useSessionStore((state) => state.user);
   const permissions = user?.permissions ?? [];
   const canViewStock = permissions.includes('warehouse.view');
+  const canManage = permissions.includes('admin.manage');
   const { data: stockRows } = useStockBalances(undefined, { enabled: canViewStock });
+  const { data: backupStatus } = useBackupStatus(canManage);
   const totalQuantity = stockRows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
   const sections = getVisibleNavSections(permissions).filter((section) => section.title);
   const actions = QUICK_ACTIONS.filter((item) => permissions.includes(item.permission));
@@ -77,6 +102,51 @@ export function DashboardPage() {
           </Link>
         )}
       </section>
+
+      {canManage && backupStatus && (
+        <section className={styles.backupCard} aria-label="Состояние резервных копий">
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2>Резервные копии</h2>
+              <p>{backupStatus.message}</p>
+            </div>
+            <span className={`${styles.overallStatus} ${styles[backupStatus.status] ?? ''}`}>
+              {STATUS_LABELS[backupStatus.status] ?? 'Выполняется'}
+            </span>
+          </div>
+          <div className={styles.backupGrid}>
+            {backupStatus.targets.map((target) => (
+              <article className={styles.backupTarget} key={target.id}>
+                <div className={styles.backupTargetHeading}>
+                  <strong>{target.label}</strong>
+                  <span className={`${styles.targetStatus} ${styles[target.status] ?? ''}`}>
+                    {STATUS_LABELS[target.status] ?? target.status}
+                  </span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Последняя копия</dt>
+                    <dd>{formatDate(target.lastSuccessfulAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Размер</dt>
+                    <dd>{formatBytes(target.sizeBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Свободно</dt>
+                    <dd>
+                      {Number.isFinite(target.freePercent)
+                        ? `${target.freePercent.toLocaleString('ru-RU')}%`
+                        : '—'}
+                    </dd>
+                  </div>
+                </dl>
+                <small>{target.message}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {actions.length > 0 && (
         <section>

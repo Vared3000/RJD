@@ -102,6 +102,17 @@ function Test-BackupEvidence {
         return [PSCustomObject]@{ Passed = $false; Detail = "Manifest or SHA is missing for $($latest.Name)." }
     }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    try {
+        $backupAge = (Get-Date).ToUniversalTime() - ([DateTimeOffset]::Parse([string]$manifest.createdAtUtc).UtcDateTime)
+    } catch {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Backup timestamp is invalid for $($latest.Name)." }
+    }
+    if ($backupAge.TotalMinutes -lt -5) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Backup timestamp is more than five minutes in the future: $($latest.Name)." }
+    }
+    if ($backupAge.TotalMinutes -gt 90) {
+        return [PSCustomObject]@{ Passed = $false; Detail = "Latest backup is older than 90 minutes: $($latest.Name)." }
+    }
     $actualHash = (Get-FileHash -LiteralPath $latest.FullName -Algorithm SHA256).Hash
     if ($actualHash -ne $manifest.sha256) {
         return [PSCustomObject]@{ Passed = $false; Detail = "SHA256 mismatch for $($latest.Name)." }
@@ -169,6 +180,68 @@ function Test-ScheduledTaskSuccess {
     return [PSCustomObject]@{ Passed = $true; Detail = "Last run succeeded at $($info.LastRunTime.ToString('s'))." }
 }
 
+function Test-HourlyBackupTask {
+    $taskName = 'Workwear ERP Hourly Backup'
+    $result = Test-ScheduledTaskSuccess -TaskName $taskName
+    if (-not $result.Passed) {
+        return $result
+    }
+    $task = Get-ScheduledTask -TaskName $taskName
+    $intervals = @($task.Triggers | ForEach-Object { [string]$_.Repetition.Interval })
+    if ('PT1H' -notin $intervals) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Hourly backup trigger interval is not PT1H.' }
+    }
+    if ([string]$task.Settings.MultipleInstances -ne 'IgnoreNew') {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Parallel backup instances are not blocked.' }
+    }
+    $actionArguments = @($task.Actions | ForEach-Object { [string]$_.Arguments }) -join ' '
+    if ($actionArguments -notmatch '-RequiredSecondaryCount\s+2(?:\s|$)') {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Hourly backup task does not require both secondary PCs.' }
+    }
+    if (Get-ScheduledTask -TaskName 'Workwear ERP Daily Backup' -ErrorAction SilentlyContinue) {
+        return [PSCustomObject]@{ Passed = $false; Detail = 'Legacy daily backup task is still registered.' }
+    }
+    return $result
+}
+
+function Test-BackupRuntimeStatus {
+    param([Parameter(Mandatory = $true)][hashtable]$EnvironmentValues)
+
+    $backupRoot = $EnvironmentValues['BACKUP_ROOT']
+    $statusPath = if ($backupRoot) { Join-Path (Join-Path $backupRoot 'status') 'latest.json' } else { $null }
+    if (-not $statusPath -or -not (Test-Path -LiteralPath $statusPath -PathType Leaf)) {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'Backup status file is missing.' }
+    }
+    try {
+        $status = Get-Content -LiteralPath $statusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $statusTime = [DateTimeOffset]::Parse([string]$(if ($status.finishedAtUtc) { $status.finishedAtUtc } else { $status.startedAtUtc })).UtcDateTime
+    } catch {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'Backup status file is malformed.' }
+    }
+    $statusAge = (Get-Date).ToUniversalTime() - $statusTime
+    if ($statusAge.TotalMinutes -lt -5) {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'Backup status timestamp is in the future.' }
+    }
+    if ($statusAge.TotalMinutes -gt 90) {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'Backup status is older than 90 minutes.' }
+    }
+    if (@($status.targets).Count -ne 3) {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'Backup status must contain exactly three PCs.' }
+    }
+    $failedTargets = @($status.targets | Where-Object status -notin 'ok', 'warning')
+    if ($status.status -eq 'error' -or $failedTargets.Count -gt 0) {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = 'At least one backup destination reports an error.'; Targets = @($status.targets) }
+    }
+    $warningTargets = @($status.targets | Where-Object status -eq 'warning')
+    if ($status.status -eq 'warning' -or $warningTargets.Count -gt 0) {
+        return [PSCustomObject]@{ Passed = $true; Warning = $true; Detail = 'Backup is current, but at least one PC has less than 20% free space.'; Targets = @($status.targets) }
+    }
+    if ($status.status -ne 'ok') {
+        return [PSCustomObject]@{ Passed = $false; Warning = $false; Detail = "Unexpected backup status: $($status.status)"; Targets = @($status.targets) }
+    }
+    return [PSCustomObject]@{ Passed = $true; Warning = $false; Detail = 'Hourly backup status is current for all three PCs.'; Targets = @($status.targets) }
+}
+
 try {
     Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'acceptanceStarted')
     $values = Read-DeploymentEnv
@@ -230,12 +303,19 @@ try {
     if (Test-Path -LiteralPath $startupTunnel) { $cloudflaredArtifacts.Add('startup') }
     Add-AcceptanceCheck -Id 'no-tunnel' -Name (Get-DeploymentMessage 'acceptNoTunnel') -Status $(if ($cloudflaredArtifacts.Count -eq 0) { 'pass' } else { 'fail' }) -Detail $(if ($cloudflaredArtifacts.Count -eq 0) { 'No cloudflared artifacts found.' } else { $cloudflaredArtifacts -join ', ' })
 
-    $backupTask = Test-ScheduledTaskSuccess -TaskName 'Workwear ERP Daily Backup'
+    $backupTask = Test-HourlyBackupTask
     Add-AcceptanceCheck -Id 'backup-task' -Name (Get-DeploymentMessage 'acceptBackupTask') -Status $(if ($backupTask.Passed) { 'pass' } else { 'fail' }) -Detail $backupTask.Detail
     $restoreTask = Test-ScheduledTaskSuccess -TaskName 'Workwear ERP Monthly Restore Test'
     Add-AcceptanceCheck -Id 'restore-task' -Name (Get-DeploymentMessage 'acceptRestoreTask') -Status $(if ($restoreTask.Passed) { 'pass' } else { 'fail' }) -Detail $restoreTask.Detail
     $backupEvidence = Test-BackupEvidence -EnvironmentValues $values
     Add-AcceptanceCheck -Id 'backup-evidence' -Name (Get-DeploymentMessage 'acceptBackupEvidence') -Status $(if ($backupEvidence.Passed) { 'pass' } else { 'fail' }) -Detail $backupEvidence.Detail
+    $backupRuntimeStatus = Test-BackupRuntimeStatus -EnvironmentValues $values
+    Add-AcceptanceCheck -Id 'backup-status' -Name (Get-DeploymentMessage 'acceptBackupStatus') -Status $(if (-not $backupRuntimeStatus.Passed) { 'fail' } elseif ($backupRuntimeStatus.Warning) { 'manual' } else { 'pass' }) -Detail $backupRuntimeStatus.Detail
+    foreach ($target in @($backupRuntimeStatus.Targets)) {
+        $targetStatus = if ($target.status -eq 'ok') { 'pass' } elseif ($target.status -eq 'warning') { 'manual' } else { 'fail' }
+        $targetDetail = "last=$($target.lastSuccessfulAtUtc); size=$($target.sizeBytes); free=$($target.freePercent)%"
+        Add-AcceptanceCheck -Id "backup-$($target.id)" -Name "Backup $($target.id)" -Status $targetStatus -Detail $targetDetail
+    }
 
     Add-AcceptanceCheck -Id 'reboot' -Name (Get-DeploymentMessage 'acceptReboot') -Status 'manual' -Detail (Get-DeploymentMessage 'acceptManualDetail')
     Add-AcceptanceCheck -Id 'two-workstations' -Name (Get-DeploymentMessage 'acceptWorkstations') -Status 'manual' -Detail (Get-DeploymentMessage 'acceptManualDetail')

@@ -5,11 +5,13 @@ import { useLogout } from '../../features/auth/model/use-logout.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { getVisibleNavSections } from './nav-sections.js';
 import { useOpenTasksCount } from '../../features/issuance/tasks/model/use-tasks-queries.js';
+import { useBackupStatus } from '../../features/admin/model/use-admin-queries.js';
 import { notify } from '../../shared/notifications/notification-store.js';
 import styles from './AppLayout.module.css';
 
 const STORAGE_KEY = 'workwear.nav.openSection';
 const TASKS_REMINDER_STORAGE_KEY = 'workwear.tasksReminder.lastShownDate';
+const BACKUP_REMINDER_STORAGE_KEY = 'workwear.backupReminder.lastAttemptId';
 const QUICK_PATHS = ['/employees', '/issuance/documents', '/warehouses/balances', '/print-forms'];
 
 function loadStoredSection() {
@@ -31,6 +33,31 @@ export function AppLayout() {
 
   const canSeeTasks = Boolean(user?.permissions?.includes('issuance.manage'));
   const { data: openTasksCount } = useOpenTasksCount(canSeeTasks);
+  const canManage = Boolean(user?.permissions?.includes('admin.manage'));
+  const { data: backupStatus } = useBackupStatus(canManage);
+
+  useEffect(() => {
+    if (!backupStatus || !['warning', 'error'].includes(backupStatus.status)) return;
+    const attemptKey = [
+      backupStatus.attemptId ?? 'unknown',
+      backupStatus.status,
+      backupStatus.reasonCode ?? 'current',
+    ].join(':');
+    let lastShown = null;
+    try {
+      lastShown = localStorage.getItem(BACKUP_REMINDER_STORAGE_KEY);
+    } catch {
+      // Уведомление всё равно показывается, даже если хранилище браузера недоступно.
+    }
+    if (lastShown === attemptKey) return;
+    if (backupStatus.status === 'error') notify.error(backupStatus.message);
+    else notify.warning(backupStatus.message);
+    try {
+      localStorage.setItem(BACKUP_REMINDER_STORAGE_KEY, attemptKey);
+    } catch {
+      // Не критично: карточка на главной остаётся постоянным источником статуса.
+    }
+  }, [backupStatus]);
 
   // Напоминание не чаще раза в день (см. задачу "Отдать в сборку" —
   // локальная сеть без email/SMS, поэтому единственный доступный канал —

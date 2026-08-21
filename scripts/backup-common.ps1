@@ -182,6 +182,170 @@ select json_build_object(
     return $json.Trim() | ConvertFrom-Json
 }
 
+function Get-DatabaseSizeBytes {
+    param(
+        [Parameter(Mandatory = $true)][string]$Psql,
+        [Parameter(Mandatory = $true)]$Configuration
+    )
+
+    $arguments = @(
+        "--host=$($Configuration.Host)",
+        "--port=$($Configuration.Port)",
+        "--username=$($Configuration.User)",
+        "--dbname=$($Configuration.Database)",
+        '--set=ON_ERROR_STOP=1',
+        '--tuples-only',
+        '--no-align',
+        '--quiet',
+        '--command=select pg_database_size(current_database())::text;'
+    )
+    $rawValue = ((Invoke-PostgresTool -Tool $Psql -Arguments $arguments -Configuration $Configuration) -join '').Trim()
+    [UInt64]$size = 0
+    if (-not [UInt64]::TryParse($rawValue, [ref]$size)) {
+        throw "PostgreSQL returned an invalid database size: $rawValue"
+    }
+    return $size
+}
+
+function Get-BackupCapacityState {
+    param(
+        [Parameter(Mandatory = $true)][UInt64]$AvailableBytes,
+        [Parameter(Mandatory = $true)][UInt64]$TotalBytes,
+        [Parameter(Mandatory = $true)][UInt64]$RequiredBytes,
+        [ValidateRange(1, 99)][int]$WarningPercent = 20
+    )
+
+    $freeRatio = if ($TotalBytes -gt 0) {
+        [decimal]$AvailableBytes / [decimal]$TotalBytes
+    } else {
+        0
+    }
+    $freePercent = if ($TotalBytes -gt 0) {
+        [Math]::Round([double]($freeRatio * 100), 1)
+    } else {
+        0
+    }
+    $status = if ($TotalBytes -eq 0 -or $AvailableBytes -lt $RequiredBytes) {
+        'critical'
+    } elseif ($freeRatio -lt ([decimal]$WarningPercent / 100)) {
+        'warning'
+    } else {
+        'ok'
+    }
+    return [PSCustomObject]@{
+        Status = $status
+        AvailableBytes = $AvailableBytes
+        TotalBytes = $TotalBytes
+        FreePercent = $freePercent
+        RequiredBytes = $RequiredBytes
+    }
+}
+
+function Initialize-BackupDiskSpaceApi {
+    if ('Workwear.Backup.NativeDiskSpace' -as [type]) {
+        return
+    }
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace Workwear.Backup {
+    public static class NativeDiskSpace {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetDiskFreeSpaceEx(
+            string directoryName,
+            out ulong freeBytesAvailable,
+            out ulong totalBytes,
+            out ulong totalFreeBytes);
+    }
+}
+'@
+}
+
+function Get-BackupStorageInfo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][UInt64]$RequiredBytes,
+        [ValidateRange(1, 99)][int]$WarningPercent = 20
+    )
+
+    Initialize-BackupDiskSpaceApi
+    [UInt64]$availableBytes = 0
+    [UInt64]$totalBytes = 0
+    [UInt64]$totalFreeBytes = 0
+    $succeeded = [Workwear.Backup.NativeDiskSpace]::GetDiskFreeSpaceEx(
+        $Path,
+        [ref]$availableBytes,
+        [ref]$totalBytes,
+        [ref]$totalFreeBytes
+    )
+    if (-not $succeeded) {
+        $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw [ComponentModel.Win32Exception]::new($errorCode, 'Unable to read backup destination capacity.')
+    }
+    return Get-BackupCapacityState -AvailableBytes $availableBytes -TotalBytes $totalBytes -RequiredBytes $RequiredBytes -WarningPercent $WarningPercent
+}
+
+function Get-BackupDestinationHost {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$LocalHostName = $env:COMPUTERNAME
+    )
+
+    if ($Path.StartsWith('\\')) {
+        $parts = @($Path.TrimStart('\') -split '\\')
+        if ($parts.Count -gt 0 -and $parts[0]) {
+            return $parts[0]
+        }
+    }
+    return $(if ($LocalHostName) { $LocalHostName } else { 'local' })
+}
+
+function Read-BackupStatusFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
+    }
+    try {
+        return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
+function Write-BackupStatusFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$Status
+    )
+
+    $directory = Split-Path $Path -Parent
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    $writeToken = [Guid]::NewGuid().ToString('N')
+    $temporaryPath = Join-Path $directory ".latest.$writeToken.partial"
+    $replacementBackupPath = Join-Path $directory ".latest.$writeToken.previous"
+    try {
+        $json = $Status | ConvertTo-Json -Depth 8
+        [IO.File]::WriteAllText($temporaryPath, $json, [Text.UTF8Encoding]::new($false))
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            [IO.File]::Replace($temporaryPath, $Path, $replacementBackupPath, $true)
+            Remove-Item -LiteralPath $replacementBackupPath -Force
+        } else {
+            Move-Item -LiteralPath $temporaryPath -Destination $Path
+        }
+    } finally {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+        if (Test-Path -LiteralPath $replacementBackupPath) {
+            Remove-Item -LiteralPath $replacementBackupPath -Force
+        }
+    }
+}
+
 function Write-BackupLog {
     param(
         [Parameter(Mandatory = $true)][string]$Path,

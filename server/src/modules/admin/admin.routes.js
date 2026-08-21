@@ -14,6 +14,18 @@ export function createAdminRouter() {
 
   /**
    * @openapi
+   * /admin/backup-status:
+   *   get:
+   *     tags: [Администрирование]
+   *     summary: Состояние резервных копий на трёх ПК без путей и секретов
+   *     responses:
+   *       200: { description: Текущая попытка, свободное место и последняя успешная копия }
+   *       403: { description: Требуются права администратора }
+   */
+  router.get('/backup-status', asyncHandler(adminController.backupStatus));
+
+  /**
+   * @openapi
    * /admin/users:
    *   get:
    *     tags: [Администрирование]

@@ -119,6 +119,14 @@ test('администрирование: CRUD пользователей, па�
     .send({ login: unique, password: 'Passw0rd123' });
   assert.equal(testLogin.status, 200);
 
+  const backupStatus = await auth(agent.get('/api/v1/admin/backup-status'));
+  assert.equal(backupStatus.status, 200);
+  assert.equal(backupStatus.body.data.targets.length, 3);
+  const viewerBackupStatus = await testAgent
+    .get('/api/v1/admin/backup-status')
+    .set('Authorization', `Bearer ${testLogin.body.data.accessToken}`);
+  assert.equal(viewerBackupStatus.status, 403);
+
   const block = await auth(agent.patch(`/api/v1/admin/users/${testUserId}`)).send({
     isActive: false,
   });

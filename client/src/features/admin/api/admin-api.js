@@ -3,6 +3,10 @@ import { httpClient } from '../../../shared/api/http-client.js';
 const BASE = '/admin/users';
 
 export const adminApi = {
+  async backupStatus() {
+    const { data } = await httpClient.get('/admin/backup-status');
+    return data.data;
+  },
   async list({ search, roleId, isActive } = {}) {
     const { data } = await httpClient.get(BASE, {
       params: {

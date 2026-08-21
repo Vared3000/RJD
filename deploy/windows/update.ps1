@@ -11,6 +11,9 @@ $logPath = New-DeploymentLog -Operation 'update'
 $previousCommit = $null
 $backupFile = $null
 $migrationStarted = $false
+$scheduleChanged = $false
+$backupTaskUser = 'SYSTEM'
+$backupTaskCredential = $null
 
 function Start-InstalledService {
     $postgres = Get-PostgresService
@@ -23,6 +26,18 @@ function Start-InstalledService {
         Start-Service -Name $script:WorkwearServiceName
         $service.WaitForStatus('Running', [TimeSpan]::FromSeconds(60))
     }
+}
+
+function Install-CurrentBackupSchedule {
+    $arguments = @{
+        TaskUser = $backupTaskUser
+        RequiredSecondaryCount = 2
+        RunBackupNow = $true
+    }
+    if ($backupTaskCredential) {
+        $arguments.TaskCredential = $backupTaskCredential
+    }
+    & (Join-Path $script:RepositoryRoot 'scripts\install-backup-tasks.ps1') @arguments
 }
 
 try {
@@ -42,6 +57,15 @@ try {
     }
 
     $environmentValues = Read-DeploymentEnv
+    if ($environmentValues['BACKUP_TASK_USER']) {
+        $backupTaskUser = $environmentValues['BACKUP_TASK_USER']
+    }
+    if ($backupTaskUser -ne 'SYSTEM') {
+        $backupTaskCredential = Get-Credential -UserName $backupTaskUser -Message 'Credentials for the Workwear ERP scheduled tasks'
+        if (-not $backupTaskCredential) {
+            throw 'Task credentials are required to update the backup schedule.'
+        }
+    }
     $backupArguments = @{}
     if ($environmentValues['BACKUP_SECONDARY_PATHS']) {
         $backupArguments.RequiredSecondaryCount = 2
@@ -79,6 +103,8 @@ try {
     if (-not (Wait-WorkwearHealth -TimeoutSeconds 90)) {
         throw (Get-DeploymentMessage 'healthFailed')
     }
+    $scheduleChanged = $true
+    Install-CurrentBackupSchedule
     Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'updateComplete')
     exit 0
 } catch {
@@ -101,6 +127,12 @@ try {
         Start-InstalledService
         if (-not (Wait-WorkwearHealth -TimeoutSeconds 90)) {
             throw (Get-DeploymentMessage 'healthFailed')
+        }
+        if ($scheduleChanged) {
+            if (Get-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName 'Workwear ERP Hourly Backup' -Confirm:$false
+            }
+            Install-CurrentBackupSchedule
         }
         Write-DeploymentLog -LogPath $logPath -Message (Get-DeploymentMessage 'updateRollbackComplete')
     } catch {
