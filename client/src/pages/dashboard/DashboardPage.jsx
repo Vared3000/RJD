@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import { useStockBalances } from '../../features/warehouses/stock/model/use-stock-queries.js';
-import { useBackupStatus } from '../../features/admin/model/use-admin-queries.js';
+import { useBackupStatus, useHaStatus } from '../../features/admin/model/use-admin-queries.js';
 import { getVisibleNavSections } from '../../widgets/layout/nav-sections.js';
 import styles from './DashboardPage.module.css';
 
@@ -76,6 +76,7 @@ export function DashboardPage() {
   const canManage = permissions.includes('admin.manage');
   const { data: stockRows } = useStockBalances(undefined, { enabled: canViewStock });
   const { data: backupStatus } = useBackupStatus(canManage);
+  const { data: haStatus } = useHaStatus(canManage);
   const totalQuantity = stockRows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
   const sections = getVisibleNavSections(permissions).filter((section) => section.title);
   const actions = QUICK_ACTIONS.filter((item) => permissions.includes(item.permission));
@@ -145,6 +146,45 @@ export function DashboardPage() {
               </article>
             ))}
           </div>
+        </section>
+      )}
+
+      {canManage && haStatus && (
+        <section className={styles.backupCard} aria-label="Состояние отказоустойчивости">
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2>Три узла</h2>
+              <p>{haStatus.message}</p>
+            </div>
+            <span
+              className={`${styles.overallStatus} ${
+                styles[haStatus.status === 'error' ? 'error' : 'ok'] ?? ''
+              }`}
+            >
+              {haStatus.status === 'disabled'
+                ? 'Выключено'
+                : haStatus.status === 'error'
+                  ? 'Ошибка'
+                  : haStatus.status === 'primary'
+                    ? 'Основной'
+                    : 'Резерв'}
+            </span>
+          </div>
+          {haStatus.nodes.length > 0 && (
+            <div className={styles.backupGrid}>
+              {haStatus.nodes.map((node) => (
+                <article className={styles.backupTarget} key={node.nodeId}>
+                  <div className={styles.backupTargetHeading}>
+                    <strong>{node.nodeId}</strong>
+                    <span className={`${styles.targetStatus} ${styles.ok}`}>
+                      {node.role === 'leader' ? 'Основной' : 'Реплика'}
+                    </span>
+                  </div>
+                  <small>{node.state === 'running' ? 'Работает' : node.state}</small>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

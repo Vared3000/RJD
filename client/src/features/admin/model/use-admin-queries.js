@@ -3,6 +3,7 @@ import { adminApi } from '../api/admin-api.js';
 
 const KEY = 'admin-users';
 const BACKUP_STATUS_KEY = 'admin-backup-status';
+const HA_STATUS_KEY = 'admin-ha-status';
 
 export function useBackupStatus(enabled) {
   return useQuery({
@@ -10,6 +11,16 @@ export function useBackupStatus(enabled) {
     queryFn: () => adminApi.backupStatus(),
     enabled,
     refetchInterval: 5 * 60_000,
+    meta: { silent: true },
+  });
+}
+
+export function useHaStatus(enabled) {
+  return useQuery({
+    queryKey: [HA_STATUS_KEY],
+    queryFn: () => adminApi.haStatus(),
+    enabled,
+    refetchInterval: 30_000,
     meta: { silent: true },
   });
 }

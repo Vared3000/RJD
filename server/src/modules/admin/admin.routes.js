@@ -26,6 +26,18 @@ export function createAdminRouter() {
 
   /**
    * @openapi
+   * /admin/ha-status:
+   *   get:
+   *     tags: [Администрирование]
+   *     summary: Безопасное состояние трёх HA-узлов без технических endpoint и секретов
+   *     responses:
+   *       200: { description: Режим, primary, quorum и роли трёх узлов }
+   *       403: { description: Требуются права администратора }
+   */
+  router.get('/ha-status', asyncHandler(adminController.haStatus));
+
+  /**
+   * @openapi
    * /admin/users:
    *   get:
    *     tags: [Администрирование]

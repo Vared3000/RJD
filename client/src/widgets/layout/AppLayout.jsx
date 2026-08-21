@@ -7,6 +7,8 @@ import { getVisibleNavSections } from './nav-sections.js';
 import { useOpenTasksCount } from '../../features/issuance/tasks/model/use-tasks-queries.js';
 import { useBackupStatus } from '../../features/admin/model/use-admin-queries.js';
 import { notify } from '../../shared/notifications/notification-store.js';
+import { HA_RECONNECT_ENABLED } from '../../shared/config/env.js';
+import { HA_CONNECTION_EVENT } from '../../shared/api/http-client.js';
 import styles from './AppLayout.module.css';
 
 const STORAGE_KEY = 'workwear.nav.openSection';
@@ -35,6 +37,14 @@ export function AppLayout() {
   const { data: openTasksCount } = useOpenTasksCount(canSeeTasks);
   const canManage = Boolean(user?.permissions?.includes('admin.manage'));
   const { data: backupStatus } = useBackupStatus(canManage);
+  const [connectionState, setConnectionState] = useState('connected');
+
+  useEffect(() => {
+    if (!HA_RECONNECT_ENABLED) return undefined;
+    const handleState = (event) => setConnectionState(event.detail?.state ?? 'connected');
+    window.addEventListener(HA_CONNECTION_EVENT, handleState);
+    return () => window.removeEventListener(HA_CONNECTION_EVENT, handleState);
+  }, []);
 
   useEffect(() => {
     if (!backupStatus || !['warning', 'error'].includes(backupStatus.status)) return;
@@ -265,6 +275,11 @@ export function AppLayout() {
         </nav>
       </aside>
       <div className={styles.content}>
+        {HA_RECONNECT_ENABLED && connectionState === 'reconnecting' && (
+          <div className={styles.connectionBanner} role="status" aria-live="polite">
+            Восстанавливается соединение…
+          </div>
+        )}
         <header className={styles.topbar}>
           <div className={styles.pageContext}>
             <button

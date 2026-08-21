@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import { resolveRecoveryFence } from './config/recovery-fence.js';
+import { resolveHaFence } from './config/ha-fence.js';
 import { swaggerSpec } from './config/swagger.js';
 import { sequelize } from './database/models/index.js';
 import { logger } from './utils/logger.js';
@@ -75,6 +76,26 @@ async function getCurrentDatabaseState(database) {
   return state;
 }
 
+async function resolveNodeFences(recoveryFenceResolver, haFenceResolver) {
+  const [recovery, ha] = await Promise.all([recoveryFenceResolver(), haFenceResolver()]);
+  if (recovery.enabled && ha.enabled) {
+    throw new Error('Ручной recovery fence и автоматический HA включены одновременно');
+  }
+  return { recovery, ha };
+}
+
+async function assertHaDatabaseRole(database, ha) {
+  if (!ha.enabled) return;
+  const [rows] = await database.query('SELECT pg_is_in_recovery() AS "isInRecovery"');
+  const isInRecovery = rows?.[0]?.isInRecovery;
+  if (typeof isInRecovery !== 'boolean') {
+    throw new Error('PostgreSQL не подтвердил primary/replica role');
+  }
+  if (ha.writable === isInRecovery) {
+    throw new Error('Роль локальной PostgreSQL не совпадает с Patroni fence');
+  }
+}
+
 function getRecoveryExpectation(query) {
   if (
     typeof query.database !== 'string' ||
@@ -102,6 +123,7 @@ function createReadinessHandler({
   database,
   expectedDatabaseName,
   recoveryFenceResolver,
+  haFenceResolver,
   requireRecoveryExpectation = false,
 }) {
   return async (req, res) => {
@@ -109,7 +131,10 @@ function createReadinessHandler({
       const recoveryExpectation = requireRecoveryExpectation
         ? getRecoveryExpectation(req.query)
         : undefined;
-      const fence = await recoveryFenceResolver();
+      const { recovery: fence, ha } = await resolveNodeFences(
+        recoveryFenceResolver,
+        haFenceResolver,
+      );
       if (
         fence.enabled &&
         (!Number.isSafeInteger(fence.epoch) ||
@@ -128,6 +153,10 @@ function createReadinessHandler({
       ) {
         throw new Error('Recovery fence не совпадает с ожидаемыми узлом и эпохой');
       }
+      if (ha.enabled && !ha.writable) {
+        throw new Error('HA proxy должен направлять readiness только на текущий primary');
+      }
+      await assertHaDatabaseRole(database, ha);
 
       const databaseState = await getCurrentDatabaseState(database);
       if (
@@ -154,6 +183,13 @@ function createReadinessHandler({
               activeNodeId: fence.activeNodeId,
             }
           : { mode: 'standalone' },
+        ha: ha.enabled
+          ? {
+              mode: ha.mode,
+              nodeId: ha.nodeId,
+              leaderNodeId: ha.leaderNodeId,
+            }
+          : { mode: 'disabled' },
       });
     } catch (error) {
       if (!env.NODE_ENV.includes('test')) {
@@ -167,7 +203,7 @@ function createReadinessHandler({
   };
 }
 
-function createRecoveryWriteGate(recoveryFenceResolver) {
+function createWriteGate(database, recoveryFenceResolver, haFenceResolver) {
   return async (req, res, next) => {
     if (safeHttpMethods.has(req.method)) {
       next();
@@ -175,16 +211,17 @@ function createRecoveryWriteGate(recoveryFenceResolver) {
     }
 
     try {
-      const fence = await recoveryFenceResolver();
-      if (!fence.writable) throw new Error('Recovery fence запретил запись');
+      const { recovery, ha } = await resolveNodeFences(recoveryFenceResolver, haFenceResolver);
+      if (!recovery.writable || !ha.writable) throw new Error('Узел не подтверждён для записи');
+      await assertHaDatabaseRole(database, ha);
       next();
     } catch (error) {
       if (!env.NODE_ENV.includes('test')) {
-        req.log.warn({ err: error }, 'Изменяющий запрос заблокирован recovery fence');
+        req.log.warn({ err: error }, 'Изменяющий запрос заблокирован node fence');
       }
       next(
         new ApiError(503, 'Изменения временно заблокированы: активный узел не подтверждён', {
-          code: 'RECOVERY_FENCE_UNAVAILABLE',
+          code: 'NODE_FENCE_UNAVAILABLE',
         }),
       );
     }
@@ -213,6 +250,7 @@ export function createApp({
   database = sequelize,
   expectedDatabaseName = databaseNameFromUrl(env.DATABASE_URL),
   recoveryFenceResolver = resolveRecoveryFence,
+  haFenceResolver = resolveHaFence,
 } = {}) {
   const app = express();
 
@@ -235,6 +273,7 @@ export function createApp({
     database,
     expectedDatabaseName,
     recoveryFenceResolver,
+    haFenceResolver,
   });
   app.get('/health', readinessHandler);
   app.get('/health/ready', readinessHandler);
@@ -244,6 +283,7 @@ export function createApp({
       database,
       expectedDatabaseName,
       recoveryFenceResolver,
+      haFenceResolver,
       requireRecoveryExpectation: true,
     }),
   );
@@ -251,7 +291,7 @@ export function createApp({
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 
-  app.use('/api/v1', createRecoveryWriteGate(recoveryFenceResolver));
+  app.use('/api/v1', createWriteGate(database, recoveryFenceResolver, haFenceResolver));
   app.use('/api/v1/auth', createAuthRouter());
   app.use('/api/v1/organizations', createOrganizationsRouter());
   app.use('/api/v1/subdivisions', createSubdivisionsRouter());

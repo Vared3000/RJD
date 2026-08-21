@@ -1,15 +1,29 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { assertRecoveryFence } from './config/recovery-fence.js';
+import { assertHaFence } from './config/ha-fence.js';
 import { sequelize } from './database/models/index.js';
 import { logger } from './utils/logger.js';
 
 async function main() {
-  const fence = await assertRecoveryFence();
+  const [fence, haFence] = await Promise.all([assertRecoveryFence(), assertHaFence()]);
+  if (fence.enabled && haFence.enabled) {
+    throw new Error('Ручной recovery fence и автоматический HA включены одновременно');
+  }
   if (fence.enabled) {
     logger.info(
       { recoveryEpoch: fence.epoch, activeNodeId: fence.activeNodeId },
       'Проверен кворум аварийного переключения',
+    );
+  }
+  if (haFence.enabled) {
+    logger.info(
+      {
+        haRole: haFence.writable ? 'primary' : 'replica',
+        leaderNodeId: haFence.leaderNodeId,
+        quorumNodeIds: haFence.quorumNodeIds,
+      },
+      'Проверен Patroni HA fence',
     );
   }
   await sequelize.authenticate();

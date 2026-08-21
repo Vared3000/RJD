@@ -193,7 +193,7 @@ test('every mutating /api/v1 method is blocked before routing when fence fails',
   for (const method of ['post', 'put', 'patch', 'delete']) {
     const response = await request(app)[method]('/api/v1/not-a-real-route');
     assert.equal(response.status, 503, `${method.toUpperCase()} must be fenced`);
-    assert.equal(response.body.error.details.code, 'RECOVERY_FENCE_UNAVAILABLE');
+    assert.equal(response.body.error.details.code, 'NODE_FENCE_UNAVAILABLE');
   }
   assert.equal(fenceChecks, 4);
 

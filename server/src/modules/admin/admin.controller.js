@@ -1,5 +1,6 @@
 import { adminService } from './admin.service.js';
 import { backupStatusService } from './backup-status.service.js';
+import { haStatusService } from './ha-status.service.js';
 import { success } from '../../utils/respond.js';
 
 function parseIsActive(value) {
@@ -10,6 +11,10 @@ function parseIsActive(value) {
 export const adminController = {
   async backupStatus(req, res) {
     return success(res, await backupStatusService.read());
+  },
+
+  async haStatus(req, res) {
+    return success(res, await haStatusService.read());
   },
 
   async list(req, res) {

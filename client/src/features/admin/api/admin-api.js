@@ -7,6 +7,10 @@ export const adminApi = {
     const { data } = await httpClient.get('/admin/backup-status');
     return data.data;
   },
+  async haStatus() {
+    const { data } = await httpClient.get('/admin/ha-status');
+    return data.data;
+  },
   async list({ search, roleId, isActive } = {}) {
     const { data } = await httpClient.get(BASE, {
       params: {
