@@ -102,10 +102,38 @@ test('план recovery не записывает READY-журнал и не а�
   assert.ok(journalWrite > archive);
 });
 
+test('испытание потери ПК закрепляет одну копию и не принимает только автоматические проверки', async () => {
+  const drill = await read('deploy/windows/disaster-drill.ps1');
+  const recovery = await read('scripts/emergency-recover.ps1');
+  const guide = await read('docs/WINDOWS_DISASTER_DRILL.md');
+
+  assert.match(drill, /Select-RecoveryCandidate/);
+  assert.match(drill, /RequiredSecondaryCount 2/);
+  assert.match(drill, /foreach \(\$root in @\(\$backupRoot\) \+ \$secondaryPaths\)/);
+  assert.match(drill, /backupSha256 = \$candidate\.Sha256/);
+  assert.match(drill, /baselineNodeId -eq \$configuration\.NodeId/);
+  assert.match(drill, /\$pending\.status -ne 'baseline'/);
+  assert.match(drill, /\$rpoSeconds[^\n]+3600/);
+  assert.match(drill, /\$rtoSeconds[^\n]+3600/);
+  assert.match(drill, /twoWorkstations = Test-ManualDrillCheck/);
+  assert.match(drill, /businessData = Test-ManualDrillCheck/);
+  assert.match(drill, /printForm = Test-ManualDrillCheck/);
+  assert.match(drill, /if \(\$accepted\) \{ 'accepted' \}/);
+  assert.doesNotMatch(drill, /Remove-Item/);
+
+  assert.match(recovery, /drills'\) 'pending\.json'/);
+  assert.match(recovery, /\$BackupFile = \$pinnedBackupPath/);
+  assert.match(recovery, /backupSha256[^\n]+StringComparison/);
+  assert.match(recovery, /drillId = \$DrillId/);
+  assert.match(guide, /физически отключите/i);
+  assert.match(guide, /не выставляет статус `accepted` без ручных проверок/i);
+});
+
 test('PowerShell-файлы мастера сохраняют UTF-8 BOM для Windows PowerShell 5.1', async () => {
   for (const relativePath of [
     'scripts/emergency-recover.ps1',
     'deploy/windows/emergency-recovery-ui.ps1',
+    'deploy/windows/disaster-drill.ps1',
   ]) {
     const bytes = await readFile(path.join(repositoryRoot, relativePath));
     assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], relativePath);

@@ -384,6 +384,41 @@ if (-not $clusterId -or -not $nodeId -or -not $configuredPrimaryHost -or $witnes
     throw 'Резервный ПК не подготовлен: отсутствуют clusterId, nodeId, primary host или два witness-файла.'
 }
 if (-not $DatabaseUrl -or -not $AdminDatabaseUrl) { throw 'Не настроены строки подключения приложения и восстановления.' }
+
+# A Release R drill pins one immutable backup before the active PC is disconnected.
+# The regular recovery UI therefore needs no additional field or operator choice.
+$drillBaseline = $null
+$drillPendingPath = Join-Path (Join-Path $BackupRoot 'drills') 'pending.json'
+if (Test-Path -LiteralPath $drillPendingPath -PathType Leaf) {
+    try {
+        $pendingDrill = Get-Content -LiteralPath $drillPendingPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        throw 'Маркер приёмочного испытания повреждён; recovery заблокирован.'
+    }
+    if ($pendingDrill.status -eq 'baseline') {
+        if ([int]$pendingDrill.formatVersion -ne 1 -or
+            $pendingDrill.drillId -notmatch '^[a-zA-Z0-9-]{8,64}$' -or
+            $pendingDrill.clusterId -ne $clusterId -or
+            $pendingDrill.backupFileName -notmatch '^workwear_erp_[a-zA-Z0-9_.-]+\.dump$' -or
+            $pendingDrill.backupSha256 -notmatch '^[a-fA-F0-9]{64}$') {
+            throw 'Маркер приёмочного испытания не прошёл строгую проверку.'
+        }
+        $baselineAge = (Get-Date).ToUniversalTime() - ([DateTime]$pendingDrill.baselineAtUtc).ToUniversalTime()
+        if ($baselineAge.TotalMinutes -lt -5 -or $baselineAge.TotalHours -gt 4) {
+            throw 'Исходная точка испытания создана не в допустимом четырёхчасовом окне.'
+        }
+        if ($DrillId -and $DrillId -ne $pendingDrill.drillId) {
+            throw 'DrillId не совпадает с защищённой исходной точкой.'
+        }
+        $DrillId = [string]$pendingDrill.drillId
+        $drillBaseline = $pendingDrill
+        $pinnedBackupPath = Join-Path (Join-Path $BackupRoot 'daily') ([string]$pendingDrill.backupFileName)
+        if ($BackupFile -and (Resolve-Path -LiteralPath $BackupFile).Path -ne (Resolve-Path -LiteralPath $pinnedBackupPath).Path) {
+            throw 'Для испытания нельзя выбрать другую backup-копию.'
+        }
+        $BackupFile = $pinnedBackupPath
+    }
+}
 if (-not $ConfirmPrimaryUnavailable) { throw 'Требуется явное подтверждение недоступности активного ПК.' }
 if ($Execute -and -not (Test-IsAdministrator)) { throw 'Аварийное восстановление требует прав локального администратора.' }
 
@@ -438,6 +473,12 @@ try {
                 if ($candidate.Count -ne 1) { throw 'Указанный backup не прошёл полную проверку recovery.' }
                 $candidate = $candidate[0]
             }
+        }
+        if ($drillBaseline -and (
+            [IO.Path]::GetFileName($candidate.BackupFile) -ne $drillBaseline.backupFileName -or
+            -not [string]::Equals($candidate.Sha256, $drillBaseline.backupSha256, [StringComparison]::OrdinalIgnoreCase)
+        )) {
+            throw 'Закреплённая для испытания backup-копия не совпадает по имени или SHA-256.'
         }
         $backupAge = $nowUtc - ([DateTime]$candidate.SnapshotStartedAtUtc)
         if ($backupAge.TotalMinutes -lt -5) { throw 'Время backup находится в будущем; проверьте часы на трёх ПК.' }

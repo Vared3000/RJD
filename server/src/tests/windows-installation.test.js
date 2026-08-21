@@ -24,6 +24,7 @@ test('Windows-комплект содержит тонкие bat-оболочк�
     ['Провести приёмку.bat', 'acceptance.ps1'],
     ['Подготовить резервный ПК.bat', 'prepare-reserve.ps1'],
     ['Аварийное восстановление.bat', 'emergency-recovery-ui.ps1'],
+    ['Испытать потерю основного ПК.bat', 'disaster-drill.ps1'],
   ]);
 
   for (const [fileName, target] of wrappers) {
