@@ -43,7 +43,7 @@ test('печатная форма Приложение 1.7: историческ
     'в строке остаются оба инвентарных номера',
   );
   assert.equal(sheet.getCell('H8').fill?.pattern, 'solid');
-  assert.match(sheet.getCell('H8').numFmt, /0\.0000/);
+  assert.match(sheet.getCell('H8').numFmt, /0\.00/);
   const cellValues = [];
   let hasFormula = false;
   sheet.eachRow((row) =>

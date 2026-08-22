@@ -177,7 +177,7 @@ test('печатная форма ФПУ-26: живые строки, смена
   assert.equal(archiveSheet.getCell('G42').value, 2224.85);
   assert.equal(archiveSheet.getCell('H42').value, 2224.85);
   assert.equal(archiveSheet.getCell('I43').value, 11323.95);
-  assert.equal(archiveSheet.getCell('K43').value, 566.1975);
-  assert.equal(archiveSheet.getCell('L43').value, 11890.1475);
+  assert.equal(archiveSheet.getCell('K43').value, 566.19);
+  assert.equal(archiveSheet.getCell('L43').value, 11890.14);
   assert.equal(dpo.name, unique);
 });

@@ -32,7 +32,7 @@ function appendix15Data(context, rows) {
         label: 'Стоимость за месяц без НДС',
         width: 17,
         numeric: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'costWithoutVat',
@@ -40,14 +40,14 @@ function appendix15Data(context, rows) {
         width: 16,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'priceWithVat',
         label: 'Цена за ед. с НДС',
         width: 16,
         numeric: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'vatAmount',
@@ -55,7 +55,7 @@ function appendix15Data(context, rows) {
         width: 14,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'totalWithVat',
@@ -63,7 +63,7 @@ function appendix15Data(context, rows) {
         width: 16,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
     ],
     rows,

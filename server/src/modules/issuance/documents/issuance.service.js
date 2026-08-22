@@ -14,6 +14,7 @@ import {
 } from '../../nomenclature/instances/instance-dependency-check.js';
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
+import { floorMoney } from '../../print-forms/shared/money.js';
 import { tasksRepository, issuanceTaskKey } from '../tasks/tasks.repository.js';
 
 const SIZE_FIELD_BY_TYPE = {
@@ -123,15 +124,20 @@ function valueFrom(data, currentLine, field) {
 
 function priceSnapshot(price) {
   if (!price) return null;
-  const withoutVat = Number(price.priceWithoutVat);
-  const withVat = price.priceWithVat == null ? null : Number(price.priceWithVat);
-  const derivedVat = withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : 5;
+  const withoutVat = floorMoney(price.priceWithoutVat);
+  const withVat = price.priceWithVat == null ? null : floorMoney(price.priceWithVat);
+  const rate = Number(price.vatRate ?? 5);
+  const derivedVat =
+    withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : rate;
+  const vatRate = Number(price.vatRate ?? derivedVat);
+  const priceWithVatSnapshot =
+    withVat ?? floorMoney(withoutVat + floorMoney((withoutVat * vatRate) / 100));
   return {
     priceSourceId: price.id,
     priceEffectiveDate: price.effectiveDate,
     priceWithoutVatSnapshot: withoutVat,
-    vatRateSnapshot: Number(price.vatRate ?? derivedVat),
-    priceWithVatSnapshot: withVat,
+    vatRateSnapshot: vatRate,
+    priceWithVatSnapshot,
   };
 }
 

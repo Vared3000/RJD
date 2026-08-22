@@ -140,9 +140,9 @@ test('печатная форма Приложение 1.5: живые стро�
     'строки архивного приложения 1.5 должны сохранять исходный порядок Excel',
   );
   assert.match(String(archiveSheet.getCell('C8').value ?? ''), /поздняя строка/);
-  assert.equal(archiveSheet.getCell('G7').value, 123.45678);
+  assert.equal(archiveSheet.getCell('G7').value, 123.45);
   assert.equal(archiveSheet.getCell('H7').value, 0);
-  assert.equal(archiveSheet.getCell('I7').value, 6.172839);
+  assert.equal(archiveSheet.getCell('I7').value, 6.17);
   assert.equal(archiveSheet.getCell('J8').value, 80);
   assert.equal(archiveSheet.getCell('K8').value, 1680);
 });

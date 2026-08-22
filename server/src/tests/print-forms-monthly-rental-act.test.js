@@ -16,6 +16,7 @@ import {
   createReturnDocument,
   cleanupFixtureState,
 } from './print-forms-fixture.js';
+import { floorMoney } from '../modules/print-forms/shared/money.js';
 
 test('ежемесячный акт аренды: предпросмотр, фиксация снимка, неизменность после смены цены', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
@@ -215,5 +216,5 @@ test('ежемесячный акт аренды: выдача и возврат
   assert.equal(row.rentalDays, 1, 'выдача и возврат в один день — один оплачиваемый день');
   assert.equal(row.issuedDate, '2026-08-20');
   assert.equal(row.returnedDate, '2026-08-20');
-  assert.equal(row.costWithoutVat, Number((row.monthlyPriceWithoutVat / 31).toFixed(4)));
+  assert.equal(row.costWithoutVat, floorMoney(row.monthlyPriceWithoutVat / 31));
 });

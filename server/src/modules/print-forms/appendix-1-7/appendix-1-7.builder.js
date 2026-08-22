@@ -26,7 +26,7 @@ function appendix17Data(context, rows) {
         label: 'Цена без НДС',
         width: 15,
         numeric: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'subtotalWithoutVat',
@@ -34,7 +34,7 @@ function appendix17Data(context, rows) {
         width: 15,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       { key: 'vatRate', label: 'НДС, %', width: 10, numeric: true, numberFormat: '0.0000' },
       {
@@ -43,7 +43,7 @@ function appendix17Data(context, rows) {
         width: 14,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'totalWithVat',
@@ -51,7 +51,7 @@ function appendix17Data(context, rows) {
         width: 15,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
     ],
     rows,

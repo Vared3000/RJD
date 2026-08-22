@@ -32,17 +32,17 @@ const columns = [
     key: 'monthlyPriceWithoutVat',
     label: 'Стоимость аренды за месяц, руб., без НДС',
     width: 16,
-    numberFormat: '#,##0.0000',
+    numberFormat: '#,##0.00',
   },
   {
     key: 'costWithoutVat',
     label: 'Стоимость аренды, руб., без НДС',
     width: 16,
-    numberFormat: '#,##0.0000',
+    numberFormat: '#,##0.00',
   },
   { key: 'vatRate', label: 'НДС, %', width: 9, numberFormat: '0.00' },
-  { key: 'vatAmount', label: 'Сумма НДС, руб.', width: 14, numberFormat: '#,##0.0000' },
-  { key: 'totalWithVat', label: 'Итого с НДС, руб.', width: 16, numberFormat: '#,##0.0000' },
+  { key: 'vatAmount', label: 'Сумма НДС, руб.', width: 14, numberFormat: '#,##0.00' },
+  { key: 'totalWithVat', label: 'Итого с НДС, руб.', width: 16, numberFormat: '#,##0.00' },
 ];
 
 const thinBorder = {
@@ -292,11 +292,11 @@ export async function generateMonthlyRentalExcel(data) {
       styleText(cell, { bold: true, size: 9, horizontal: 'right', vertical: 'middle' });
   }
   sheet.getCell(totalRow, 9).value = data.totals.costWithoutVat;
-  sheet.getCell(totalRow, 9).numFmt = '#,##0.0000';
+  sheet.getCell(totalRow, 9).numFmt = '#,##0.00';
   sheet.getCell(totalRow, 11).value = data.totals.vatAmount;
-  sheet.getCell(totalRow, 11).numFmt = '#,##0.0000';
+  sheet.getCell(totalRow, 11).numFmt = '#,##0.00';
   sheet.getCell(totalRow, 12).value = data.totals.totalWithVat;
-  sheet.getCell(totalRow, 12).numFmt = '#,##0.0000';
+  sheet.getCell(totalRow, 12).numFmt = '#,##0.00';
   sheet.getRow(totalRow).height = 24;
 
   mergeAndSet(
