@@ -127,8 +127,7 @@ function priceSnapshot(price) {
   const withoutVat = floorMoney(price.priceWithoutVat);
   const withVat = price.priceWithVat == null ? null : floorMoney(price.priceWithVat);
   const rate = Number(price.vatRate ?? 5);
-  const derivedVat =
-    withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : rate;
+  const derivedVat = withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : rate;
   const vatRate = Number(price.vatRate ?? derivedVat);
   const priceWithVatSnapshot =
     withVat ?? floorMoney(withoutVat + floorMoney((withoutVat * vatRate) / 100));

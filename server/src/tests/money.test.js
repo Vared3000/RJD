@@ -1,10 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  floorMoney,
-  money,
-  calculateMoney,
-} from '../modules/print-forms/shared/money.js';
+import { floorMoney, money, calculateMoney } from '../modules/print-forms/shared/money.js';
 
 test('floorMoney округляет до копеек в меньшую сторону', () => {
   assert.equal(floorMoney(100), 100);
