@@ -8,8 +8,7 @@ import {
   generateMonthlyRentalExcel,
   generateMonthlyRentalPdf,
 } from './monthly-rental-act.mapper.js';
-
-const round = (value) => Number(Number(value ?? 0).toFixed(4));
+import { floorMoney } from '../shared/money.js';
 const dateText = (value) =>
   value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 
@@ -69,8 +68,8 @@ function archiveRows(sources, period, liveRows) {
     if (!employeeName || seen.has(strictKey)) continue;
     seen.add(strictKey);
     const archiveOnlyQuantity = Math.max(0, quantity - (liveCounts.get(key) ?? 0));
-    const monthlyPriceWithoutVat = round(candidate.priceWithoutVat);
-    const vatRate = round(candidate.vatRate ?? 5);
+    const monthlyPriceWithoutVat = floorMoney(candidate.priceWithoutVat);
+    const vatRate = Number(candidate.vatRate ?? 5);
     for (let index = 0; index < archiveOnlyQuantity; index += 1) {
       rows.push({
         employeeId: null,
@@ -108,11 +107,11 @@ export function calculateMonthlyRentalRows(rows, daysInMonth) {
     const rentalDays =
       source.rentalDays ??
       daysInclusive(dateText(source.intervalStart), dateText(source.intervalEnd));
-    const monthlyPriceWithoutVat = round(source.monthlyPriceWithoutVat);
-    const vatRate = round(source.vatRate ?? 5);
-    const costWithoutVat = round((monthlyPriceWithoutVat * rentalDays) / daysInMonth);
-    const vatAmount = round((costWithoutVat * vatRate) / 100);
-    const totalWithVat = round(costWithoutVat + vatAmount);
+    const monthlyPriceWithoutVat = floorMoney(source.monthlyPriceWithoutVat);
+    const vatRate = Number(source.vatRate ?? 5);
+    const costWithoutVat = floorMoney((monthlyPriceWithoutVat * rentalDays) / daysInMonth);
+    const vatAmount = floorMoney((costWithoutVat * vatRate) / 100);
+    const totalWithVat = floorMoney(costWithoutVat + vatAmount);
     const warnings = [...(source.warnings ?? [])];
     if (!source.inventoryNumber) warnings.push('Не указан инвентарный номер.');
     if (!source.monthlyPriceWithoutVat) warnings.push('Не найдена цена аренды на конец месяца.');
@@ -137,9 +136,9 @@ export function calculateMonthlyRentalRows(rows, daysInMonth) {
 
 function totals(rows) {
   return {
-    costWithoutVat: round(rows.reduce((sum, row) => sum + row.costWithoutVat, 0)),
-    vatAmount: round(rows.reduce((sum, row) => sum + row.vatAmount, 0)),
-    totalWithVat: round(rows.reduce((sum, row) => sum + row.totalWithVat, 0)),
+    costWithoutVat: floorMoney(rows.reduce((sum, row) => sum + row.costWithoutVat, 0)),
+    vatAmount: floorMoney(rows.reduce((sum, row) => sum + row.vatAmount, 0)),
+    totalWithVat: floorMoney(rows.reduce((sum, row) => sum + row.totalWithVat, 0)),
   };
 }
 

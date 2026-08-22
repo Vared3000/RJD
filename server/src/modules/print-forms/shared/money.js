@@ -2,11 +2,17 @@ export function num(value) {
   return Number(value ?? 0);
 }
 
-// В архивных Excel-актах встречаются цены с пятью знаками после запятой.
-// Не обрезаем их до точности БД: иначе сумма НДС в воспроизведённой форме
-// может отличаться от подписанного оригинала на одну копейку.
+/** Округление учётных сумм до копеек в меньшую сторону (релиз Ф). */
+export function floorMoney(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  // Сначала сбрасываем двоичный шум float, затем floor до копеек.
+  const normalized = Math.round(n * 1e6) / 1e6;
+  return Math.floor(normalized * 100) / 100;
+}
+
 export function money(value) {
-  return Number(num(value).toFixed(9));
+  return floorMoney(value);
 }
 
 export function sumBy(rows, key) {
@@ -14,14 +20,28 @@ export function sumBy(rows, key) {
 }
 
 export function calculateMoney(quantity, priceWithoutVat, vatRate, explicitPriceWithVat) {
-  const costWithoutVat = money(quantity * priceWithoutVat);
-  const priceWithVat = explicitPriceWithVat
-    ? money(explicitPriceWithVat)
-    : money(priceWithoutVat * (1 + vatRate / 100));
-  const totalWithVat = explicitPriceWithVat
-    ? money(quantity * priceWithVat)
-    : money(costWithoutVat + costWithoutVat * (vatRate / 100));
-  const vatAmount = money(totalWithVat - costWithoutVat);
+  const q = num(quantity);
+  const price = floorMoney(priceWithoutVat);
+  const rate = num(vatRate);
+
+  const costWithoutVat = floorMoney(q * price);
+
+  if (explicitPriceWithVat != null && explicitPriceWithVat !== '') {
+    const priceWithVat = floorMoney(explicitPriceWithVat);
+    const totalWithVat = floorMoney(q * priceWithVat);
+    const vatAmount = floorMoney(totalWithVat - costWithoutVat);
+    return {
+      costWithoutVat,
+      vatAmount,
+      totalWithVat,
+      priceWithVat,
+    };
+  }
+
+  const vatAmount = floorMoney((costWithoutVat * rate) / 100);
+  const totalWithVat = floorMoney(costWithoutVat + vatAmount);
+  const priceWithVat = floorMoney(price * (1 + rate / 100));
+
   return {
     costWithoutVat,
     vatAmount,
@@ -35,7 +55,7 @@ export function priceValues(price, fallback = 0) {
   const explicitWithVat = num(price?.priceWithVat);
   const calculatedRate =
     explicitWithVat > 0 && priceWithoutVat > 0 ? (explicitWithVat / priceWithoutVat - 1) * 100 : 5;
-  const vatRate = money(price?.vatRate ?? calculatedRate);
+  const vatRate = num(price?.vatRate ?? calculatedRate);
   return {
     priceWithoutVat,
     priceWithVat: explicitWithVat ? money(explicitWithVat) : 0,

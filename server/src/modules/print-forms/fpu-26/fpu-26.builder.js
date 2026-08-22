@@ -113,7 +113,7 @@ export function buildFpu26(context) {
         label: 'Цена за единицу без НДС, руб.',
         width: 18,
         numeric: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'costWithoutVat',
@@ -121,7 +121,7 @@ export function buildFpu26(context) {
         width: 18,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       { key: 'vatRate', label: 'Ставка НДС, %', width: 12, numeric: true, numberFormat: '0.0000' },
       {
@@ -130,7 +130,7 @@ export function buildFpu26(context) {
         width: 16,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
       {
         key: 'totalWithVat',
@@ -138,7 +138,7 @@ export function buildFpu26(context) {
         width: 18,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.0000',
+        numberFormat: '#,##0.00',
       },
     ],
     rows,
