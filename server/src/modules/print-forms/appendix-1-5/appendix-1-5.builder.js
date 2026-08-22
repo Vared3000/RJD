@@ -1,5 +1,6 @@
 import { computeCoverageDays } from '../../reports/coverage.service.js';
 import { num, money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { accountingQuantity } from '../shared/quantities.js';
 import {
   liveSourceEntry,
   archiveSourceEntry,
@@ -110,7 +111,8 @@ export async function buildAppendix15(context) {
       ...price,
       ...sourceFields(entry),
     };
-    row.quantity += line.quantity;
+    // Учётное кол-во на группу: не более 1, coverageDays считается отдельно.
+    row.quantity = Math.max(row.quantity, accountingQuantity(line.quantity));
     row.employeeIds.add(document.employeeId);
     grouped.set(key, row);
   }
@@ -134,16 +136,13 @@ export async function buildAppendix15(context) {
     .map((entry) => {
       const candidate = entry.candidate;
       const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
-      const calculated = calculateMoney(
-        num(candidate.quantity),
-        price.priceWithoutVat,
-        price.vatRate,
-      );
+      const quantity = accountingQuantity(candidate.quantity);
+      const calculated = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
       return {
         positionName: candidate.position,
         modelName: candidate.name,
         unit: candidate.unit || 'шт.',
-        quantity: num(candidate.quantity),
+        quantity,
         coverageDays: num(candidate.coverageDays),
         ...price,
         costWithoutVat:

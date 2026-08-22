@@ -43,7 +43,11 @@ test('печатная форма ФПУ-26: живые строки, смена
     if (row.values.some((value) => String(value ?? '') === unique)) liveRow = row.number;
   });
   assert.ok(liveRow, 'строка выданной модели должна присутствовать в ФПУ-26');
-  assert.equal(sheet.getCell(`F${liveRow}`).value, 2, 'ФПУ-26 должен учитывать обе выданные вещи');
+  assert.equal(
+    sheet.getCell(`F${liveRow}`).value,
+    1,
+    'ФПУ-26: учётное кол-во = 1 при выдаче 2 шт.',
+  );
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
   let hasFormula = false;

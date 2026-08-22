@@ -26,7 +26,7 @@ test('печатная форма УПД: только PDF, fallback на ФПУ
 
   const liveUpd = buildUpd(await loadUpdContext(query));
   assert.equal(liveUpd.rows.length, 1);
-  assert.equal(liveUpd.rows[0].quantity, 2, 'УПД должен учитывать обе выданные вещи');
+  assert.equal(liveUpd.rows[0].quantity, 1, 'УПД: учётное кол-во = 1 при выдаче 2 шт.');
 
   const xlsxRejected = await auth(agent.get('/api/v1/print-forms/upd')).query({
     ...query,

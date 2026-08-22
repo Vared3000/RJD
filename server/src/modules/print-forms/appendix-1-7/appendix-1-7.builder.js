@@ -1,5 +1,6 @@
 import { printFormsRepository } from '../print-forms.repository.js';
-import { num, money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { accountingQuantity } from '../shared/quantities.js';
 import {
   liveSourceEntry,
   archiveSourceEntry,
@@ -99,7 +100,8 @@ export async function buildAppendix17(context) {
       byDocumentModelSize.get(
         JSON.stringify([document.id, line.modelId, line.sizeId ?? null, line.heightSizeId ?? null]),
       ) ?? [];
-    const quantity = Number(line.quantity ?? instances.length ?? 0);
+    // Инв. номера — все физические; суммы и колонка «Кол-во» — от учётного 1.
+    const quantity = accountingQuantity(line.quantity ?? instances.length ?? 0);
     const values = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
     rows.push({
       fullName: document.employee?.fullName ?? '',
@@ -124,8 +126,9 @@ export async function buildAppendix17(context) {
       priceWithoutVat: candidate.priceWithoutVat,
       priceWithVat: candidate.priceWithVat,
     });
+    const quantity = accountingQuantity(candidate.quantity);
     const values = calculateMoney(
-      num(candidate.quantity),
+      quantity,
       price.priceWithoutVat,
       price.vatRate,
       price.priceWithVat,
@@ -140,7 +143,7 @@ export async function buildAppendix17(context) {
       modelName: candidate.name ?? '',
       inventoryNumber: candidate.inventoryNumber ?? '',
       unit: candidate.unit || 'шт.',
-      quantity: num(candidate.quantity),
+      quantity,
       ...price,
       subtotalWithoutVat: hasSourceTotals
         ? money(candidate.subtotalWithoutVat)

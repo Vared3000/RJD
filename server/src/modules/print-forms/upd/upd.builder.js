@@ -1,6 +1,7 @@
 import { printFormsRepository } from '../print-forms.repository.js';
 import { loadContext } from '../shared/load-context.js';
-import { num, money, sumBy } from '../shared/money.js';
+import { money, sumBy } from '../shared/money.js';
+import { accountingQuantity } from '../shared/quantities.js';
 import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 
 export async function loadUpdContext(query) {
@@ -45,10 +46,11 @@ export function buildUpd(context) {
       modelName: candidate.name,
       unitCode: candidate.unitCode || '796',
       unit: candidate.unit || 'шт',
-      quantity: num(candidate.quantity),
+      // Учётное кол-во; архивные суммы не пересчитываем (sourceValues).
+      quantity: accountingQuantity(candidate.quantity),
       priceWithoutVat: money(candidate.priceWithoutVat),
       costWithoutVat: money(candidate.subtotalWithoutVat),
-      vatRate: num(candidate.vatRate) || 5,
+      vatRate: Number(candidate.vatRate) || 5,
       vatAmount: money(candidate.vatAmount),
       totalWithVat: money(candidate.totalWithVat),
     }));

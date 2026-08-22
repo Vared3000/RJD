@@ -1,4 +1,5 @@
 import { num, money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { accountingQuantity } from '../shared/quantities.js';
 import {
   liveSourceEntry,
   archiveSourceEntry,
@@ -20,7 +21,8 @@ export function buildFpu26(context) {
       ...price,
       ...source,
     };
-    row.quantity += quantity;
+    // Учётное кол-во на группу: после первой ненулевой выдачи позиции остаётся 1.
+    row.quantity = Math.max(row.quantity, accountingQuantity(quantity));
     if (row.dataSource !== source?.dataSource) {
       row.dataSource = 'mixed';
       row.dataSourceLabel = 'Учётная система + архив';
@@ -64,15 +66,12 @@ export function buildFpu26(context) {
     .map((entry) => {
       const candidate = entry.candidate;
       const price = priceValues({ priceWithoutVat: candidate.priceWithoutVat });
-      const calculated = calculateMoney(
-        num(candidate.quantity),
-        price.priceWithoutVat,
-        price.vatRate,
-      );
+      const quantity = accountingQuantity(candidate.quantity);
+      const calculated = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
       return {
         modelName: candidate.name,
         unit: candidate.unit || 'шт.',
-        quantity: num(candidate.quantity),
+        quantity,
         ...price,
         displayedPriceWithoutVat:
           candidate.displayedPriceWithoutVat != null

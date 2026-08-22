@@ -38,8 +38,8 @@ test('печатная форма Приложение 1.5: живые стро�
   const sheet = workbook.worksheets[0];
   assert.equal(
     sheet.getCell('E7').value,
-    2,
-    'две одинаковые выданные вещи должны давать количество 2',
+    1,
+    'две одинаковые выданные вещи дают учётное количество 1',
   );
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
