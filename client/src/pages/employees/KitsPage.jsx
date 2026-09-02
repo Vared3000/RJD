@@ -15,8 +15,8 @@ const positionsHooks = createCatalogHooks('positions');
 const kitsHooks = createCatalogHooks('kits');
 const SEASON_LABELS = { summer: 'Летний', winter: 'Зимний' };
 const KIT_VARIANT_LABELS = {
-  male: 'Мужской + унисекс',
-  female: 'Женский + унисекс',
+  male: 'Мужской',
+  female: 'Женский',
   unisex: 'Унисекс',
   all: 'Все варианты',
 };
@@ -314,7 +314,7 @@ export function KitsPage() {
                       className={`${styles.choiceButton} ${activeGender === value ? styles.activeChoice : ''}`}
                       onClick={() => setActiveGender(value)}
                     >
-                      {label} + унисекс
+                      {label}
                     </button>
                   ))}
                 </div>
