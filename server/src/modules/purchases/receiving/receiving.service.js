@@ -139,8 +139,8 @@ async function applyReceivingSideEffects(document, lines, batch, { userId, trans
 }
 
 export const receivingService = {
-  list() {
-    return receivingRepository.list();
+  list(options) {
+    return receivingRepository.list(options);
   },
 
   async getById(id) {

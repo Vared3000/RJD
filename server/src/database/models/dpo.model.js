@@ -20,6 +20,11 @@ export function defineDpo(sequelize) {
         allowNull: true,
         field: 'director_full_name',
       },
+      directorFullNameGenitive: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'director_full_name_genitive',
+      },
       directorBasis: { type: DataTypes.STRING(500), allowNull: true, field: 'director_basis' },
       contractNumber: { type: DataTypes.STRING(128), allowNull: true, field: 'contract_number' },
       contractDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'contract_date' },

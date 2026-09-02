@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { generatePdfFromExcel } from '../shared/excel-to-pdf.js';
+import { fullNameGenitive } from '../shared/ru-format.js';
 
 const MONTHS_PREPOSITIONAL = [
   'январе',
@@ -95,7 +96,9 @@ function contractText(data) {
 function narrative(data) {
   const customer = data.parties?.customer;
   const executor = data.parties?.executor;
-  const customerRepresentative = data.dpo.directorFullName || customer?.directorFullName || '';
+  const customerRepresentative =
+    data.dpo.directorFullNameGenitive ||
+    fullNameGenitive(data.dpo.directorFullName || customer?.directorFullName || '');
   const customerBasis = data.dpo.directorBasis || customer?.directorBasis || '';
   return (
     `${customer?.fullName || data.dpo.fullName || data.dpo.name}, именуемое в дальнейшем «Заказчик», ` +

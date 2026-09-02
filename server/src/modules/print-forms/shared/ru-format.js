@@ -293,17 +293,24 @@ export function amountInWords(value) {
 // одни и те же стороны, различается только глагол действия ("составили и
 // подписали настоящий акт по обеспечению..." / "...акт приема-передачи...").
 export function commonNarrative(data, verb) {
-  const director = data.dpo.directorFullName || '';
+  const directorGenitive =
+    data.dpo.directorFullNameGenitive || fullNameGenitive(data.dpo.directorFullName || '');
   const contractDate = data.dpo.contractDate ? formatDate(data.dpo.contractDate) : '';
+  const contractReference = [
+    data.dpo.contractNumber ? `№ ${data.dpo.contractNumber}` : null,
+    contractDate ? `от ${contractDate}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
   const executor = data.parties.executor;
   const customer = data.parties.customer;
   return (
     `${customer.fullName}, именуемое в дальнейшем Заказчик, ` +
-    `в лице начальника ${unitGenitive(data.dpo)} ${fullNameGenitive(director)}, ` +
+    `в лице начальника ${unitGenitive(data.dpo)} ${directorGenitive}, ` +
     `действующего на основании ${data.dpo.directorBasis || 'доверенности'}, с одной стороны, ` +
     `и ${executor.fullName}, именуемое в дальнейшем «Исполнитель», в лице ${executor.directorPosition} ` +
     `${fullNameGenitive(executor.directorFullName)}, действующего на основании ${executor.directorBasis}, ` +
-    `${verb} к договору от ${contractDate} № ${data.dpo.contractNumber || ''}, заключенному между Сторонами, ` +
+    `${verb} к договору${contractReference ? ` ${contractReference}` : ''}, заключенному между Сторонами, ` +
     'о нижеследующем:'
   );
 }

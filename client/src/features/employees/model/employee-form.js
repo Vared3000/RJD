@@ -39,7 +39,7 @@ export const employeeFormFields = [
   },
   {
     name: 'subdivisionId',
-    label: 'Подразделение',
+    label: 'Станция',
     type: 'select',
     optionsResource: 'subdivisions',
     optionValue: 'id',
@@ -72,7 +72,6 @@ export const employeeFormFields = [
     options: Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label })),
   },
   { name: 'personnelNumber', label: 'Табельный номер', type: 'text' },
-  { name: 'birthDate', label: 'Дата рождения', type: 'date' },
   { name: 'hireDate', label: 'Дата приёма', type: 'date' },
   { name: 'terminationDate', label: 'Дата увольнения', type: 'date' },
   {

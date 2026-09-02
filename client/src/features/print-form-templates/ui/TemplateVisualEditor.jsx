@@ -64,7 +64,7 @@ const MARKER_META = {
   EXECUTOR_BASIS: { label: 'Основание полномочий исполнителя', group: 'signatures' },
   DPO_HEAD_TITLE: { label: 'Должность начальника ДПО', group: 'signatures' },
   DPO_HEAD_SIGNATURE_LABEL: { label: 'Подпись начальника ДПО', group: 'signatures' },
-  DPO_DIRECTOR_NAME: { label: 'ФИО руководителя ДПО', group: 'signatures' },
+  DPO_DIRECTOR_NAME: { label: 'ФИО начальника ДПО', group: 'signatures' },
   DPO_DIRECTOR_BASIS: { label: 'Основание полномочий руководителя', group: 'signatures' },
   DPO_DIRECTOR_SIGNATURE: { label: 'Фамилия и инициалы руководителя', group: 'signatures' },
   GRAND_TOTAL_COST: { label: 'Итого без НДС', group: 'totals' },

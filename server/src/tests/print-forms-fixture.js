@@ -142,6 +142,7 @@ export async function setupBaseFixture({ agent, auth, unique }) {
     contractNumber: 'ТЕСТ-26',
     contractDate: '2026-01-15',
     directorFullName: 'Иванов Иван Иванович',
+    directorFullNameGenitive: 'Иванова Ивана Ивановича',
     directorBasis: 'Устав',
   });
   state.dpoId = dpo.body.data.id;

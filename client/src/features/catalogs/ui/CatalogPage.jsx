@@ -13,7 +13,10 @@ import styles from './CatalogPage.module.css';
 // fields — конфигурация полей формы, см. CatalogFormField.jsx.
 // schema — общая zod-схема формы (используется и для создания, и для правки).
 // filters — необязательный список select-фильтров сверх поиска/архива:
-//   [{ name, label, options: [{ value, label }] }]. name должен совпадать с
+//   [{ name, label, options: [{ value, label }], defaultValue?, allValue? }].
+//   defaultValue применяется, когда параметра ещё нет в URL; allValue позволяет
+//   сохранить явный выбор «все» в URL, не отправляя его как фильтр на бэкенд.
+//   name должен совпадать с
 //   именем query-параметра, который бэкенд принимает в filterFields
 //   (см. reference-crud.factory.js).
 // sortOptions — необязательный список [{ value, label }] для ручной
@@ -29,6 +32,8 @@ import styles from './CatalogPage.module.css';
 //   работники: Активен/Уволен/В архиве, см. CLAUDE_REVIEW_TASK.md) — узкая
 //   точка расширения вместо специфичной для employees проверки внутри
 //   этого общего компонента (см. docs/architecture.md).
+// archiveControls — скрывает переключатель архива и действия
+// архивации/восстановления, не меняя серверные методы и колонку статуса.
 export function CatalogPage({
   resource,
   title,
@@ -39,6 +44,7 @@ export function CatalogPage({
   managePermission = 'catalogs.manage',
   archiveColumnLabel = 'Статус',
   archiveColumnRender,
+  archiveControls = true,
   searchable = false,
   filters = [],
   sortOptions,
@@ -47,17 +53,38 @@ export function CatalogPage({
 }) {
   const { useList, useCatalogMutations } = createCatalogHooks(resource);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showArchived, setShowArchived] = useState(searchParams.get('archived') === 'true');
+  const [showArchived, setShowArchived] = useState(
+    archiveControls && searchParams.get('archived') === 'true',
+  );
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [filterValues, setFilterValues] = useState(() =>
-    Object.fromEntries(filters.map((filter) => [filter.name, searchParams.get(filter.name) ?? ''])),
+    Object.fromEntries(
+      filters.map((filter) => {
+        const fallback = filter.defaultValue ?? filter.allValue ?? '';
+        const urlValue = searchParams.get(filter.name);
+        const validValues = new Set([
+          filter.allValue ?? '',
+          ...filter.options.map((option) => String(option.value)),
+        ]);
+        return [
+          filter.name,
+          searchParams.has(filter.name) &&
+          (filter.options.length === 0 || validValues.has(urlValue ?? ''))
+            ? (urlValue ?? '')
+            : fallback,
+        ];
+      }),
+    ),
   );
   const [sortField, setSortField] = useState(searchParams.get('sort') ?? '');
   const [sortOrder, setSortOrder] = useState(searchParams.get('order') ?? 'ASC');
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const activeFilters = Object.fromEntries(
-    Object.entries(filterValues).filter(([, value]) => value),
+    filters.flatMap((filter) => {
+      const value = filterValues[filter.name];
+      return value && value !== filter.allValue ? [[filter.name, value]] : [];
+    }),
   );
   const sortParams = sortOptions ? { sort: sortField || undefined, order: sortOrder } : {};
   const {
@@ -94,7 +121,7 @@ export function CatalogPage({
         const next = new URLSearchParams(current);
         if (debouncedSearch) next.set('search', debouncedSearch);
         else next.delete('search');
-        if (showArchived) next.set('archived', 'true');
+        if (archiveControls && showArchived) next.set('archived', 'true');
         else next.delete('archived');
         for (const [name, value] of Object.entries(filterValues)) {
           if (value) next.set(name, value);
@@ -112,6 +139,7 @@ export function CatalogPage({
     );
   }, [
     debouncedSearch,
+    archiveControls,
     filterValues,
     page,
     setSearchParams,
@@ -166,17 +194,19 @@ export function CatalogPage({
       </div>
 
       <div className={styles.filterBar}>
-        <label className={styles.archiveToggle}>
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(event) => {
-              setShowArchived(event.target.checked);
-              goToPage(1);
-            }}
-          />
-          Показать архивные
-        </label>
+        {archiveControls && (
+          <label className={styles.archiveToggle}>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(event) => {
+                setShowArchived(event.target.checked);
+                goToPage(1);
+              }}
+            />
+            Показать архивные
+          </label>
+        )}
         {searchable && (
           <input
             type="search"
@@ -196,7 +226,7 @@ export function CatalogPage({
             value={filterValues[filter.name] ?? ''}
             onChange={(event) => setFilter(filter.name, event.target.value)}
           >
-            <option value="">{filter.label}: все</option>
+            <option value={filter.allValue ?? ''}>{filter.label}: все</option>
             {filter.options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -316,7 +346,7 @@ export function CatalogPage({
                 </td>
                 {canManage && (
                   <td className={styles.actions}>
-                    {!item.archivedAt && (
+                    {archiveControls && !item.archivedAt && (
                       <button
                         type="button"
                         className={styles.linkButton}
@@ -335,7 +365,7 @@ export function CatalogPage({
                         В архив
                       </button>
                     )}
-                    {item.archivedAt && (
+                    {archiveControls && item.archivedAt && (
                       <button
                         type="button"
                         className={styles.linkButton}

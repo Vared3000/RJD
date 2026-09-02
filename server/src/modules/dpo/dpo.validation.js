@@ -14,6 +14,7 @@ export const createDpoSchema = z.object({
   okpo: optionalString(16).optional(),
   businessUnitCode: optionalString(32).optional(),
   directorFullName: optionalString(255).optional(),
+  directorFullNameGenitive: optionalString(255).optional(),
   directorBasis: optionalString(500).optional(),
   contractNumber: optionalString(128).optional(),
   contractDate: optionalDate.optional(),

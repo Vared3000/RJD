@@ -3,9 +3,9 @@ import { httpClient } from '../../../../shared/api/http-client.js';
 const BASE = '/purchases/receiving';
 
 export const receivingApi = {
-  async list() {
-    const { data } = await httpClient.get(BASE);
-    return data.data;
+  async list(params = {}) {
+    const { data } = await httpClient.get(BASE, { params });
+    return { items: data.data, meta: data.meta };
   },
   async getById(id) {
     const { data } = await httpClient.get(`${BASE}/${id}`);

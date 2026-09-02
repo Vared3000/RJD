@@ -32,7 +32,7 @@ export function createDpoRouter() {
    *     tags: [ДПО]
    *     summary: >
    *       История изменений ДПО (раздел 10 ТЗ) — кто, когда и какие поля
-   *       изменил (доп. соглашение, ответственное лицо и т.д.), новые записи первыми
+   *       изменил (доп. соглашение, начальник ДПО и т.д.), новые записи первыми
    *     parameters:
    *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
    *     responses:
@@ -47,7 +47,7 @@ export function createDpoRouter() {
       entityName: 'ДПО',
       requestBodyHint:
         'name, fullName (обязательно), code, address, okpo, businessUnitCode, ' +
-        'directorFullName, directorBasis, contractNumber, contractDate, ' +
+        'directorFullName, directorFullNameGenitive, directorBasis, contractNumber, contractDate, ' +
         'additionalAgreementNumber, additionalAgreementDate',
     }),
   );

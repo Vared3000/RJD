@@ -75,8 +75,28 @@
   font-size: 13px;
 }
 
+.filterField {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.filterField input {
+  height: 38px;
+  min-width: 145px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
 .filterBar select:focus,
-.searchInput:focus {
+.searchInput:focus,
+.filterField input:focus {
   border-color: var(--color-primary);
   outline: 3px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
   background: white;

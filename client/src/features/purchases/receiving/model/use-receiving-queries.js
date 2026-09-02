@@ -3,8 +3,8 @@ import { receivingApi } from '../api/receiving-api.js';
 
 const KEY = 'purchases-receiving';
 
-export function useReceivingList() {
-  return useQuery({ queryKey: [KEY], queryFn: receivingApi.list });
+export function useReceivingList(params = {}) {
+  return useQuery({ queryKey: [KEY, 'list', params], queryFn: () => receivingApi.list(params) });
 }
 
 export function useReceivingDocument(id) {

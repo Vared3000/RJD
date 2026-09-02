@@ -58,7 +58,7 @@ export const NAV_SECTIONS = [
     title: 'Работники',
     icon: '♙',
     items: [
-      { to: '/employees', label: 'Работники', icon: '♙', permission: 'employees.view' },
+      { to: '/employees', label: 'Список работников', icon: '♙', permission: 'employees.view' },
       {
         to: '/employees/kits',
         label: 'Комплекты должностей',
@@ -155,7 +155,7 @@ export const NAV_SECTIONS = [
       },
       {
         to: '/catalogs/subdivisions',
-        label: 'Подразделения',
+        label: 'Станции',
         icon: '·',
         permission: 'catalogs.view',
       },

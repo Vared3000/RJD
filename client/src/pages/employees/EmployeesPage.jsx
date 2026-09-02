@@ -21,7 +21,7 @@ const columns = [
   },
   { key: 'gender', label: 'Пол', render: (item) => GENDER_LABELS[item.gender] ?? '—' },
   { key: 'organization', label: 'Организация', render: (item) => item.organization?.name ?? '—' },
-  { key: 'subdivision', label: 'Подразделение', render: (item) => item.subdivision?.name ?? '—' },
+  { key: 'subdivision', label: 'Станция', render: (item) => item.subdivision?.name ?? '—' },
   { key: 'position', label: 'Должность', render: (item) => item.position?.name ?? '—' },
   { key: 'dpo', label: 'ДПО', render: (item) => item.dpo?.name ?? '—' },
   { key: 'hireDate', label: 'Дата приёма', render: (item) => item.hireDate ?? '—' },
@@ -41,9 +41,8 @@ const columns = [
 // docs/TZ_NEXT_RELEASES_2026-08-19.md) — вычисляются на бэкенде
 // (employees/employee-status.js), здесь только подписи для select-фильтра.
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Активен' },
+  { value: 'active', label: 'Активный' },
   { value: 'terminated', label: 'Уволен' },
-  { value: 'archived', label: 'В архиве' },
 ];
 
 const STATUS_BADGE_CLASS = {
@@ -87,13 +86,19 @@ export function EmployeesPage() {
     label: 'Регион',
     options: regions.map((region) => ({ value: region, label: region })),
   };
-  const statusFilter = { name: 'status', label: 'Статус', options: STATUS_OPTIONS };
+  const statusFilter = {
+    name: 'status',
+    label: 'Статус',
+    options: STATUS_OPTIONS,
+    defaultValue: 'active',
+    allValue: 'all',
+  };
 
   return (
     <CatalogPage
       resource="employees"
-      title="Работники"
-      description="Карточки работников, должности, подразделения и закреплённые ДПО."
+      title="Список работников"
+      description="Карточки работников, должности, станции и закреплённые ДПО."
       columns={columns}
       fields={employeeFormFields}
       schema={employeeFormSchema}
@@ -104,6 +109,7 @@ export function EmployeesPage() {
       sortOptions={SORT_OPTIONS}
       exportReport="employees-list"
       archiveColumnRender={renderEmployeeStatus}
+      archiveControls={false}
     />
   );
 }

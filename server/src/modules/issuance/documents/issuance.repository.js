@@ -1,5 +1,5 @@
 import { models } from '../../../database/models/index.js';
-import { Op } from 'sequelize';
+import { literal, Op } from 'sequelize';
 
 const { IssuanceDocument, IssuanceLine, Instance, StockMovement, PositionKitItem, Employee } =
   models;
@@ -58,7 +58,7 @@ export const issuanceRepository = {
     search,
     page = 1,
     limit = 50,
-    sort = 'createdAt',
+    sort,
     order = 'DESC',
   } = {}) {
     const where = {};
@@ -77,13 +77,23 @@ export const issuanceRepository = {
       ? sort
       : 'createdAt';
     const effectiveOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const orderDefinition = sort
+      ? [
+          [effectiveSort, effectiveOrder],
+          ['id', 'ASC'],
+        ]
+      : [
+          [literal(`CASE WHEN "IssuanceDocument"."status" = 'draft' THEN 0 ELSE 1 END`), 'ASC'],
+          ['createdAt', 'DESC'],
+          ['id', 'ASC'],
+        ];
 
     const offset = (Number(page) - 1) * Number(limit);
 
     return IssuanceDocument.findAndCountAll({
       where,
       include: listInclude,
-      order: [[effectiveSort, effectiveOrder]],
+      order: orderDefinition,
       limit: Number(limit),
       offset,
     });

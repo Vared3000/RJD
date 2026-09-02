@@ -1,15 +1,39 @@
 import { receivingService } from './receiving.service.js';
 import { success, paginatedSuccess } from '../../../utils/respond.js';
 import { parsePagination } from '../../../utils/pagination.js';
+import { ApiError } from '../../../utils/api-error.js';
+
+function dateFilter(value, label) {
+  if (value === undefined || value === '') return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+  if (!match) throw ApiError.badRequest(`${label}: укажите дату в формате ГГГГ-ММ-ДД`);
+  const [, year, month, day] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCDate() !== Number(day)
+  ) {
+    throw ApiError.badRequest(`${label}: указана некорректная дата`);
+  }
+  return String(value);
+}
 
 export const receivingController = {
   async list(req, res) {
     const pagination = parsePagination(req.query);
+    const dateFrom = dateFilter(req.query.dateFrom, 'Дата с');
+    const dateTo = dateFilter(req.query.dateTo, 'Дата по');
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      throw ApiError.badRequest('Дата с не может быть позже даты по');
+    }
     const { rows, count } = await receivingService.list({
       supplierId: req.query.supplierId,
       warehouseId: req.query.warehouseId,
       status: req.query.status,
       search: req.query.search,
+      dateFrom,
+      dateTo,
       ...pagination,
     });
     return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);

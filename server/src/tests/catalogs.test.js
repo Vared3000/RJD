@@ -71,3 +71,53 @@ test('справочники: подразделение отклоняется 
   });
   assert.equal(res.status, 400);
 });
+
+test('справочники: размеры по умолчанию сортируются по значению от А до Я и естественно для чисел', async (t) => {
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
+    t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
+    return;
+  }
+
+  const app = createApp();
+  const agent = request.agent(app);
+  const token = await loginAsAdmin(agent);
+  const auth = (req) => req.set('Authorization', `Bearer ${token}`);
+  const unique = `${String(Date.now()).slice(-6)}${Math.random().toString(16).slice(2, 6)}`;
+  const textPrefix = `Т-${unique}-`;
+  const textValues = [`${textPrefix}Я`, `${textPrefix}А`, `${textPrefix}Б`];
+  const numericPrefix = `9${String(Date.now()).slice(-8)}`;
+  const numericValues = [`${numericPrefix}10`, `${numericPrefix}2`];
+  const createdIds = [];
+
+  t.after(async () => {
+    if (createdIds.length) await models.Size.destroy({ where: { id: createdIds } });
+  });
+
+  for (const value of [...textValues, ...numericValues]) {
+    const created = await auth(agent.post('/api/v1/sizes')).send({
+      type: 'belt',
+      value,
+      sortOrder: 0,
+    });
+    assert.equal(created.status, 201);
+    createdIds.push(created.body.data.id);
+  }
+
+  const textList = await auth(
+    agent.get(`/api/v1/sizes?search=${encodeURIComponent(textPrefix)}&limit=50`),
+  );
+  assert.equal(textList.status, 200);
+  assert.deepEqual(
+    textList.body.data.map((item) => item.value),
+    [`${textPrefix}А`, `${textPrefix}Б`, `${textPrefix}Я`],
+  );
+
+  const numericList = await auth(
+    agent.get(`/api/v1/sizes?search=${encodeURIComponent(numericPrefix)}&limit=50`),
+  );
+  assert.equal(numericList.status, 200);
+  assert.deepEqual(
+    numericList.body.data.map((item) => item.value),
+    [`${numericPrefix}2`, `${numericPrefix}10`],
+  );
+});

@@ -35,6 +35,8 @@ export const receivingRepository = {
     warehouseId,
     status,
     search,
+    dateFrom,
+    dateTo,
     page = 1,
     limit = 50,
     sort = 'createdAt',
@@ -44,11 +46,18 @@ export const receivingRepository = {
     if (supplierId) where.supplierId = supplierId;
     if (warehouseId) where.warehouseId = warehouseId;
     if (status) where.status = status;
+    if (dateFrom || dateTo) {
+      where.documentDate = {
+        ...(dateFrom ? { [Op.gte]: dateFrom } : {}),
+        ...(dateTo ? { [Op.lte]: dateTo } : {}),
+      };
+    }
     if (search) {
       where[Op.or] = [
         { number: { [Op.iLike]: `%${search}%` } },
-        { 'supplier.name': { [Op.iLike]: `%${search}%` } },
-        { 'warehouse.name': { [Op.iLike]: `%${search}%` } },
+        { invoiceNumber: { [Op.iLike]: `%${search}%` } },
+        { '$supplier.name$': { [Op.iLike]: `%${search}%` } },
+        { '$warehouse.name$': { [Op.iLike]: `%${search}%` } },
       ];
     }
 
@@ -62,7 +71,11 @@ export const receivingRepository = {
     return ReceivingDocument.findAndCountAll({
       where,
       include: listInclude,
-      order: [[effectiveSort, effectiveOrder]],
+      subQuery: false,
+      order: [
+        [effectiveSort, effectiveOrder],
+        ['id', 'ASC'],
+      ],
       limit: Number(limit),
       offset,
     });

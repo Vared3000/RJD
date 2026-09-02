@@ -40,11 +40,13 @@ test('ДПО: CRUD, поиск, архивация, история измене�
     code: `${unique}-CODE`,
     region: 'Свердловская',
     directorFullName: 'Иванов Иван Иванович',
+    directorFullNameGenitive: 'Иванова Ивана Ивановича',
     contractNumber: '686/ОКЭ-ЦДПО/20/1/1',
     contractDate: '2021-02-02',
   });
   assert.equal(created.status, 201);
   assert.equal(created.body.data.region, 'Свердловская');
+  assert.equal(created.body.data.directorFullNameGenitive, 'Иванова Ивана Ивановича');
   const dpoId = created.body.data.id;
   dpoIds.push(dpoId);
 
@@ -79,12 +81,14 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   // --- Правка №1: меняем ответственное лицо и доп. соглашение ---
   const update1 = await auth(agent.patch(`/api/v1/dpo/${dpoId}`)).send({
     directorFullName: 'Петров Пётр Петрович',
+    directorFullNameGenitive: 'Петрова Петра Петровича',
     additionalAgreementNumber: 'ДС-1',
     additionalAgreementDate: '2025-01-10',
     region: 'Московская',
   });
   assert.equal(update1.status, 200);
   assert.equal(update1.body.data.directorFullName, 'Петров Пётр Петрович');
+  assert.equal(update1.body.data.directorFullNameGenitive, 'Петрова Петра Петровича');
   assert.equal(update1.body.data.region, 'Московская');
 
   const historyAfter1 = await auth(agent.get(`/api/v1/dpo/${dpoId}/history`));
@@ -92,6 +96,14 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   assert.equal(historyAfter1.body.data.length, 1);
   assert.equal(historyAfter1.body.data[0].changes.directorFullName.from, 'Иванов Иван Иванович');
   assert.equal(historyAfter1.body.data[0].changes.directorFullName.to, 'Петров Пётр Петрович');
+  assert.equal(
+    historyAfter1.body.data[0].changes.directorFullNameGenitive.from,
+    'Иванова Ивана Ивановича',
+  );
+  assert.equal(
+    historyAfter1.body.data[0].changes.directorFullNameGenitive.to,
+    'Петрова Петра Петровича',
+  );
   assert.equal(historyAfter1.body.data[0].changes.additionalAgreementNumber.from, null);
   assert.equal(historyAfter1.body.data[0].changes.additionalAgreementNumber.to, 'ДС-1');
   assert.equal(historyAfter1.body.data[0].changes.region.from, 'Свердловская');

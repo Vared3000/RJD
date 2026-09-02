@@ -14,7 +14,14 @@ import { parsePagination } from '../../utils/pagination.js';
 
 export function createReferenceRepository(
   Model,
-  { include, searchFields, sortFields, filterFields = [] } = {},
+  {
+    include,
+    searchFields,
+    sortFields,
+    filterFields = [],
+    defaultSort = 'createdAt',
+    orderBuilder,
+  } = {},
 ) {
   return {
     list({
@@ -22,7 +29,7 @@ export function createReferenceRepository(
       search,
       page = 1,
       limit = 50,
-      sort = 'createdAt',
+      sort = defaultSort,
       order = 'ASC',
       filters = {},
     } = {}) {
@@ -38,15 +45,18 @@ export function createReferenceRepository(
         }));
       }
 
-      const effectiveSort = sortFields?.includes(sort) ? sort : 'createdAt';
+      const effectiveSort = sortFields?.includes(sort) ? sort : defaultSort;
       const effectiveOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      const effectiveOrderDefinition = orderBuilder
+        ? orderBuilder({ sort: effectiveSort, order: effectiveOrder })
+        : [[effectiveSort, effectiveOrder]];
 
       const offset = (Number(page) - 1) * Number(limit);
 
       return Model.findAndCountAll({
         where,
         include,
-        order: [[effectiveSort, effectiveOrder]],
+        order: effectiveOrderDefinition,
         limit: Number(limit),
         offset,
       });

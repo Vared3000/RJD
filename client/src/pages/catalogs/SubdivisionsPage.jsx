@@ -30,7 +30,8 @@ export function SubdivisionsPage() {
   return (
     <CatalogPage
       resource="subdivisions"
-      title="Подразделения"
+      title="Станции"
+      description="Станции организаций, к которым относятся работники."
       columns={columns}
       fields={fields}
       schema={schema}

@@ -14,6 +14,7 @@ const TRACKED_FIELDS = [
   'okpo',
   'businessUnitCode',
   'directorFullName',
+  'directorFullNameGenitive',
   'directorBasis',
   'contractNumber',
   'contractDate',
