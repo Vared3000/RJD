@@ -68,7 +68,6 @@ const columns = [
 
 const fields = [
   { name: 'name', label: 'Название', type: 'text' },
-  { name: 'article', label: 'Артикул', type: 'text' },
   { name: 'unit', label: 'Единица измерения', type: 'text', defaultValue: 'шт' },
   {
     name: 'sizeType',
@@ -96,7 +95,6 @@ const fields = [
     defaultValue: 0,
   },
   { name: 'rentalVatRate', label: 'НДС для аренды, %', type: 'number', defaultValue: 5 },
-  { name: 'description', label: 'Описание', type: 'text' },
 ];
 
 export function NomenclatureModelsPage() {
