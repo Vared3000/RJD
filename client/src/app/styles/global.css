@@ -68,4 +68,9 @@ a {
 
   --radius: 10px;
   --shadow-card: 0 5px 18px rgba(15, 23, 42, 0.06);
+
+  --control-height: 40px;
+  --control-label-gap: 6px;
+  --control-column-gap: 12px;
+  --control-row-gap: 16px;
 }

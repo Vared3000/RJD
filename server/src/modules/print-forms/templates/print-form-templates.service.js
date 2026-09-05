@@ -183,12 +183,14 @@ async function previewLayoutBuffer(formType, templateBuffer, query, label) {
         buffer: await generatePdfFromExcel(excelBuffer, data),
         contentType: 'application/pdf',
         extension: 'pdf',
+        formType,
       };
     }
     return {
       buffer: excelBuffer,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       extension: 'xlsx',
+      formType,
     };
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -314,12 +316,13 @@ export const printFormTemplatesService = {
   async previewEditorLayout(id, { layout, format, dpoId, employeeId, from, to }) {
     const baseVersion = await printFormTemplatesService.findVersionOrThrow(id);
     const templateBuffer = await buildTemplateFromLayout(baseVersion.fileData, layout);
-    return previewLayoutBuffer(
+    const file = await previewLayoutBuffer(
       baseVersion.formType,
       templateBuffer,
       { format, dpoId, employeeId, from, to },
       `${baseVersion.versionNumber} (черновик)`,
     );
+    return { ...file, versionNumber: baseVersion.versionNumber };
   },
 
   async previewNewEditorLayout(formType, { layout, format, dpoId, employeeId, from, to }) {
@@ -347,12 +350,16 @@ export const printFormTemplatesService = {
         buffer: await generatePdfFromExcel(excelBuffer, data),
         contentType: 'application/pdf',
         extension: 'pdf',
+        formType: version.formType,
+        versionNumber: version.versionNumber,
       };
     }
     return {
       buffer: excelBuffer,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       extension: 'xlsx',
+      formType: version.formType,
+      versionNumber: version.versionNumber,
     };
   },
 

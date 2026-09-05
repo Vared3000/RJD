@@ -233,12 +233,18 @@ IssuanceTask.belongsTo(IssuanceDocument, {
   foreignKey: 'draftDocumentId',
   as: 'draftDocument',
 });
+IssuanceTask.belongsTo(StockMovement, { foreignKey: 'sourceMovementId', as: 'sourceMovement' });
+IssuanceTask.belongsTo(Instance, { foreignKey: 'sourceInstanceId', as: 'sourceInstance' });
 IssuanceTask.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee' });
 IssuanceTask.belongsTo(Warehouse, { foreignKey: 'warehouseId', as: 'warehouse' });
 IssuanceTask.belongsTo(NomenclatureModel, { foreignKey: 'modelId', as: 'model' });
 IssuanceTask.belongsTo(Size, { foreignKey: 'sizeId', as: 'size' });
 IssuanceTask.belongsTo(Size, { foreignKey: 'heightSizeId', as: 'heightSize' });
 IssuanceTask.belongsTo(User, { foreignKey: 'completedByUserId', as: 'completedByUser' });
+IssuanceTask.belongsTo(ReturnDocument, {
+  foreignKey: 'cancelledByReturnDocumentId',
+  as: 'cancelledByReturnDocument',
+});
 IssuanceTask.hasMany(IssuanceTaskFulfillment, { foreignKey: 'taskId', as: 'fulfillments' });
 IssuanceTaskFulfillment.belongsTo(IssuanceTask, { foreignKey: 'taskId', as: 'task' });
 IssuanceTaskFulfillment.belongsTo(IssuanceDocument, { foreignKey: 'documentId', as: 'document' });

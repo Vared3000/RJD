@@ -15,12 +15,16 @@ import { QueryState } from '../../shared/ui/QueryState.jsx';
 import { UnpostDocumentModal } from '../../shared/ui/UnpostDocumentModal.jsx';
 import { mutationErrorMessage as errorMessage } from '../../shared/lib/parse-api-error.js';
 import { useSessionStore } from '../../shared/session/session-store.js';
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const CONDITION_LABELS = { new: 'Новое', good: 'Хорошее', worn: 'Изношено', damaged: 'Повреждено' };
 const ROUTE_TO_LABELS = { in_stock: 'На склад', laundry: 'В стирку', repair: 'В ремонт' };
+const ROUTE_TO_OPTIONS = Object.entries(ROUTE_TO_LABELS).filter(
+  ([value]) => LAUNDRY_REPAIR_ENABLED || value === 'in_stock',
+);
 
 // Строка возврата — не универсальная форма-конструктор (EntityFormModal):
 // выбор ограничен экземплярами, реально выданными работнику из шапки
@@ -71,7 +75,7 @@ function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSa
           label="Куда направить"
           value={routeTo}
           onChange={(event) => setRouteTo(event.target.value)}
-          options={Object.entries(ROUTE_TO_LABELS).map(([value, label]) => ({ value, label }))}
+          options={ROUTE_TO_OPTIONS.map(([value, label]) => ({ value, label }))}
         />
         <TextField
           id="note"

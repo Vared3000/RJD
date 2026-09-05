@@ -18,7 +18,6 @@ function appendix17Data(context, rows) {
       { key: 'fullName', label: 'ФИО работника Заказчика', width: 28 },
       { key: 'personnelNumber', label: 'Табельный номер', width: 14 },
       { key: 'modelName', label: 'Наименование форменной одежды', width: 34 },
-      { key: 'inventoryNumber', label: 'Код СКМТР / инвентарный номер', width: 18 },
       { key: 'unit', label: 'Ед. изм.', width: 9 },
       { key: 'quantity', label: 'Кол-во', width: 8, numeric: true, total: true, numberFormat: '0' },
       {
@@ -56,9 +55,9 @@ function appendix17Data(context, rows) {
     ],
     rows,
     [
-      { column: 8, key: 'subtotalWithoutVat', build: (row) => `F${row}*G${row}` },
-      { column: 10, key: 'vatAmount', build: (row) => `H${row}*I${row}/100` },
-      { column: 11, key: 'totalWithVat', build: (row) => `H${row}+J${row}` },
+      { column: 7, key: 'subtotalWithoutVat', build: (row) => `E${row}*F${row}` },
+      { column: 9, key: 'vatAmount', build: (row) => `G${row}*H${row}/100` },
+      { column: 10, key: 'totalWithVat', build: (row) => `G${row}+I${row}` },
     ],
   );
 }
@@ -100,17 +99,13 @@ export async function buildAppendix17(context) {
       byDocumentModelSize.get(
         JSON.stringify([document.id, line.modelId, line.sizeId ?? null, line.heightSizeId ?? null]),
       ) ?? [];
-    // Инв. номера — все физические; суммы и колонка «Кол-во» — от учётного 1.
+    // Суммы и колонка «Кол-во» — от учётного 1; инв. номера в акт 1.7 не входят.
     const quantity = accountingQuantity(line.quantity ?? instances.length ?? 0);
     const values = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
     rows.push({
       fullName: document.employee?.fullName ?? '',
       personnelNumber: document.employee?.personnelNumber ?? '',
       modelName: line.model?.name ?? instances[0]?.model?.name ?? '',
-      inventoryNumber: instances
-        .map((instance) => instance.inventoryNumber)
-        .filter(Boolean)
-        .join(', '),
       unit: line.model?.unit ?? instances[0]?.model?.unit ?? 'шт.',
       quantity,
       ...price,
@@ -141,7 +136,6 @@ export async function buildAppendix17(context) {
       fullName: candidate.employee.fullName ?? '',
       personnelNumber: candidate.employee.personnelNumber ?? '',
       modelName: candidate.name ?? '',
-      inventoryNumber: candidate.inventoryNumber ?? '',
       unit: candidate.unit || 'шт.',
       quantity,
       ...price,

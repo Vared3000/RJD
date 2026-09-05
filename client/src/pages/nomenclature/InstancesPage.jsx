@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
 import { compareSizes, isPlausibleAtomicSize } from '../../features/catalogs/model/size-options.js';
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 
 const STATUS_LABELS = {
   in_stock: 'На складе',
@@ -150,7 +151,9 @@ const fields = [
     name: 'status',
     label: 'Статус',
     type: 'select',
-    options: Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+    options: Object.entries(STATUS_LABELS)
+      .filter(([value]) => LAUNDRY_REPAIR_ENABLED || !['laundry', 'repair'].includes(value))
+      .map(([value, label]) => ({ value, label })),
     defaultValue: 'in_stock',
   },
   {

@@ -29,7 +29,10 @@ export function IssuanceLinesTable({
   onEditLine,
   onRemoveLine,
   isRemoving,
+  showAvailability = false,
 }) {
+  const quantityColumnCount = showAvailability ? 4 : 1;
+  const totalColumnCount = 3 + quantityColumnCount + (editable ? 1 : 0);
   return (
     <div className={catalogStyles.tableWrap}>
       <table className={catalogStyles.table}>
@@ -38,14 +41,23 @@ export function IssuanceLinesTable({
             <th>Модель</th>
             <th>Размер</th>
             <th>Рост</th>
-            <th>Кол-во</th>
+            {showAvailability ? (
+              <>
+                <th>Требуется</th>
+                <th>Есть на складе</th>
+                <th>В сборку</th>
+                <th>Не хватает</th>
+              </>
+            ) : (
+              <th>Кол-во</th>
+            )}
             {editable && <th aria-label="Действия" />}
           </tr>
         </thead>
         <tbody>
           {lines.length === 0 && (
             <tr>
-              <td className={catalogStyles.hint} colSpan={5}>
+              <td className={catalogStyles.hint} colSpan={totalColumnCount}>
                 Позиций пока нет
               </td>
             </tr>
@@ -57,7 +69,16 @@ export function IssuanceLinesTable({
                 <td>{display.modelName}</td>
                 <td>{display.sizeLabel}</td>
                 <td>{display.heightLabel}</td>
-                <td>{line.quantity}</td>
+                {showAvailability ? (
+                  <>
+                    <td>{line.requiredQuantity ?? line.quantity}</td>
+                    <td>{line.availableQuantity ?? 0}</td>
+                    <td>{line.assemblyQuantity ?? 0}</td>
+                    <td>{line.missingQuantity ?? 0}</td>
+                  </>
+                ) : (
+                  <td>{line.quantity}</td>
+                )}
                 {editable && (
                   <td className={catalogStyles.actions}>
                     <button

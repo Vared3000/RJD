@@ -114,46 +114,53 @@ export function ReportTurnoverPage() {
         <h1 className={styles.title}>Сменяемость работников по ДПО</h1>
       </div>
 
-      <div className={pageStyles.filters}>
-        <PeriodFilter from={range.from} to={range.to} onChange={setRange} />
-        <Select
-          label="ДПО"
-          value={dpoId}
-          onChange={(event) => setDpoId(event.target.value)}
-          options={(dpos ?? []).map((d) => ({ value: d.id, label: d.name }))}
-        />
-        <Select
-          label="Должность"
-          value={positionId}
-          onChange={(event) => setPositionId(event.target.value)}
-          options={(positions ?? []).map((p) => ({ value: p.id, label: p.name }))}
-        />
-        <Select
-          label="Пол"
-          value={gender}
-          onChange={(event) => setGender(event.target.value)}
-          options={GENDER_OPTIONS}
-        />
-        <Select
-          label="Группировка"
-          value={groupBy}
-          onChange={(event) => setGroupBy(event.target.value || 'dpo')}
-          options={GROUP_BY_OPTIONS}
-        />
-        <Select
-          label="Сортировка"
-          value={sort}
-          onChange={(event) => setSort(event.target.value)}
-          options={SORT_OPTIONS}
-        />
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setOrder((current) => (current === 'ASC' ? 'DESC' : 'ASC'))}
-          disabled={!sort}
-        >
-          {order === 'ASC' ? '↑ по возрастанию' : '↓ по убыванию'}
-        </Button>
+      <div className={`${pageStyles.filters} ${pageStyles.stackedFilters}`}>
+        <div className={pageStyles.filterRow}>
+          <PeriodFilter from={range.from} to={range.to} onChange={setRange} />
+          <Select
+            label="ДПО"
+            value={dpoId}
+            onChange={(event) => setDpoId(event.target.value)}
+            options={(dpos ?? []).map((d) => ({ value: d.id, label: d.name }))}
+          />
+          <Select
+            label="Должность"
+            value={positionId}
+            onChange={(event) => setPositionId(event.target.value)}
+            options={(positions ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          />
+          <Select
+            label="Пол"
+            value={gender}
+            onChange={(event) => setGender(event.target.value)}
+            options={GENDER_OPTIONS}
+          />
+        </div>
+        <div className={pageStyles.filterRow}>
+          <Select
+            label="Группировка"
+            value={groupBy}
+            onChange={(event) => setGroupBy(event.target.value || 'dpo')}
+            options={GROUP_BY_OPTIONS}
+          />
+          <Select
+            label="Сортировка"
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+            options={SORT_OPTIONS}
+          />
+          <div className={pageStyles.actionField}>
+            <span className={pageStyles.actionLabel}>Направление</span>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setOrder((current) => (current === 'ASC' ? 'DESC' : 'ASC'))}
+              disabled={!sort}
+            >
+              {order === 'ASC' ? '↑ по возрастанию' : '↓ по убыванию'}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {data && (

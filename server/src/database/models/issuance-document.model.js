@@ -3,6 +3,7 @@ import { DataTypes } from 'sequelize';
 // Проведение необратимо (переводит экземпляры в статус issued и создаёт
 // движения склада), поэтому статусов всего два — как у ReceivingDocument.
 export const ISSUANCE_DOCUMENT_STATUSES = ['draft', 'posted'];
+export const ISSUANCE_DOCUMENT_KINDS = ['standard', 'completion', 'replacement'];
 
 export function defineIssuanceDocument(sequelize) {
   return sequelize.define(
@@ -15,6 +16,12 @@ export function defineIssuanceDocument(sequelize) {
       documentDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'document_date' },
       responsibleUserId: { type: DataTypes.UUID, allowNull: false, field: 'responsible_user_id' },
       status: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'draft' },
+      issuanceKind: {
+        type: DataTypes.STRING(24),
+        allowNull: false,
+        defaultValue: 'standard',
+        field: 'issuance_kind',
+      },
       postedAt: { type: DataTypes.DATE, allowNull: true, field: 'posted_at' },
       postedByUserId: { type: DataTypes.UUID, allowNull: true, field: 'posted_by_user_id' },
       note: { type: DataTypes.STRING(1000), allowNull: true },

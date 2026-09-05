@@ -3,7 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useBatches } from '../../features/purchases/batches/model/use-batches-queries.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
+
+const BATCH_COLUMN_COUNT = LAUNDRY_REPAIR_ENABLED ? 9 : 8;
 
 export function BatchesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,21 +91,21 @@ export function BatchesPage() {
               <th>Принято</th>
               <th>На складе</th>
               <th>Выдано</th>
-              <th>Стирка/ремонт</th>
+              {LAUNDRY_REPAIR_ENABLED && <th>Стирка/ремонт</th>}
               <th>Списано</th>
             </tr>
           </thead>
           <tbody>
             {query.isLoading && (
               <tr>
-                <td className={styles.hint} colSpan={9}>
+                <td className={styles.hint} colSpan={BATCH_COLUMN_COUNT}>
                   Загрузка…
                 </td>
               </tr>
             )}
             {!query.isLoading && query.data?.length === 0 && (
               <tr>
-                <td className={styles.hint} colSpan={9}>
+                <td className={styles.hint} colSpan={BATCH_COLUMN_COUNT}>
                   Партии не найдены
                 </td>
               </tr>
@@ -120,7 +123,7 @@ export function BatchesPage() {
                 <td>{batch.initialQuantity}</td>
                 <td>{batch.inStock}</td>
                 <td>{batch.issued}</td>
-                <td>{batch.inService}</td>
+                {LAUNDRY_REPAIR_ENABLED && <td>{batch.inService}</td>}
                 <td>{batch.writtenOff}</td>
               </tr>
             ))}

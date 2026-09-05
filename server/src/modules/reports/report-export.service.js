@@ -2,15 +2,18 @@ import { ApiError } from '../../utils/api-error.js';
 import {
   generateTabularExcel,
   generateTabularPdf,
-  isoDate,
   dateLabel,
 } from '../../utils/tabular-document.js';
+import { buildExportFileName } from '../../utils/export-file-name.js';
 import { reportsService } from './reports.service.js';
+import { reportsRepository } from './reports.repository.js';
 
 const REPORTS = {
   'stock-balances': {
     method: 'stockBalances',
     title: 'Остатки по складам',
+    fileTitle: 'Остатки',
+    fileScope: 'warehouse',
     columns: [
       ['warehouse.name', 'Склад', 22],
       ['genderCategoryLabel', 'Категория по полу', 18],
@@ -24,6 +27,8 @@ const REPORTS = {
   'property-cost': {
     method: 'propertyCost',
     title: 'Имущество у работников',
+    fileTitle: 'Имущество у работников',
+    fileScope: 'dpo',
     columns: [
       ['employeeName', 'Работник', 34],
       ['dpoName', 'ДПО', 24],
@@ -34,6 +39,8 @@ const REPORTS = {
   purchases: {
     method: 'purchases',
     title: 'Поступления за период',
+    fileTitle: 'Поступления',
+    fileScope: 'warehouse',
     columns: [
       ['number', 'Номер', 18],
       ['documentDate', 'Дата', 13, 'date'],
@@ -46,6 +53,8 @@ const REPORTS = {
   suppliers: {
     method: 'suppliers',
     title: 'Поступления по поставщикам',
+    fileTitle: 'Поступления по поставщикам',
+    fileObject: 'Все поставщики',
     columns: [
       ['supplierName', 'Поставщик', 38],
       ['documentsCount', 'Документов', 14, 'number'],
@@ -56,6 +65,8 @@ const REPORTS = {
   writeoffs: {
     method: 'writeoffs',
     title: 'Списания за период',
+    fileTitle: 'Списания',
+    fileScope: 'warehouse',
     columns: [
       ['number', 'Номер', 18],
       ['documentDate', 'Дата', 13, 'date'],
@@ -68,6 +79,8 @@ const REPORTS = {
   repairs: {
     method: 'repairs',
     title: 'Завершённые ремонты',
+    fileTitle: 'Ремонты',
+    fileScope: 'warehouse',
     columns: [
       ['number', 'Номер', 18],
       ['completedAt', 'Завершён', 18, 'datetime'],
@@ -80,6 +93,8 @@ const REPORTS = {
   warehouses: {
     method: 'warehouses',
     title: 'Движения и остатки по складам',
+    fileTitle: 'Движения по складам',
+    fileScope: 'warehouse',
     columns: [
       ['warehouseName', 'Склад', 30],
       ['incoming', 'Поступления', 15, 'number'],
@@ -95,6 +110,8 @@ const REPORTS = {
   employees: {
     method: 'employees',
     title: 'Работники',
+    fileTitle: 'Обеспечение работников',
+    fileScope: 'dpo',
     columns: [
       ['fullName', 'ФИО', 34],
       ['dpoName', 'ДПО', 24],
@@ -112,6 +129,8 @@ const REPORTS = {
   'employees-list': {
     method: 'employeesList',
     title: 'Список работников',
+    fileTitle: 'Список работников',
+    fileScope: 'dpo',
     columns: [
       ['fullName', 'ФИО', 30],
       ['personnelNumber', 'Табельный номер', 18],
@@ -125,6 +144,8 @@ const REPORTS = {
   dpo: {
     method: 'dpo',
     title: 'Отчёт по ДПО',
+    fileTitle: 'Отчёт по ДПО',
+    fileScope: 'dpo',
     columns: [
       ['dpoName', 'ДПО', 32],
       ['employeesCount', 'Работников', 14, 'number'],
@@ -142,6 +163,8 @@ const REPORTS = {
   turnover: {
     method: 'turnover',
     title: 'Сменяемость работников по ДПО',
+    fileTitle: 'Сменяемость',
+    fileScope: 'dpo',
     columns: [
       ['dpoName', 'ДПО', 26],
       ['positionName', 'Должность', 22],
@@ -165,6 +188,26 @@ const REPORTS = {
     },
   },
 };
+
+async function fileObject(config, query) {
+  if (config.fileObject) return config.fileObject;
+  if (config.fileScope === 'warehouse') {
+    if (!query.warehouseId) return 'Все склады';
+    const [warehouse] = await reportsRepository.findWarehouses({
+      warehouseId: query.warehouseId,
+    });
+    return warehouse?.name || 'Склад';
+  }
+  if (config.fileScope === 'dpo') {
+    if (!query.dpoId) return 'Все ДПО';
+    const [dpo] = await reportsRepository.findDpos({
+      dpoId: query.dpoId,
+      includeArchived: true,
+    });
+    return dpo?.name || 'ДПО';
+  }
+  return null;
+}
 
 function periodText(result) {
   const parts = [
@@ -199,11 +242,17 @@ export const reportExportService = {
       format === 'pdf'
         ? await generateTabularPdf(configWithSubtitle, result)
         : await generateTabularExcel(configWithSubtitle, result);
-    const periodSuffix =
-      result.from && result.to ? `_${isoDate(result.from)}_${isoDate(result.to)}` : '';
+    const generatedAt = result.generatedAt ?? new Date();
     return {
       buffer,
-      fileName: `${report}${periodSuffix}.${format}`,
+      fileName: buildExportFileName({
+        title: config.fileTitle,
+        objects: [await fileObject(config, query)],
+        ...(result.from && result.to
+          ? { from: result.from, to: result.to }
+          : { date: generatedAt }),
+        extension: format,
+      }),
       contentType:
         format === 'pdf'
           ? 'application/pdf'

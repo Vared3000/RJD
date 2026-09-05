@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/http-client.js';
+import { fileNameFromContentDisposition } from '../../../shared/lib/content-disposition.js';
 
 const BASE = '/startup-import';
 
@@ -21,7 +22,11 @@ export const startupImportApi = {
 
   async downloadTemplate() {
     const response = await httpClient.get(`${BASE}/template`, { responseType: 'blob' });
-    downloadBlob(response.data, 'Шаблон стартового импорта.xlsx');
+    downloadBlob(
+      response.data,
+      fileNameFromContentDisposition(response.headers['content-disposition']) ??
+        'Шаблон_стартового_импорта.xlsx',
+    );
   },
 
   async preview(file) {

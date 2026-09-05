@@ -36,12 +36,13 @@ test('печатная форма Приложение 1.7: историческ
   await workbook.xlsx.load(xlsx.body);
   const sheet = workbook.worksheets[0];
   assert.equal(sheet.getColumn(8).hidden, false, 'колонка цены должна быть видимой');
-  assert.equal(sheet.getCell('G8').value, 1, 'выдача qty=2 даёт учётное кол-во 1');
-  assert.match(
-    String(sheet.getCell('E8').value ?? ''),
-    /.+,.+/,
-    'в строке остаются оба инвентарных номера',
+  assert.equal(
+    sheet.getColumn(5).hidden,
+    true,
+    'колонка «Код СКМТР / инвентарный номер» скрыта — в акте её нет',
   );
+  assert.equal(sheet.getCell('G8').value, 1, 'выдача qty=2 даёт учётное кол-во 1');
+  assert.equal(sheet.getCell('E8').value, null, 'инвентарные номера в акт 1.7 не выводятся');
   assert.equal(sheet.getCell('H8').fill?.pattern, 'solid');
   assert.match(sheet.getCell('H8').numFmt, /0\.00/);
   const cellValues = [];

@@ -1,6 +1,80 @@
 .filters {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  column-gap: var(--control-column-gap);
+  row-gap: var(--control-row-gap);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 3%);
+}
+
+.filters > :global([data-period-filter]) {
+  min-width: min(100%, 590px);
+  flex: 1 1 590px;
+}
+
+.filters > :not(:global([data-period-filter])) {
+  min-width: 180px;
+  flex: 0 1 260px;
+}
+
+.stackedFilters {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.stackedFilters > .filterRow {
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.filterRow {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  column-gap: var(--control-column-gap);
+  row-gap: var(--control-row-gap);
+}
+
+.filterRow > :global([data-period-filter]) {
+  min-width: min(100%, 590px);
+  flex: 1 1 590px;
+}
+
+.filterRow > :not(:global([data-period-filter])) {
+  min-width: 180px;
+  flex: 1 1 200px;
+}
+
+.actionField {
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  gap: var(--control-label-gap);
+}
+
+.actionLabel {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .filters,
+  .filterRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filters > *,
+  .filterRow > *,
+  .actionField,
+  .actionField > button {
+    width: 100%;
+    min-width: 0;
+  }
 }

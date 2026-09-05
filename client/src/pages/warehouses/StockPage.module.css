@@ -2,7 +2,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-4);
+  column-gap: var(--control-column-gap);
+  row-gap: var(--control-row-gap);
 }
 
 .filters > * {
@@ -11,6 +12,19 @@
 
 .filters > button {
   flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filters > *,
+  .filters > button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .sortButton {

@@ -16,6 +16,12 @@ import { documentRevisionsRepository } from '../../documents/document-revisions.
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
 import { floorMoney } from '../../print-forms/shared/money.js';
 import { tasksRepository, issuanceTaskKey } from '../tasks/tasks.repository.js';
+import {
+  dateOnlyToday,
+  plannedReplacementDate,
+  replacementNotificationDate,
+  replacementStatusForDate,
+} from '../tasks/replacement-dates.js';
 
 const SIZE_FIELD_BY_TYPE = {
   clothing: 'clothingSizeId',
@@ -74,6 +80,24 @@ function selectKitItems(items, season, employeeGender) {
   return [...selectedByModel.values()];
 }
 
+// Для вручную добавленной строки сезон неизвестен, поэтому берём наиболее
+// точный по полу норматив модели, а при нескольких сезонах — самый короткий
+// срок (безопасный вариант: задача не появится позже установленного норматива).
+function serviceLifeForModel(items, modelId, employeeGender) {
+  return items
+    .filter(
+      (item) =>
+        item.modelId === modelId &&
+        Number(item.serviceLifeYears) > 0 &&
+        (!item.gender || !employeeGender || item.gender === employeeGender),
+    )
+    .sort((a, b) => {
+      const aGender = employeeGender && a.gender === employeeGender ? 0 : 1;
+      const bGender = employeeGender && b.gender === employeeGender ? 0 : 1;
+      return aGender - bGender || Number(a.serviceLifeYears) - Number(b.serviceLifeYears);
+    })[0]?.serviceLifeYears;
+}
+
 function assertDraft(document) {
   if (!document) throw ApiError.notFound('Документ не найден');
   if (document.status !== 'draft') {
@@ -120,6 +144,14 @@ function assertNoDuplicateAmongNewLines(lines, candidate) {
 
 function valueFrom(data, currentLine, field) {
   return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : currentLine?.[field];
+}
+
+function waitingTaskStatus(task, pendingDraftDocumentId = null) {
+  if (pendingDraftDocumentId) return 'in_progress';
+  if (task.taskType === 'replacement' && task.plannedReplacementDate) {
+    return replacementStatusForDate(task.plannedReplacementDate);
+  }
+  return 'open';
 }
 
 function priceSnapshot(price) {
@@ -196,7 +228,10 @@ async function applyIssuanceSideEffects(
   const movementRows = [];
   const eventRows = [];
   const shortages = [];
-  const employee = await issuanceRepository.findEmployeeDpo(document.employeeId, { transaction });
+  const issuedInstancesById = new Map();
+  const { employee, kitItems } = await issuanceRepository.findEmployeeWithKit(document.employeeId, {
+    transaction,
+  });
 
   for (const line of lines) {
     const instances = await issuanceRepository.findAvailableInstances(
@@ -248,8 +283,14 @@ async function applyIssuanceSideEffects(
       await issuanceRepository.savePriceSnapshot(line.id, snapshot, { transaction });
     }
 
+    const serviceLifeYears = serviceLifeForModel(kitItems, line.modelId, employee?.gender);
+    const replacementDate = serviceLifeYears
+      ? plannedReplacementDate(document.documentDate, serviceLifeYears)
+      : null;
+
     for (const instance of instances) {
       allInstanceIds.push(instance.id);
+      issuedInstancesById.set(instance.id, instance);
       eventRows.push(
         buildInstanceEvent({
           instance,
@@ -270,6 +311,8 @@ async function applyIssuanceSideEffects(
         documentId: document.id,
         occurredAt: document.documentDate,
         note: `Выдача ${document.number}`,
+        serviceLifeYearsSnapshot: serviceLifeYears ?? null,
+        plannedReplacementDate: replacementDate,
       });
     }
   }
@@ -277,9 +320,82 @@ async function applyIssuanceSideEffects(
   await issuanceRepository.markInstancesIssued(allInstanceIds, document.employeeId, {
     transaction,
   });
-  await issuanceRepository.bulkCreateMovements(movementRows, { transaction });
+  const createdMovements = await issuanceRepository.bulkCreateMovements(movementRows, {
+    transaction,
+  });
+  // Строки движения создавались в том же порядке, что и экземпляры; модель и
+  // размеры берём из соответствующего объекта Instance, чтобы каждая
+  // физическая вещь получила отдельную недублируемую задачу.
+  const tasks = [];
+  const employeeEligibleForReplacement =
+    !employee?.archivedAt &&
+    (!employee?.terminationDate || employee.terminationDate > dateOnlyToday());
+  for (let index = 0; index < createdMovements.length; index += 1) {
+    const movement = createdMovements[index];
+    if (
+      !employeeEligibleForReplacement ||
+      !movement.serviceLifeYearsSnapshot ||
+      !movement.plannedReplacementDate
+    ) {
+      continue;
+    }
+    const issued = issuedInstancesById.get(movement.instanceId);
+    tasks.push({
+      taskType: 'replacement',
+      sourceDocumentId: document.id,
+      sourceMovementId: movement.id,
+      sourceInstanceId: movement.instanceId,
+      employeeId: document.employeeId,
+      warehouseId: document.warehouseId,
+      modelId: issued.modelId,
+      sizeId: issued.sizeId,
+      heightSizeId: issued.heightSizeId,
+      quantity: 1,
+      status: replacementStatusForDate(movement.plannedReplacementDate),
+      issuedAt: document.documentDate,
+      serviceLifeYearsSnapshot: movement.serviceLifeYearsSnapshot,
+      plannedReplacementDate: movement.plannedReplacementDate,
+      notificationDate: replacementNotificationDate(movement.plannedReplacementDate),
+    });
+  }
+  if (tasks.length > 0) await tasksRepository.bulkCreate(tasks, { transaction });
   await instanceEventsRepository.bulkCreate(eventRows, { transaction });
   return { instanceIds: allInstanceIds, shortages };
+}
+
+async function loadDocumentWithAvailability(id) {
+  const document = await issuanceRepository.findById(id);
+  if (!document) return null;
+  const plain = document.get ? document.get({ plain: true }) : document;
+  const lines = await Promise.all(
+    (plain.lines ?? []).map(async (line) => {
+      if (plain.status !== 'draft') {
+        return {
+          ...line,
+          requiredQuantity: Number(line.quantity),
+          availableQuantity: null,
+          assemblyQuantity: Number(line.quantity),
+          missingQuantity: 0,
+        };
+      }
+      const availableQuantity = await issuanceRepository.countAvailableInstances({
+        modelId: line.modelId,
+        sizeId: line.sizeId,
+        heightSizeId: line.heightSizeId,
+        warehouseId: plain.warehouseId,
+      });
+      const requiredQuantity = Number(line.quantity);
+      const assemblyQuantity = Math.min(requiredQuantity, availableQuantity);
+      return {
+        ...line,
+        requiredQuantity,
+        availableQuantity,
+        assemblyQuantity,
+        missingQuantity: Math.max(requiredQuantity - availableQuantity, 0),
+      };
+    }),
+  );
+  return { ...plain, lines };
 }
 
 // Релиз Д: сопоставляет задачи на доукомплектовку, связанные с этим
@@ -351,7 +467,7 @@ async function reconcileTaskFulfillments({
         task.id,
         {
           quantity: nextQuantity,
-          status: nextQuantity <= 0 ? 'completed' : pendingDraftDocumentId ? 'in_progress' : 'open',
+          status: nextQuantity <= 0 ? 'completed' : waitingTaskStatus(task, pendingDraftDocumentId),
           completedAt: nextQuantity <= 0 ? new Date() : null,
           completedByUserId: nextQuantity <= 0 ? userId : null,
           draftDocumentId: nextQuantity <= 0 ? null : pendingDraftDocumentId,
@@ -369,7 +485,7 @@ export const issuanceService = {
   },
 
   async getById(id) {
-    const document = await issuanceRepository.findById(id);
+    const document = await loadDocumentWithAvailability(id);
     if (!document) throw ApiError.notFound('Документ не найден');
     return document;
   },
@@ -382,7 +498,7 @@ export const issuanceService = {
       responsibleUserId: userId,
       status: 'draft',
     });
-    return issuanceRepository.findById(document.id);
+    return loadDocumentWithAvailability(document.id);
   },
 
   async update(id, data) {
@@ -391,7 +507,7 @@ export const issuanceService = {
       assertDraft(document);
       await issuanceRepository.updateDocument(id, data, { transaction });
     });
-    return issuanceRepository.findById(id);
+    return loadDocumentWithAvailability(id);
   },
 
   async remove(id) {
@@ -403,10 +519,17 @@ export const issuanceService = {
       // никакая выдача так и не состоялась.
       const draftTasks = await tasksRepository.findByDraftDocument(id, { transaction });
       if (draftTasks.length > 0) {
-        await tasksRepository.releaseToOpen(
-          draftTasks.map((task) => task.id),
-          { transaction },
-        );
+        for (const task of draftTasks) {
+          await tasksRepository.updateProgress(
+            task.id,
+            {
+              ...task.get({ plain: true }),
+              status: waitingTaskStatus(task),
+              draftDocumentId: null,
+            },
+            { transaction },
+          );
+        }
       }
       await issuanceRepository.deleteDraft(id, { transaction });
     });
@@ -420,7 +543,7 @@ export const issuanceService = {
       assertNoDuplicateLine(document.lines, normalizedData);
       await issuanceRepository.createLine(documentId, normalizedData, { transaction });
     });
-    return issuanceRepository.findById(documentId);
+    return loadDocumentWithAvailability(documentId);
   },
 
   async updateLine(documentId, lineId, data) {
@@ -441,7 +564,7 @@ export const issuanceService = {
       );
       await issuanceRepository.updateLine(lineId, normalizedData, { transaction });
     });
-    return issuanceRepository.findById(documentId);
+    return loadDocumentWithAvailability(documentId);
   },
 
   async removeLine(documentId, lineId) {
@@ -452,7 +575,7 @@ export const issuanceService = {
       if (!line) throw ApiError.notFound('Позиция не найдена');
       await issuanceRepository.deleteLine(lineId, { transaction });
     });
-    return issuanceRepository.findById(documentId);
+    return loadDocumentWithAvailability(documentId);
   },
 
   // Быстрый подбор комплекта (раздел 9 ТЗ): по должности работника находит
@@ -516,7 +639,7 @@ export const issuanceService = {
       }
     });
 
-    return { document: await issuanceRepository.findById(documentId), skipped };
+    return { document: await loadDocumentWithAvailability(documentId), skipped };
   },
 
   // Предпросмотр комплекта (строго по размерам работника — раздел 9 ТЗ):
@@ -644,13 +767,14 @@ export const issuanceService = {
             sizeId: shortage.sizeId,
             heightSizeId: shortage.heightSizeId,
             quantity: shortage.missingQuantity,
+            taskType: 'completion',
           })),
           { transaction },
         );
       }
     });
 
-    return { document: await issuanceRepository.findById(documentId), shortages };
+    return { document: await loadDocumentWithAvailability(documentId), shortages };
   },
 
   // Задача 22: контролируемое перепроведение уже проведённой Выдачи.
@@ -685,6 +809,15 @@ export const issuanceService = {
       const { lines: previousLines, ...headerSnapshot } = document;
       const previousData = { header: headerSnapshot, lines: previousLines };
 
+      const replacementTasks = await tasksRepository.findReplacementBySourceDocument(documentId, {
+        transaction,
+      });
+      if (replacementTasks.some((task) => ['in_progress', 'completed'].includes(task.status))) {
+        throw ApiError.conflict(
+          'Документ уже связан с оформляемым или завершённым переодеванием и не может быть изменён',
+        );
+      }
+
       // Релиз Д: если этот документ когда-либо закрывал задачи на
       // доукомплектовку (issuance_task_fulfillments), редакция должна не
       // "сломать" их статус — реверсируем прежнее закрытие (возвращаем
@@ -716,7 +849,7 @@ export const issuanceService = {
           const restoredTask = {
             ...task.get({ plain: true }),
             quantity: task.quantity + addBackByTask.get(task.id),
-            status: pendingDraftDocumentId ? 'in_progress' : 'open',
+            status: waitingTaskStatus(task, pendingDraftDocumentId),
             completedAt: null,
             completedByUserId: null,
             draftDocumentId: pendingDraftDocumentId,
@@ -800,6 +933,6 @@ export const issuanceService = {
       );
     });
 
-    return issuanceRepository.findById(documentId);
+    return loadDocumentWithAvailability(documentId);
   },
 };

@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { models } from '../../../database/models/index.js';
 
 const {
@@ -9,6 +10,9 @@ const {
   NomenclatureModel,
   Size,
   User,
+  Position,
+  Dpo,
+  Instance,
 } = models;
 
 // Ключ группировки задач/строк документа по товарной позиции — используется
@@ -19,7 +23,15 @@ export function issuanceTaskKey({ modelId, sizeId, heightSizeId }) {
 }
 
 const detailInclude = [
-  { model: Employee, as: 'employee', attributes: ['id', 'fullName'] },
+  {
+    model: Employee,
+    as: 'employee',
+    attributes: ['id', 'fullName', 'terminationDate', 'archivedAt'],
+    include: [
+      { model: Position, as: 'position', attributes: ['id', 'name'] },
+      { model: Dpo, as: 'dpo', attributes: ['id', 'name'] },
+    ],
+  },
   { model: Warehouse, as: 'warehouse', attributes: ['id', 'name'] },
   { model: NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
   { model: Size, as: 'size', attributes: ['id', 'type', 'value'] },
@@ -27,6 +39,11 @@ const detailInclude = [
   { model: IssuanceDocument, as: 'sourceDocument', attributes: ['id', 'number'] },
   { model: IssuanceDocument, as: 'draftDocument', attributes: ['id', 'number'] },
   { model: User, as: 'completedByUser', attributes: ['id', 'fullName'] },
+  {
+    model: Instance,
+    as: 'sourceInstance',
+    attributes: ['id', 'inventoryNumber', 'status', 'employeeId'],
+  },
   {
     model: IssuanceTaskFulfillment,
     as: 'fulfillments',
@@ -36,26 +53,122 @@ const detailInclude = [
 ];
 
 export const tasksRepository = {
-  list({ status, page = 1, limit = 50 } = {}) {
+  list({ status, taskType, today, page = 1, limit = 50 } = {}) {
     const where = {};
-    if (status) where.status = status;
+    if (status === 'active') {
+      where.status = { [Op.in]: ['scheduled', 'open', 'overdue'] };
+      where[Op.or] = [
+        { taskType: 'completion' },
+        { taskType: 'replacement', notificationDate: { [Op.lte]: today } },
+      ];
+    } else if (status) {
+      where.status = status;
+      if (status === 'scheduled') where.notificationDate = { [Op.lte]: today };
+    }
+    if (taskType) where.taskType = taskType;
     const offset = (Number(page) - 1) * Number(limit);
     return IssuanceTask.findAndCountAll({
       where,
       include: detailInclude,
+      distinct: true,
       // Открытые/в оформлении — сначала старые (дольше всего ждут); закрытые — сначала недавние.
-      order: [['createdAt', status === 'completed' ? 'DESC' : 'ASC']],
+      order:
+        status === 'active'
+          ? [
+              ['plannedReplacementDate', 'ASC'],
+              ['createdAt', 'ASC'],
+            ]
+          : [['createdAt', status === 'completed' ? 'DESC' : 'ASC']],
       limit: Number(limit),
       offset,
     });
   },
 
-  countOpen() {
-    return IssuanceTask.count({ where: { status: 'open' } });
+  countActive(today) {
+    return IssuanceTask.count({
+      where: {
+        status: { [Op.in]: ['scheduled', 'open', 'overdue'] },
+        [Op.or]: [
+          { taskType: 'completion' },
+          { taskType: 'replacement', notificationDate: { [Op.lte]: today } },
+        ],
+      },
+    });
   },
 
   bulkCreate(rows, { transaction }) {
-    return IssuanceTask.bulkCreate(rows, { transaction });
+    return IssuanceTask.bulkCreate(rows, { transaction, returning: true });
+  },
+
+  findReplacementSchedules({ transaction } = {}) {
+    return IssuanceTask.findAll({
+      where: {
+        taskType: 'replacement',
+        status: { [Op.in]: ['scheduled', 'open', 'overdue'] },
+      },
+      include: [
+        {
+          model: Employee,
+          as: 'employee',
+          attributes: ['id', 'terminationDate', 'archivedAt'],
+        },
+        {
+          model: Instance,
+          as: 'sourceInstance',
+          attributes: ['id', 'status', 'employeeId'],
+        },
+      ],
+      transaction,
+    });
+  },
+
+  setScheduleState(id, values, { transaction } = {}) {
+    return IssuanceTask.update(values, { where: { id }, transaction });
+  },
+
+  cancelReplacementByInstances(
+    instanceIds,
+    { returnDocumentId, reason, cancelledAt = new Date() },
+    { transaction },
+  ) {
+    if (!instanceIds?.length) return Promise.resolve([0]);
+    return IssuanceTask.update(
+      {
+        status: 'cancelled',
+        cancelledAt,
+        cancelReason: reason,
+        cancelledByReturnDocumentId: returnDocumentId,
+        draftDocumentId: null,
+      },
+      {
+        where: {
+          taskType: 'replacement',
+          sourceInstanceId: { [Op.in]: instanceIds },
+          status: { [Op.in]: ['scheduled', 'open', 'overdue'] },
+        },
+        transaction,
+      },
+    );
+  },
+
+  findCancelledByReturnDocument(returnDocumentId, { transaction }) {
+    return IssuanceTask.findAll({
+      where: {
+        taskType: 'replacement',
+        status: 'cancelled',
+        cancelledByReturnDocumentId: returnDocumentId,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  },
+
+  findReplacementBySourceDocument(sourceDocumentId, { transaction }) {
+    return IssuanceTask.findAll({
+      where: { taskType: 'replacement', sourceDocumentId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
   },
 
   findLocked(id, { transaction }) {

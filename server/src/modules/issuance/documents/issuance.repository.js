@@ -214,7 +214,7 @@ export const issuanceRepository = {
   },
 
   bulkCreateMovements(rows, { transaction }) {
-    return StockMovement.bulkCreate(rows, { transaction });
+    return StockMovement.bulkCreate(rows, { transaction, returning: true });
   },
 
   markPosted(id, { postedByUserId }, { transaction }) {
@@ -318,7 +318,7 @@ export const issuanceRepository = {
   // Остаток на конкретном складе под конкретные модель/размер/рост — для
   // предпросмотра комплекта (сколько реально есть под позицию, прежде чем
   // добавлять строку в документ).
-  countAvailableInstances({ modelId, sizeId, heightSizeId, warehouseId }) {
+  countAvailableInstances({ modelId, sizeId, heightSizeId, warehouseId }, { transaction } = {}) {
     return Instance.count({
       where: {
         modelId,
@@ -328,6 +328,7 @@ export const issuanceRepository = {
         status: 'in_stock',
         archivedAt: null,
       },
+      transaction,
     });
   },
 };

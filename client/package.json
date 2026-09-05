@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test src/features/catalogs/model/size-options.test.js src/shared/lib/content-disposition.test.js"
   },
   "dependencies": {
     "@hookform/resolvers": "5.4.0",

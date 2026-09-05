@@ -4,6 +4,7 @@ import { assertRecoveryFence } from './config/recovery-fence.js';
 import { assertHaFence } from './config/ha-fence.js';
 import { sequelize } from './database/models/index.js';
 import { logger } from './utils/logger.js';
+import { tasksService } from './modules/issuance/tasks/tasks.service.js';
 
 async function main() {
   const [fence, haFence] = await Promise.all([assertRecoveryFence(), assertHaFence()]);
@@ -28,6 +29,16 @@ async function main() {
   }
   await sequelize.authenticate();
   logger.info('Подключение к базе данных установлено');
+  await tasksService.refreshScheduledTasks();
+  const replacementTimer = setInterval(
+    () => {
+      tasksService.refreshScheduledTasks().catch((error) => {
+        logger.error(error, 'Не удалось обновить задачи планового переодевания');
+      });
+    },
+    24 * 60 * 60 * 1000,
+  );
+  replacementTimer.unref();
 
   const app = createApp();
   app.listen(env.PORT, env.HOST, () => {

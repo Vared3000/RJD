@@ -6,7 +6,7 @@ import { validateBody } from '../../../middlewares/validate.middleware.js';
 import { asyncHandler } from '../../../utils/async-handler.js';
 import { createDraftSchema } from './tasks.validation.js';
 
-// Задачи на доукомплектовку — тот же контур прав, что и весь остальной
+// Задачи на доукомплектовку и плановое переодевание — тот же контур прав, что и весь остальной
 // модуль Выдачи: кто оформляет и проводит документы, тот и оформляет
 // довыдачу по задачам.
 const PERMISSION = 'issuance.manage';
@@ -19,12 +19,12 @@ export function createTasksRouter() {
    * @openapi
    * /issuance/tasks:
    *   get:
-   *     tags: [Выдача/Возврат: Задачи на дособор]
+   *     tags: [Выдача/Возврат: Задачи]
    *     summary: >
-   *       Список задач на доукомплектовку — открытые (ждут оформления),
-   *       в оформлении (создан связанный черновик выдачи) или завершённые.
+   *       Список задач на доукомплектовку и плановое переодевание.
    *     parameters:
-   *       - { name: status, in: query, schema: { type: string, enum: [open, in_progress, completed] } }
+   *       - { name: status, in: query, schema: { type: string, enum: [active, scheduled, open, overdue, in_progress, completed, cancelled] } }
+   *       - { name: taskType, in: query, schema: { type: string, enum: [completion, replacement] } }
    *     responses:
    *       200: { description: Список задач }
    */
@@ -34,8 +34,8 @@ export function createTasksRouter() {
    * @openapi
    * /issuance/tasks/count:
    *   get:
-   *     tags: [Выдача/Возврат: Задачи на дособор]
-   *     summary: Количество открытых задач (для бейджа в меню)
+   *     tags: [Выдача/Возврат: Задачи]
+   *     summary: Количество видимых активных задач (для бейджа в меню)
    *     responses:
    *       200: { description: Количество }
    */

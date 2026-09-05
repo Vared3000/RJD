@@ -3,8 +3,8 @@ import { httpClient } from '../../../../shared/api/http-client.js';
 const BASE = '/issuance/tasks';
 
 export const tasksApi = {
-  async list({ status } = {}) {
-    const { data } = await httpClient.get(BASE, { params: { status, limit: 200 } });
+  async list({ status, taskType } = {}) {
+    const { data } = await httpClient.get(BASE, { params: { status, taskType, limit: 200 } });
     return data.data;
   },
   async countOpen() {

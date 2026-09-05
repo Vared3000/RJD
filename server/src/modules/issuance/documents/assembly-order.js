@@ -5,6 +5,7 @@ import {
   dateLabel,
 } from '../../../utils/tabular-document.js';
 import { issuanceService } from './issuance.service.js';
+import { buildExportFileName } from '../../../utils/export-file-name.js';
 
 // Задание на сборку — внутренний рабочий документ (не входит в каталог
 // официальных печатных форм print-forms), который кладовщик получает вместо
@@ -49,12 +50,17 @@ export const assemblyOrderService = {
       throw ApiError.badRequest('В документе нет позиций');
     }
 
-    const rows = document.lines.map((line) => ({
-      modelName: line.model?.name ?? '—',
-      sizeLabel: sizeLabel(line.size),
-      heightLabel: line.heightSize?.value ?? '—',
-      quantity: line.quantity,
-    }));
+    const rows = document.lines
+      .filter((line) => Number(line.assemblyQuantity ?? line.quantity) > 0)
+      .map((line) => ({
+        modelName: line.model?.name ?? '—',
+        sizeLabel: sizeLabel(line.size),
+        heightLabel: line.heightSize?.value ?? '—',
+        quantity: Number(line.assemblyQuantity ?? line.quantity),
+      }));
+    if (rows.length === 0) {
+      throw ApiError.badRequest('На складе пока нет ни одной позиции для сборки');
+    }
     const result = {
       rows,
       totals: { quantity: rows.reduce((sum, row) => sum + row.quantity, 0) },
@@ -72,7 +78,12 @@ export const assemblyOrderService = {
         : await generateTabularExcel(config, result);
     return {
       buffer,
-      fileName: `assembly-order_${document.number}.${format}`,
+      fileName: buildExportFileName({
+        title: 'Задание на сборку',
+        objects: [document.warehouse?.name],
+        date: document.documentDate,
+        extension: format,
+      }),
       contentType:
         format === 'pdf'
           ? 'application/pdf'

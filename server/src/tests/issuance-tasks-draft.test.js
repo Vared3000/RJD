@@ -191,6 +191,7 @@ test('довыдача: одна задача → черновик → пров�
   });
   assert.equal(task.quantity, 1);
   assert.equal(task.status, 'open');
+  await receiveStock(auth, agent, state, fixture, 1, '2026-08-05');
 
   // Валидация: пустой список и несуществующий id.
   const emptyDraft = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
@@ -217,10 +218,7 @@ test('довыдача: одна задача → черновик → пров�
   assert.equal(inProgressTask.status, 'in_progress');
   assert.equal(inProgressTask.draftDocumentId, documentId);
 
-  // Довозим недостающую единицу, затем проводим черновик довыдачи штатной
-  // кнопкой — не отдельным эндпоинтом.
-  await receiveStock(auth, agent, state, fixture, 1, '2026-08-05');
-
+  // Проводим отдельный черновик довыдачи штатной кнопкой.
   const posted = await auth(agent.post(`/api/v1/issuance/documents/${documentId}/post`));
   assert.equal(posted.status, 200);
   assert.equal(posted.body.data.status, 'posted');
@@ -269,6 +267,7 @@ test('довыдача: несколько задач одного работн�
   });
   assert.equal(taskA.quantity, 2);
   assert.equal(taskB.quantity, 1);
+  await receiveStock(auth, agent, state, fixture, 3, '2026-08-05');
 
   const created = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [taskA.id, taskB.id],
@@ -345,6 +344,7 @@ test('довыдача: двойной клик не создаёт два до�
     available: 1,
     requested: 2,
   });
+  await receiveStock(auth, agent, state, fixture, 1, '2026-08-05');
 
   const first = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [task.id],
@@ -376,6 +376,7 @@ test('довыдача: удаление черновика возвращает
     available: 1,
     requested: 2,
   });
+  await receiveStock(auth, agent, state, fixture, 1, '2026-08-05');
 
   const created = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [task.id],
@@ -392,7 +393,7 @@ test('довыдача: удаление черновика возвращает
   assert.equal(reopened.quantity, 1);
 });
 
-test('довыдача: недостаточный остаток при проведении не закрывает задачу', async (t) => {
+test('довыдача: без доступного остатка отдельный черновик не создаётся', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
     t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
     return;
@@ -414,19 +415,12 @@ test('довыдача: недостаточный остаток при про�
   const created = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [task.id],
   });
-  assert.equal(created.status, 201);
-  const documentId = created.body.data.id;
-  state.issuanceDocIds.push(documentId);
+  assert.equal(created.status, 409);
 
-  // Остаток из createShortageTask уже полностью ушёл в исходный документ —
-  // на складе сейчас снова нет ни одной штуки, проведение отклоняется целиком.
-  const posted = await auth(agent.post(`/api/v1/issuance/documents/${documentId}/post`));
-  assert.equal(posted.status, 400);
-
-  const stillInProgress = await models.IssuanceTask.findByPk(task.id);
-  assert.equal(stillInProgress.status, 'in_progress');
-  assert.equal(stillInProgress.draftDocumentId, documentId);
-  assert.equal(stillInProgress.quantity, 1);
+  const stillOpen = await models.IssuanceTask.findByPk(task.id);
+  assert.equal(stillOpen.status, 'open');
+  assert.equal(stillOpen.draftDocumentId, null);
+  assert.equal(stillOpen.quantity, 1);
 });
 
 test('довыдача: частичная довыдача оставляет точный открытый остаток', async (t) => {
@@ -449,20 +443,15 @@ test('довыдача: частичная довыдача оставляет �
   });
   assert.equal(task.quantity, 5);
 
+  await receiveStock(auth, agent, state, fixture, 3, '2026-08-05');
+
   const created = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [task.id],
   });
   assert.equal(created.status, 201);
   const documentId = created.body.data.id;
   state.issuanceDocIds.push(documentId);
-  const lineId = created.body.data.lines[0].id;
-
-  // Кладовщик вручную уменьшает количество в черновике перед проведением.
-  await auth(agent.patch(`/api/v1/issuance/documents/${documentId}/lines/${lineId}`)).send({
-    quantity: 3,
-  });
-
-  await receiveStock(auth, agent, state, fixture, 3, '2026-08-05');
+  assert.equal(created.body.data.lines[0].quantity, 3);
 
   const posted = await auth(agent.post(`/api/v1/issuance/documents/${documentId}/post`));
   assert.equal(posted.status, 200);
@@ -584,6 +573,8 @@ test('довыдача: revise() старого проведения сохра�
   const afterFirstPost = await models.IssuanceTask.findByPk(task.id);
   assert.equal(afterFirstPost.status, 'open');
   assert.equal(afterFirstPost.quantity, 3);
+
+  await receiveStock(auth, agent, state, fixture, 1, '2026-08-02');
 
   const newerDraft = await auth(agent.post('/api/v1/issuance/tasks/create-draft')).send({
     taskIds: [task.id],

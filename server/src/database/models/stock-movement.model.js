@@ -12,6 +12,16 @@ export function defineStockMovement(sequelize) {
       documentId: { type: DataTypes.UUID, allowNull: false, field: 'document_id' },
       occurredAt: { type: DataTypes.DATE, allowNull: false, field: 'occurred_at' },
       note: { type: DataTypes.STRING(500), allowNull: true },
+      serviceLifeYearsSnapshot: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'service_life_years_snapshot',
+      },
+      plannedReplacementDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        field: 'planned_replacement_date',
+      },
     },
     { tableName: 'stock_movements', updatedAt: false },
   );

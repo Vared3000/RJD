@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/http-client.js';
+import { fileNameFromContentDisposition } from '../../../shared/lib/content-disposition.js';
 
 function pruneParams(params) {
   return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''));
@@ -45,7 +46,7 @@ export async function downloadReport(report, params, format) {
     responseType: 'blob',
   });
   const disposition = response.headers['content-disposition'] ?? '';
-  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ?? `${report}.${format}`;
+  const fileName = fileNameFromContentDisposition(disposition) ?? `Отчёт.${format}`;
   const url = URL.createObjectURL(response.data);
   const link = document.createElement('a');
   link.href = url;

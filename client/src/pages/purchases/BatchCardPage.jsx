@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useBatch } from '../../features/purchases/batches/model/use-batches-queries.js';
 import { Button } from '../../shared/ui/Button.jsx';
 import { QueryState } from '../../shared/ui/QueryState.jsx';
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 import pageStyles from './BatchCardPage.module.css';
 
@@ -97,10 +98,12 @@ export function BatchCardPage() {
           <dt>Выдано</dt>
           <dd>{batch.issued}</dd>
         </div>
-        <div>
-          <dt>В стирке/ремонте</dt>
-          <dd>{batch.inService}</dd>
-        </div>
+        {LAUNDRY_REPAIR_ENABLED && (
+          <div>
+            <dt>В стирке/ремонте</dt>
+            <dd>{batch.inService}</dd>
+          </div>
+        )}
         <div>
           <dt>Списано</dt>
           <dd>{batch.writtenOff}</dd>

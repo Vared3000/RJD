@@ -281,12 +281,20 @@ test('отчёты: дни обеспечения по ДПО/работника
   };
   for (const [report, query] of Object.entries(exportQueries)) {
     const xlsx = await auth(agent.get(`/api/v1/reports/${report}/export`))
+      .set('Origin', env.CLIENT_ORIGIN)
       .query({ ...query, format: 'xlsx' })
       .buffer(true)
       .parse(binaryParser);
     assert.equal(xlsx.status, 200, `${report}: Excel`);
+    assert.match(xlsx.headers['access-control-expose-headers'], /Content-Disposition/i);
     assert.match(xlsx.headers['content-type'], /spreadsheetml/);
     assert.equal(xlsx.body.subarray(0, 2).toString(), 'PK');
+    const xlsxDisposition = xlsx.headers['content-disposition'];
+    assert.match(xlsxDisposition, /filename\*=UTF-8''/);
+    const xlsxFileName = decodeURIComponent(xlsxDisposition.match(/filename\*=UTF-8''([^;]+)/)[1]);
+    assert.match(xlsxFileName, /[А-Яа-яЁё]/, `${report}: русское имя Excel`);
+    assert.match(xlsxFileName, /\.xlsx$/);
+    assert.doesNotMatch(xlsxFileName, new RegExp(`^${report}[_.]`));
     if (report === 'stock-balances') {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(xlsx.body);
@@ -316,5 +324,13 @@ test('отчёты: дни обеспечения по ДПО/работника
     assert.match(pdf.headers['content-type'], /application\/pdf/);
     assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
     assert.ok(pdf.body.length > 1000);
+    const pdfDisposition = pdf.headers['content-disposition'];
+    assert.match(pdfDisposition, /filename\*=UTF-8''/);
+    const pdfFileName = decodeURIComponent(pdfDisposition.match(/filename\*=UTF-8''([^;]+)/)[1]);
+    assert.equal(
+      pdfFileName.replace(/\.pdf$/, ''),
+      xlsxFileName.replace(/\.xlsx$/, ''),
+      `${report}: Excel и PDF должны иметь одинаковую основу имени`,
+    );
   }
 });

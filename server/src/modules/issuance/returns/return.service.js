@@ -8,6 +8,8 @@ import {
 } from '../../nomenclature/instances/instance-events.repository.js';
 import { reverseDocumentEffects } from '../../nomenclature/instances/document-effect-reversal.js';
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
+import { tasksRepository } from '../tasks/tasks.repository.js';
+import { replacementStatusForDate } from '../tasks/replacement-dates.js';
 
 function documentSnapshot(document, overrides = {}) {
   const { lines, ...header } = document;
@@ -181,6 +183,14 @@ export const returnService = {
 
       await returnRepository.bulkCreateMovements(movementRows, { transaction });
       await instanceEventsRepository.bulkCreate(eventRows, { transaction });
+      await tasksRepository.cancelReplacementByInstances(
+        movementRows.map((row) => row.instanceId),
+        {
+          returnDocumentId: document.id,
+          reason: `Экземпляр возвращён по документу ${document.number}`,
+        },
+        { transaction },
+      );
       if (document.revisionNumber > 1) {
         const nextRevision = document.revisionNumber + 1;
         await returnRepository.markReposted(
@@ -223,6 +233,21 @@ export const returnService = {
 
       const previousData = documentSnapshot(document);
       await reverseDocumentEffects({ documentType: 'return', documentId }, { transaction });
+      const cancelledTasks = await tasksRepository.findCancelledByReturnDocument(documentId, {
+        transaction,
+      });
+      for (const task of cancelledTasks) {
+        await tasksRepository.setScheduleState(
+          task.id,
+          {
+            status: replacementStatusForDate(task.plannedReplacementDate),
+            cancelledAt: null,
+            cancelReason: null,
+            cancelledByReturnDocumentId: null,
+          },
+          { transaction },
+        );
+      }
 
       const nextRevision = document.revisionNumber + 1;
       await returnRepository.markUnposted(

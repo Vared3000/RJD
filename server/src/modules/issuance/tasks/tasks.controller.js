@@ -5,7 +5,11 @@ import { parsePagination } from '../../../utils/pagination.js';
 export const tasksController = {
   async list(req, res) {
     const pagination = parsePagination(req.query);
-    const { rows, count } = await tasksService.list({ status: req.query.status, ...pagination });
+    const { rows, count } = await tasksService.list({
+      status: req.query.status,
+      taskType: req.query.taskType,
+      ...pagination,
+    });
     return paginatedSuccess(res, rows, count, pagination.limit, pagination.page);
   },
 

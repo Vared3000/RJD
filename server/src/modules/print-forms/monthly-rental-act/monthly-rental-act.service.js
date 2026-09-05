@@ -9,6 +9,7 @@ import {
   generateMonthlyRentalPdf,
 } from './monthly-rental-act.mapper.js';
 import { floorMoney } from '../shared/money.js';
+import { buildExportFileName } from '../../../utils/export-file-name.js';
 const dateText = (value) =>
   value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 
@@ -299,13 +300,25 @@ async function finalizeVersion(dpoId, month, userId, permissions = [], reason = 
 }
 
 function versionFileName(snapshot, versionNumber, format) {
-  return `monthly-rental_${snapshot.month}_${snapshot.dpo.name}_v${versionNumber}.${format}`;
+  return buildExportFileName({
+    title: 'Акт аренды',
+    objects: [snapshot.dpo.name],
+    month: snapshot.month,
+    version: versionNumber,
+    extension: format,
+  });
 }
 
 async function renderAndStoreVersion(version, snapshot, format) {
   const storedData = format === 'pdf' ? version.pdfFileData : version.excelFileData;
-  const storedName = format === 'pdf' ? version.pdfFileName : version.excelFileName;
-  if (storedData) return { buffer: Buffer.from(storedData), fileName: storedName };
+  if (storedData) {
+    return {
+      buffer: Buffer.from(storedData),
+      // Старые версии могли сохранить техническое английское имя. Содержимое
+      // неизменно, но при каждом скачивании имя строится по актуальному правилу.
+      fileName: versionFileName(snapshot, version.versionNumber, format),
+    };
+  }
 
   const buffer =
     format === 'pdf'

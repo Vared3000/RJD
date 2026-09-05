@@ -7,7 +7,8 @@
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  column-gap: var(--control-column-gap);
+  row-gap: var(--control-row-gap);
 }
 
 .error {
@@ -68,14 +69,14 @@
 .monthField {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--control-label-gap);
   color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 600;
 }
 
 .monthField input {
-  height: 40px;
+  height: var(--control-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);

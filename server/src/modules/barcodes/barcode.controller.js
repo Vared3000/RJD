@@ -1,10 +1,7 @@
 import { barcodeService } from './barcode.service.js';
 import { success } from '../../utils/respond.js';
-
-function attachmentHeader(fileName) {
-  const encoded = encodeURIComponent(fileName);
-  return `attachment; filename="labels.pdf"; filename*=UTF-8''${encoded}`;
-}
+import { attachmentHeader } from '../../utils/attachment-header.js';
+import { buildExportFileName } from '../../utils/export-file-name.js';
 
 function sendPdf(res, buffer, fileName) {
   res.setHeader('Content-Type', 'application/pdf');
@@ -27,7 +24,16 @@ export const barcodeController = {
       req.validatedBody.instanceIds,
       req.validatedBody,
     );
-    return sendPdf(res, buffer, `Этикетки_${req.validatedBody.labelType}.pdf`);
+    return sendPdf(
+      res,
+      buffer,
+      buildExportFileName({
+        title: 'Этикетки',
+        objects: [req.validatedBody.labelType === 'code128' ? 'Code128' : 'QR'],
+        date: new Date(),
+        extension: 'pdf',
+      }),
+    );
   },
 
   async printLabelsByInventoryNumbers(req, res) {
@@ -35,6 +41,15 @@ export const barcodeController = {
       req.validatedBody.inventoryNumbers,
       req.validatedBody,
     );
-    return sendPdf(res, buffer, `Этикетки_${req.validatedBody.labelType}.pdf`);
+    return sendPdf(
+      res,
+      buffer,
+      buildExportFileName({
+        title: 'Этикетки',
+        objects: [req.validatedBody.labelType === 'code128' ? 'Code128' : 'QR'],
+        date: new Date(),
+        extension: 'pdf',
+      }),
+    );
   },
 };

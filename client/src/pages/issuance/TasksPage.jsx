@@ -18,10 +18,19 @@ const SIZE_TYPE_LABELS = {
   gloves: 'Перчатки',
 };
 
-const STATUS_LABELS = {
-  open: 'Открытые',
-  in_progress: 'В оформлении',
-  completed: 'Завершённые',
+const WORKFLOW_LABELS = {
+  scheduled: 'Запланировано',
+  ready: 'Можно собрать',
+  waiting_stock: 'Ожидает остатка',
+  draft_created: 'Создана выдача',
+  completed: 'Завершено',
+  overdue: 'Просрочено',
+  cancelled: 'Отменено',
+};
+
+const TYPE_LABELS = {
+  completion: 'Доукомплектовка',
+  replacement: 'Плановое переодевание',
 };
 
 function formatSize(size) {
@@ -29,16 +38,14 @@ function formatSize(size) {
   return `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`;
 }
 
-// Релиз Д: группировка теперь по работнику + складу, не только по работнику —
-// один документ довыдачи не может относиться к двум складам сразу (см. ТЗ).
-function groupByEmployeeAndWarehouse(tasks) {
+function groupTasks(tasks) {
   const groups = new Map();
   for (const task of tasks ?? []) {
-    const key = `${task.employeeId ?? task.employee?.id}:${task.warehouseId ?? task.warehouse?.id}`;
+    const key = [task.employeeId, task.warehouseId, task.taskType].join(':');
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        employeeId: task.employeeId,
+        taskType: task.taskType,
         employee: task.employee,
         warehouse: task.warehouse,
         items: [],
@@ -46,58 +53,76 @@ function groupByEmployeeAndWarehouse(tasks) {
     }
     groups.get(key).items.push(task);
   }
-  return Array.from(groups.values());
+  return [...groups.values()];
 }
 
 function fulfilledQuantity(task) {
-  return (task.fulfillments ?? []).reduce((sum, f) => sum + Number(f.quantity), 0);
+  return (task.fulfillments ?? []).reduce((sum, item) => sum + Number(item.quantity), 0);
+}
+
+function linkedDocuments(task) {
+  if (task.draftDocumentId) {
+    return (
+      <Link to={`/issuance/documents/${task.draftDocumentId}`} className={styles.linkButton}>
+        {task.draftDocument?.number ?? 'Открыть выдачу'}
+      </Link>
+    );
+  }
+  if ((task.fulfillments ?? []).length > 0) {
+    return task.fulfillments.map((item, index) => (
+      <Fragment key={item.id}>
+        {index > 0 && ', '}
+        <Link to={`/issuance/documents/${item.documentId}`} className={styles.linkButton}>
+          {item.document?.number ?? 'Выдача'}
+        </Link>
+      </Fragment>
+    ));
+  }
+  return '—';
 }
 
 export function TasksPage() {
-  const [status, setStatus] = useState('open');
+  const [status, setStatus] = useState('active');
+  const [taskType, setTaskType] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
-  // По умолчанию выбраны все открытые задачи группы — здесь хранятся только
-  // ЯВНО снятые пользователем (см. ТЗ "по умолчанию все, разрешить снять
-  // отдельные"), чтобы не нужно было синхронизировать состояние с загрузкой.
   const [deselected, setDeselected] = useState(() => new Set());
-  const { data: tasks, isLoading } = useTasksList(status);
+  const { data: tasks, isLoading } = useTasksList(status, taskType || undefined);
   const { createDraft } = useTasksMutations();
   const navigate = useNavigate();
-  const groups = useMemo(() => groupByEmployeeAndWarehouse(tasks), [tasks]);
+  const groups = useMemo(() => groupTasks(tasks), [tasks]);
+  const actionable = status === 'active';
 
-  const columnCount = status === 'open' ? 9 : 8;
-
-  function toggle(groupKey) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupKey)) next.delete(groupKey);
-      else next.add(groupKey);
+  function toggleExpanded(key) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  function toggleTask(taskId) {
-    setDeselected((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
+  function toggleTask(id) {
+    setDeselected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
-  function toggleGroupSelection(group, allSelected) {
-    setDeselected((prev) => {
-      const next = new Set(prev);
-      for (const task of group.items) {
-        if (allSelected) next.add(task.id);
-        else next.delete(task.id);
+  function toggleGroup(items, allSelected) {
+    setDeselected((current) => {
+      const next = new Set(current);
+      for (const item of items) {
+        if (allSelected) next.add(item.id);
+        else next.delete(item.id);
       }
       return next;
     });
   }
 
-  async function handleCreateDraft(selectedIds) {
-    const document = await createDraft.mutateAsync(selectedIds);
+  async function createIssuance(ids) {
+    const document = await createDraft.mutateAsync(ids);
     navigate(`/issuance/documents/${document.id}`);
   }
 
@@ -105,19 +130,24 @@ export function TasksPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div className={styles.headerText}>
-          <h1 className={styles.title}>Задачи на доукомплектовку</h1>
+          <h1 className={styles.title}>Задачи на выдачу и переодевание</h1>
           <p className={styles.subtitle}>
-            Позиции, которых не хватило на складе при выдаче — оформите довыдачу, когда остаток
-            появится.
+            Здесь видны недостающие позиции и вещи, которые пора заменить по сроку износа.
           </p>
         </div>
       </div>
 
       <div className={styles.filterBar}>
         <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="open">{STATUS_LABELS.open}</option>
-          <option value="in_progress">{STATUS_LABELS.in_progress}</option>
-          <option value="completed">{STATUS_LABELS.completed}</option>
+          <option value="active">Требуют внимания</option>
+          <option value="in_progress">Создана выдача</option>
+          <option value="completed">Завершённые</option>
+          <option value="cancelled">Отменённые</option>
+        </select>
+        <select value={taskType} onChange={(event) => setTaskType(event.target.value)}>
+          <option value="">Все типы</option>
+          <option value="completion">Доукомплектовка</option>
+          <option value="replacement">Плановое переодевание</option>
         </select>
       </div>
 
@@ -134,163 +164,142 @@ export function TasksPage() {
         <table className={styles.table}>
           <thead>
             <tr>
-              {status === 'open' && <th aria-label="Выбор" />}
+              <th aria-label="Выбор" />
               <th>Работник</th>
               <th>Модель</th>
               <th>Размер</th>
               <th>Рост</th>
-              <th>{status === 'completed' ? 'Выдано' : 'Нужно'}</th>
-              <th>Документ</th>
-              {status === 'in_progress' && <th>Черновик</th>}
-              {status === 'completed' && <th>Выдача</th>}
-              <th>
-                {status === 'open'
-                  ? 'Создана'
-                  : status === 'in_progress'
-                    ? 'Оформлена'
-                    : 'Завершена'}
-              </th>
-              {status === 'open' && <th aria-label="Действия" />}
+              <th>Нужно</th>
+              <th>На складе</th>
+              <th>Состояние</th>
+              <th>Дата замены</th>
+              <th>Исходная выдача</th>
+              <th>Связанная выдача</th>
+              <th>Создано</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td className={styles.hint} colSpan={columnCount}>
+                <td className={styles.hint} colSpan={12}>
                   Загрузка…
                 </td>
               </tr>
             )}
             {!isLoading && groups.length === 0 && (
               <tr>
-                <td className={styles.hint} colSpan={columnCount}>
-                  {status === 'open' && 'Открытых задач нет'}
-                  {status === 'in_progress' && 'Задач в оформлении нет'}
-                  {status === 'completed' && 'Завершённых задач нет'}
+                <td className={styles.hint} colSpan={12}>
+                  Задач в выбранном разделе нет
                 </td>
               </tr>
             )}
             {groups.map((group) => {
               const isOpen = expanded.has(group.key);
-              const selectedIds = group.items
-                .filter((task) => !deselected.has(task.id))
-                .map((task) => task.id);
-              const allSelected = status === 'open' && selectedIds.length === group.items.length;
-              const someSelected = status === 'open' && selectedIds.length > 0;
+              const selectable = group.items.filter((item) => Number(item.assemblyQuantity) > 0);
+              const selectedIds = selectable
+                .filter((item) => !deselected.has(item.id))
+                .map((item) => item.id);
+              const allSelected =
+                selectedIds.length > 0 && selectedIds.length === selectable.length;
               return (
                 <Fragment key={group.key}>
                   <tr className={styles.linkRow}>
-                    {status === 'open' && (
-                      <td onClick={(event) => event.stopPropagation()}>
+                    <td>
+                      {actionable && selectable.length > 0 && (
                         <input
                           type="checkbox"
                           checked={allSelected}
-                          ref={(el) => {
-                            if (el) el.indeterminate = someSelected && !allSelected;
-                          }}
-                          onChange={() => toggleGroupSelection(group, allSelected)}
-                          aria-label="Выбрать все позиции работника"
+                          onChange={() => toggleGroup(selectable, allSelected)}
+                          aria-label="Выбрать доступные позиции работника"
                         />
-                      </td>
-                    )}
+                      )}
+                    </td>
                     <td
                       tabIndex={0}
-                      onClick={() => toggle(group.key)}
+                      onClick={() => toggleExpanded(group.key)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          toggle(group.key);
+                          toggleExpanded(group.key);
                         }
                       }}
                     >
                       <span className={taskStyles.chevron}>{isOpen ? '▾' : '▸'}</span>
                       {group.employee?.fullName ?? '—'}
                     </td>
-                    <td
-                      className={taskStyles.groupMeta}
-                      colSpan={columnCount - (status === 'open' ? 3 : 1)}
-                    >
-                      Склад: {group.warehouse?.name ?? '—'} · Позиций: {group.items.length}
+                    <td className={taskStyles.groupMeta} colSpan={9}>
+                      {TYPE_LABELS[group.taskType] ?? group.taskType} · Должность:{' '}
+                      {group.employee?.position?.name ?? 'не указана'} · ДПО:{' '}
+                      {group.employee?.dpo?.name ?? 'не указано'} · Склад:{' '}
+                      {group.warehouse?.name ?? '—'}
                     </td>
-                    {status === 'open' && (
-                      <td className={styles.actions}>
+                    <td className={styles.actions}>
+                      {actionable && (
                         <Button
                           variant="secondary"
-                          disabled={!someSelected || createDraft.isPending}
-                          onClick={() => handleCreateDraft(selectedIds)}
+                          disabled={selectedIds.length === 0 || createDraft.isPending}
+                          onClick={() => createIssuance(selectedIds)}
                         >
-                          {createDraft.isPending ? 'Оформление…' : 'Оформить довыдачу'}
+                          {createDraft.isPending
+                            ? 'Оформление…'
+                            : group.taskType === 'replacement'
+                              ? 'Оформить переодевание'
+                              : 'Оформить довыдачу'}
                         </Button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                   {isOpen &&
-                    group.items.map((task) => (
-                      <tr key={task.id} className={taskStyles.subRow}>
-                        {status === 'open' && (
+                    group.items.map((task) => {
+                      const canSelect = actionable && Number(task.assemblyQuantity) > 0;
+                      return (
+                        <tr key={task.id} className={taskStyles.subRow}>
                           <td>
-                            <input
-                              type="checkbox"
-                              checked={!deselected.has(task.id)}
-                              onChange={() => toggleTask(task.id)}
-                              aria-label="Выбрать позицию"
-                            />
-                          </td>
-                        )}
-                        <td />
-                        <td>{task.model?.name ?? '—'}</td>
-                        <td>{formatSize(task.size)}</td>
-                        <td>{task.heightSize?.value ?? '—'}</td>
-                        <td>{status === 'completed' ? fulfilledQuantity(task) : task.quantity}</td>
-                        <td>
-                          <Link
-                            to={`/issuance/documents/${task.sourceDocumentId}`}
-                            className={styles.linkButton}
-                          >
-                            {task.sourceDocument?.number ?? '—'}
-                          </Link>
-                        </td>
-                        {status === 'in_progress' && (
-                          <td>
-                            {task.draftDocumentId ? (
-                              <Link
-                                to={`/issuance/documents/${task.draftDocumentId}`}
-                                className={styles.linkButton}
-                              >
-                                {task.draftDocument?.number ?? '—'}
-                              </Link>
-                            ) : (
-                              '—'
+                            {actionable && (
+                              <input
+                                type="checkbox"
+                                checked={canSelect && !deselected.has(task.id)}
+                                disabled={!canSelect}
+                                onChange={() => toggleTask(task.id)}
+                                aria-label="Выбрать позицию"
+                              />
                             )}
                           </td>
-                        )}
-                        {status === 'completed' && (
+                          <td />
+                          <td>{task.model?.name ?? '—'}</td>
+                          <td>{formatSize(task.size)}</td>
+                          <td>{task.heightSize?.value ?? '—'}</td>
                           <td>
-                            {(task.fulfillments ?? []).length === 0
-                              ? '—'
-                              : task.fulfillments.map((fulfillment, index) => (
-                                  <Fragment key={fulfillment.id}>
-                                    {index > 0 && ', '}
-                                    <Link
-                                      to={`/issuance/documents/${fulfillment.documentId}`}
-                                      className={styles.linkButton}
-                                    >
-                                      {fulfillment.document?.number ?? '—'}
-                                    </Link>
-                                  </Fragment>
-                                ))}
+                            {task.status === 'completed' ? fulfilledQuantity(task) : task.quantity}
                           </td>
-                        )}
-                        <td>
-                          {formatDate(
-                            status === 'open'
-                              ? task.createdAt
-                              : (task.completedAt ?? task.createdAt),
-                          )}
-                        </td>
-                        {status === 'open' && <td />}
-                      </tr>
-                    ))}
+                          <td>{task.availableQuantity ?? '—'}</td>
+                          <td>{WORKFLOW_LABELS[task.workflowStatus] ?? task.workflowStatus}</td>
+                          <td>
+                            {task.plannedReplacementDate
+                              ? formatDate(task.plannedReplacementDate)
+                              : '—'}
+                            {task.daysRemaining != null && ` (${task.daysRemaining} дн.)`}
+                          </td>
+                          <td>
+                            <Link
+                              to={`/issuance/documents/${task.sourceDocumentId}`}
+                              className={styles.linkButton}
+                            >
+                              {task.sourceDocument?.number ?? 'Открыть'}
+                            </Link>
+                            {task.sourceInstance?.inventoryNumber && (
+                              <> · {task.sourceInstance.inventoryNumber}</>
+                            )}
+                            {task.issuedAt && <> · выдано {formatDate(task.issuedAt)}</>}
+                            {task.serviceLifeYearsSnapshot && (
+                              <> · срок {task.serviceLifeYearsSnapshot} г.</>
+                            )}
+                          </td>
+                          <td>{linkedDocuments(task)}</td>
+                          <td>{formatDate(task.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
                 </Fragment>
               );
             })}

@@ -3,10 +3,10 @@ import { tasksApi } from '../api/tasks-api.js';
 
 const KEY = 'issuance-tasks';
 
-export function useTasksList(status) {
+export function useTasksList(status, taskType) {
   return useQuery({
-    queryKey: [KEY, { status }],
-    queryFn: () => tasksApi.list({ status }),
+    queryKey: [KEY, { status, taskType }],
+    queryFn: () => tasksApi.list({ status, taskType }),
   });
 }
 
@@ -33,7 +33,7 @@ export function useTasksMutations() {
       queryClient.invalidateQueries({ queryKey: [KEY] });
       queryClient.invalidateQueries({ queryKey: ['issuance-documents'] });
     },
-    meta: { successMessage: 'Черновик довыдачи создан' },
+    meta: { successMessage: 'Черновик выдачи по задаче создан' },
   });
   return { createDraft };
 }

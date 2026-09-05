@@ -258,7 +258,13 @@ export function createApp({
   app.set('trust proxy', 1);
 
   app.use(helmet());
-  app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+  app.use(
+    cors({
+      origin: env.CLIENT_ORIGIN,
+      credentials: true,
+      exposedHeaders: ['Content-Disposition'],
+    }),
+  );
   // Визуальный редактор печатных форм передаёт сетку листа и каталог стилей.
   // Лимит всё ещё заметно меньше максимального размера загружаемого .xlsx (5 МБ),
   // но не обрывает корректный макет стандартным лимитом Express в 100 КБ.

@@ -39,6 +39,9 @@ function fillAppendix17(sheet, data, positions, markers) {
   const header = markers.header;
   const rowColumn = markers.row;
   sheet.getColumn(rowColumn.get('PRICE_WITHOUT_VAT')).hidden = false;
+  // Код СКМТР / инвентарный номер в официальном акте 1.7 отсутствует —
+  // маркер в шаблоне оставляем (валидация), колонку скрываем.
+  sheet.getColumn(rowColumn.get('INVENTORY_NUMBER')).hidden = true;
 
   set(sheet, header.get('ACT_DATE'), formatQuotedDate(data.from).replace(/ "/, '"'));
   set(
@@ -70,7 +73,7 @@ function fillAppendix17(sheet, data, positions, markers) {
     const modelCell = sheet.getCell(rowNumber, rowColumn.get('MODEL_NAME'));
     modelCell.value = row.modelName;
     addSourceNote(modelCell, row);
-    sheet.getCell(rowNumber, rowColumn.get('INVENTORY_NUMBER')).value = row.inventoryNumber || null;
+    sheet.getCell(rowNumber, rowColumn.get('INVENTORY_NUMBER')).value = null;
     set(sheet, sheet.getCell(rowNumber, rowColumn.get('UNIT')).address, row.unit || 'шт.');
     set(
       sheet,

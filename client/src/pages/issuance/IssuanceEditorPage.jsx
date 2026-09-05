@@ -41,6 +41,12 @@ const SIZE_TYPE_LABELS = {
 };
 const LINE_DRAFT_FIELDS = ['modelId', 'sizeId', 'heightSizeId', 'quantity'];
 
+const ISSUANCE_KIND_LABELS = {
+  standard: 'Обычная выдача',
+  completion: 'Доукомплектовка',
+  replacement: 'Плановое переодевание',
+};
+
 function lineKey(modelId, sizeId, heightSizeId) {
   return `${modelId}:${sizeId ?? ''}:${heightSizeId ?? ''}`;
 }
@@ -293,6 +299,7 @@ export function IssuanceEditorPage() {
           <h1 className={catalogStyles.title}>Выдача {document.number}</h1>
           <p className={styles.subtitle}>
             {STATUS_LABELS[document.status] ?? document.status}
+            {` · ${ISSUANCE_KIND_LABELS[document.issuanceKind] ?? 'Обычная выдача'}`}
             {document.status === 'posted' && ` · Редакция №${document.revisionNumber ?? 1}`}
             {document.status === 'posted' &&
               lastEditor &&
@@ -435,10 +442,6 @@ export function IssuanceEditorPage() {
               <span>{document.employee?.heightSize?.value ?? 'Не указан'}</span>
             </div>
             <div>
-              <span className={styles.label}>Обувь</span>
-              <span>{document.employee?.shoeSize?.value ?? 'Не указан'}</span>
-            </div>
-            <div>
               <span className={styles.label}>Головной убор</span>
               <span>{document.employee?.headwearSize?.value ?? 'Не указан'}</span>
             </div>
@@ -486,6 +489,7 @@ export function IssuanceEditorPage() {
         onEditLine={handleEditLine}
         onRemoveLine={handleRemoveLine}
         isRemoving={removeLine.isPending}
+        showAvailability={isDraft && !revising}
       />
 
       {editingHeader && (

@@ -3,11 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { ApiError } from '../../utils/api-error.js';
 import { success } from '../../utils/respond.js';
 import { startupImportService } from './startup-import.service.js';
-
-function attachmentHeader(fileName) {
-  const encoded = encodeURIComponent(fileName);
-  return `attachment; filename="startup-import.xlsx"; filename*=UTF-8''${encoded}`;
-}
+import { attachmentHeader } from '../../utils/attachment-header.js';
+import { buildExportFileName } from '../../utils/export-file-name.js';
 
 export const startupImportController = {
   async list(req, res) {
@@ -21,7 +18,12 @@ export const startupImportController = {
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.setHeader('Content-Disposition', attachmentHeader('Шаблон стартового импорта.xlsx'));
+    res.setHeader(
+      'Content-Disposition',
+      attachmentHeader(
+        buildExportFileName({ title: 'Шаблон стартового импорта', extension: 'xlsx' }),
+      ),
+    );
     return res.send(buffer);
   },
 

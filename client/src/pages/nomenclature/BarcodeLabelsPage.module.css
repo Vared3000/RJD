@@ -4,20 +4,34 @@
 }
 .scanForm {
   display: flex;
-  align-items: end;
-  gap: var(--space-3);
+  align-items: flex-end;
+  gap: var(--control-column-gap);
 }
 .scanForm label {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--control-label-gap);
   min-width: 360px;
   font-size: 13px;
 }
 .scanForm input {
-  padding: var(--space-3);
+  height: var(--control-height);
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 16px;
+}
+
+@media (max-width: 720px) {
+  .scanForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scanForm label,
+  .scanForm button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 .actions {
   display: flex;

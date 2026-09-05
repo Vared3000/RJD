@@ -5,17 +5,13 @@ import { Select } from '../../shared/ui/Select.jsx';
 import { SearchableSelect } from '../../shared/ui/SearchableSelect.jsx';
 import { Button } from '../../shared/ui/Button.jsx';
 import { ReportExportButtons } from '../../features/reports/ui/ReportExportButtons.jsx';
+import {
+  buildSizeOptionGroups,
+  compareSizeValues,
+  SIZE_TYPE_LABELS,
+} from '../../features/catalogs/model/size-options.js';
 import styles from '../../features/catalogs/ui/CatalogPage.module.css';
 import pageStyles from './StockPage.module.css';
-
-const SIZE_TYPE_LABELS = {
-  clothing: 'Размер',
-  height: 'Рост',
-  shoe: 'Обувь',
-  headwear: 'Головной убор',
-  belt: 'Ремень',
-  gloves: 'Перчатки',
-};
 
 const GENDER_CATEGORY_LABELS = {
   male: 'Мужское',
@@ -26,7 +22,8 @@ const GENDER_CATEGORY_LABELS = {
 
 function formatSize(size) {
   if (!size) return '—';
-  return `${SIZE_TYPE_LABELS[size.type] ?? size.type}: ${size.value}`;
+  const typeLabel = size.type === 'clothing' ? 'Размер' : SIZE_TYPE_LABELS[size.type];
+  return `${typeLabel ?? size.type}: ${size.value}`;
 }
 
 const EMPTY_FILTERS = {
@@ -69,15 +66,39 @@ export function StockBalancesPage() {
     order,
   });
 
-  const heightSizes = (sizes ?? []).filter((s) => s.type === 'height');
+  const heightSizes = (sizes ?? [])
+    .filter((size) => size.type === 'height')
+    .sort(compareSizeValues);
   const modelOptions =
     selectedModel && !(models ?? []).some((model) => model.id === selectedModel.id)
       ? [selectedModel, ...(models ?? [])]
       : (models ?? []);
+  const selectedSizeType = filters.modelId ? selectedModel?.sizeType : undefined;
+  const sizeOptionGroups = buildSizeOptionGroups(sizes, selectedSizeType);
+  const sizeFilterLoading = Boolean(filters.modelId && !selectedModel);
+  const sizeFilterDisabled = sizeFilterLoading || Boolean(filters.modelId && !selectedSizeType);
+  const sizeFilterPlaceholder = sizeFilterLoading
+    ? 'Загрузка параметров модели…'
+    : filters.modelId && !selectedSizeType
+      ? 'Для модели размер не используется'
+      : selectedSizeType
+        ? `Все — ${SIZE_TYPE_LABELS[selectedSizeType] ?? selectedSizeType}`
+        : 'Все размеры';
   const totalQuantity = rows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
 
   function setFilter(name, value) {
     setFilters((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function setModelFilter(modelId) {
+    const nextModel = modelOptions.find((model) => model.id === modelId);
+    const currentSize = (sizes ?? []).find((size) => size.id === filters.sizeId);
+    const sizeIsCompatible = !modelId || (currentSize && nextModel?.sizeType === currentSize.type);
+    setFilters((prev) => ({
+      ...prev,
+      modelId,
+      sizeId: sizeIsCompatible ? prev.sizeId : '',
+    }));
   }
 
   function changeSort(nextSort) {
@@ -121,17 +142,18 @@ export function StockBalancesPage() {
           label="Модель"
           placeholder="Все — начните вводить название"
           value={filters.modelId}
-          onChange={(value) => setFilter('modelId', value)}
+          onChange={setModelFilter}
           onSearch={setModelSearch}
           isLoading={modelsLoading}
           options={modelOptions.map((m) => ({ value: m.id, label: m.name }))}
         />
         <Select
           label="Размер"
-          placeholder="Все"
+          placeholder={sizeFilterPlaceholder}
           value={filters.sizeId}
           onChange={(event) => setFilter('sizeId', event.target.value)}
-          options={(sizes ?? []).map((s) => ({ value: s.id, label: formatSize(s) }))}
+          optionGroups={sizeOptionGroups}
+          disabled={sizeFilterDisabled}
         />
         <Select
           label="Рост"

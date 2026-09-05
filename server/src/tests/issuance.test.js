@@ -97,6 +97,7 @@ test('выдача: автоподбор комплекта -> проведен�
     modelId,
     quantity: 2,
     season: 'summer',
+    serviceLifeYears: 4,
   });
   assert.equal(kitItem.status, 201);
 
@@ -180,7 +181,24 @@ test('выдача: автоподбор комплекта -> проведен�
   for (const movement of issuanceMovements) {
     assert.equal(movement.fromWarehouseId, warehouseId);
     assert.equal(movement.toWarehouseId, null);
+    assert.equal(movement.serviceLifeYearsSnapshot, 4);
+    assert.equal(movement.plannedReplacementDate, '2030-07-29');
   }
+  const replacementTasks = await models.IssuanceTask.findAll({
+    where: { sourceDocumentId: issuanceId, taskType: 'replacement' },
+  });
+  assert.equal(replacementTasks.length, 2);
+  assert.equal(replacementTasks[0].notificationDate, '2030-06-29');
+  assert.equal(replacementTasks[0].status, 'scheduled');
+  const hiddenFutureTasks = await auth(agent.get('/api/v1/issuance/tasks')).query({
+    status: 'active',
+    taskType: 'replacement',
+    limit: 200,
+  });
+  assert.equal(
+    hiddenFutureTasks.body.data.some((task) => task.sourceDocumentId === issuanceId),
+    false,
+  );
 
   // Недостаточно остатка: третий экземпляр того же модели/размера уже не в наличии.
   const shortageDraft = await auth(agent.post('/api/v1/issuance/documents')).send({
@@ -221,6 +239,23 @@ test('выдача: автоподбор комплекта -> проведен�
   });
   const returnPosted = await auth(agent.post(`/api/v1/issuance/returns/${returnId}/post`));
   assert.equal(returnPosted.status, 200);
+
+  let returnedReplacementTask = await models.IssuanceTask.findOne({
+    where: { sourceInstanceId: instanceToReturn, taskType: 'replacement' },
+  });
+  assert.equal(returnedReplacementTask.status, 'cancelled');
+  assert.equal(returnedReplacementTask.cancelledByReturnDocumentId, returnId);
+
+  const returnUnposted = await auth(agent.post(`/api/v1/issuance/returns/${returnId}/unpost`)).send(
+    { reason: 'Проверка восстановления задачи' },
+  );
+  assert.equal(returnUnposted.status, 200);
+  returnedReplacementTask = await models.IssuanceTask.findByPk(returnedReplacementTask.id);
+  assert.equal(returnedReplacementTask.status, 'scheduled');
+  assert.equal(returnedReplacementTask.cancelledByReturnDocumentId, null);
+
+  const returnReposted = await auth(agent.post(`/api/v1/issuance/returns/${returnId}/post`));
+  assert.equal(returnReposted.status, 200);
 
   const returnedInstance = await models.Instance.findByPk(instanceToReturn);
   assert.equal(returnedInstance.status, 'in_stock');
@@ -829,7 +864,7 @@ test('комплект учитывает пол и сезон, выбирает
   ]);
 });
 
-test('выдача: задание на сборку строится по строкам черновика (Excel/PDF), с кириллическим номером в имени файла', async (t) => {
+test('выдача: задание на сборку строится по строкам черновика с русским именем файла', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
     t.skip('BOOTSTRAP_ADMIN_PASSWORD не задан — пропуск');
     return;
@@ -843,6 +878,7 @@ test('выдача: задание на сборку строится по ст�
   const state = {};
 
   t.after(async () => {
+    if (state.instanceId) await models.Instance.destroy({ where: { id: state.instanceId } });
     if (state.issuanceId) {
       await models.IssuanceDocument.destroy({ where: { id: state.issuanceId } });
     }
@@ -876,6 +912,14 @@ test('выдача: задание на сборку строится по ст�
     hireDate: '2026-01-01',
   });
   state.employeeId = employee.id;
+  const instance = await models.Instance.create({
+    modelId: model.id,
+    sizeId: size.id,
+    warehouseId: warehouse.id,
+    inventoryNumber: `ASM-${Date.now()}`,
+    status: 'in_stock',
+  });
+  state.instanceId = instance.id;
 
   const draft = await auth(agent.post('/api/v1/issuance/documents')).send({
     employeeId: employee.id,
@@ -908,9 +952,13 @@ test('выдача: задание на сборку строится по ст�
     });
   assert.equal(pdf.status, 200);
   assert.equal(pdf.headers['content-type'], 'application/pdf');
-  // Номер документа ("В-000123") содержит кириллицу — заголовок должен уйти
-  // через RFC 5987 (filename*=UTF-8''...), а не упасть на невалидном символе.
-  assert.match(pdf.headers['content-disposition'], /filename\*=UTF-8''assembly-order_/);
+  // Русское пользовательское имя передаётся через RFC 5987 и не содержит
+  // внутренний номер документа.
+  const pdfDisposition = pdf.headers['content-disposition'];
+  assert.match(pdfDisposition, /filename\*=UTF-8''/);
+  const pdfFileName = decodeURIComponent(pdfDisposition.match(/filename\*=UTF-8''([^;]+)/)[1]);
+  assert.match(pdfFileName, /^Задание_на_сборку_/);
+  assert.doesNotMatch(pdfFileName, /В-\d{6}/);
   assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
 
   const xlsx = await auth(
@@ -926,6 +974,9 @@ test('выдача: задание на сборку строится по ст�
     });
   assert.equal(xlsx.status, 200);
   assert.equal(xlsx.body.subarray(0, 2).toString(), 'PK');
+  const xlsxDisposition = xlsx.headers['content-disposition'];
+  const xlsxFileName = decodeURIComponent(xlsxDisposition.match(/filename\*=UTF-8''([^;]+)/)[1]);
+  assert.equal(xlsxFileName.replace(/\.xlsx$/, ''), pdfFileName.replace(/\.pdf$/, ''));
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(xlsx.body);
@@ -937,8 +988,8 @@ test('выдача: задание на сборку строится по ст�
     ['Модель', 'Размер', 'Рост', 'Количество'],
   );
   assert.equal(sheet.getCell(5, 1).value, unique);
-  assert.equal(sheet.getCell(5, 4).value, 3);
-  assert.equal(sheet.getCell(6, 4).value, 3, 'строка итогов суммирует количество');
+  assert.equal(sheet.getCell(5, 4).value, 1, 'в сборку попадает только доступный остаток');
+  assert.equal(sheet.getCell(6, 4).value, 1, 'строка итогов суммирует доступное количество');
 });
 
 test('выдача: частичная нехватка остатка выдаёт доступное и создаёт задачу на доукомплектовку', async (t) => {

@@ -7,14 +7,24 @@ import {
   saveEditorLayoutSchema,
   previewEditorLayoutSchema,
 } from './print-form-templates.validation.js';
+import { attachmentHeader } from '../../../utils/attachment-header.js';
+import { buildExportFileName } from '../../../utils/export-file-name.js';
 
-function attachmentHeader(fileName) {
-  const fallback = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const encoded = encodeURIComponent(fileName).replace(
-    /[!'()*]/g,
-    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+const FORM_TYPE_LABELS = {
+  'fpu-26': 'ФПУ-26',
+  'appendix-1-5': 'Приложение 1.5',
+  'appendix-1-7': 'Приложение 1.7',
+  'personal-card': 'Личная карточка',
+  'preservation-receipt': 'Сохранная расписка',
+};
+
+function templateFileName({ title, formType, versionNumber, extension }) {
+  return buildExportFileName({
+    title,
+    objects: [FORM_TYPE_LABELS[formType] ?? formType],
+    version: versionNumber,
+    extension,
+  });
 }
 
 function sendFile(res, { buffer, contentType, fileName }) {
@@ -83,7 +93,12 @@ export const printFormTemplatesController = {
     const file = await printFormTemplatesService.previewEditorLayout(req.params.id, body);
     return sendFile(res, {
       ...file,
-      fileName: `print-form-layout-draft.${file.extension}`,
+      fileName: templateFileName({
+        title: 'Черновик макета',
+        formType: file.formType,
+        versionNumber: file.versionNumber,
+        extension: file.extension,
+      }),
     });
   },
 
@@ -92,7 +107,11 @@ export const printFormTemplatesController = {
     const file = await printFormTemplatesService.previewNewEditorLayout(req.params.formType, body);
     return sendFile(res, {
       ...file,
-      fileName: `print-form-new-layout-draft.${file.extension}`,
+      fileName: templateFileName({
+        title: 'Новый макет',
+        formType: file.formType,
+        extension: file.extension,
+      }),
     });
   },
 
@@ -101,7 +120,12 @@ export const printFormTemplatesController = {
     const file = await printFormTemplatesService.preview(req.params.id, query);
     return sendFile(res, {
       ...file,
-      fileName: `print-form-template-preview.${file.extension}`,
+      fileName: templateFileName({
+        title: 'Предпросмотр шаблона',
+        formType: file.formType,
+        versionNumber: file.versionNumber,
+        extension: file.extension,
+      }),
     });
   },
 
@@ -110,7 +134,12 @@ export const printFormTemplatesController = {
     return sendFile(res, {
       buffer: version.fileData,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: version.originalFileName,
+      fileName: templateFileName({
+        title: 'Шаблон',
+        formType: version.formType,
+        versionNumber: version.versionNumber,
+        extension: 'xlsx',
+      }),
     });
   },
 

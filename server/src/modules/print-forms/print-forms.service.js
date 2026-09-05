@@ -23,6 +23,7 @@ import { monthlyRentalService } from './monthly-rental-act/monthly-rental-act.se
 import { buildPreservationReceipt } from './preservation-receipt/preservation-receipt.builder.js';
 import { preservationReceiptExcelMapper } from './preservation-receipt/preservation-receipt.excel-mapper.js';
 import { loadPreservationReceiptContext } from './preservation-receipt/preservation-receipt.context.js';
+import { buildExportFileName, shortenEmployeeName } from '../../utils/export-file-name.js';
 
 const BUILDERS = {
   'fpu-26': { build: buildFpu26, loadContext, excelMapper: fpu26ExcelMapper },
@@ -69,15 +70,47 @@ async function generateFormExcel(form, data, excelMapper) {
   return generateExcelFromTemplate(data, excelMapper);
 }
 
+const FORM_FILE_TITLES = {
+  'fpu-26': 'ФПУ-26',
+  'appendix-1-5': 'Приложение 1.5',
+  'appendix-1-7': 'Приложение 1.7',
+  'personal-card': 'Личная карточка',
+  upd: 'УПД',
+  'preservation-receipt': 'Сохранная расписка',
+};
+
 function fileName(form, extension, context, data) {
   if (form === 'personal-card') {
-    return `${form}_${context.employee.personnelNumber || context.employee.id}.${extension}`;
+    return buildExportFileName({
+      title: FORM_FILE_TITLES[form],
+      objects: [shortenEmployeeName(context.employee.fullName)],
+      date: context.toText,
+      extension,
+    });
   }
-  if (form === 'upd') return `${form}_${data.documentNumber}_${data.documentDate}.${extension}`;
+  if (form === 'upd') {
+    return buildExportFileName({
+      title: FORM_FILE_TITLES[form],
+      objects: [context.dpo?.name],
+      date: data.documentDate,
+      extension,
+    });
+  }
   if (form === 'preservation-receipt' && context.issuanceDocument) {
-    return `${form}_${context.issuanceDocument.number}.${extension}`;
+    return buildExportFileName({
+      title: FORM_FILE_TITLES[form],
+      objects: [shortenEmployeeName(context.issuanceDocument.employee?.fullName)],
+      date: context.issuanceDocument.documentDate,
+      extension,
+    });
   }
-  return `${form}_${context.fromText}_${context.toText}.${extension}`;
+  return buildExportFileName({
+    title: FORM_FILE_TITLES[form] ?? form,
+    objects: [context.dpo?.name],
+    from: context.fromText,
+    to: context.toText,
+    extension,
+  });
 }
 
 export const printFormsService = {

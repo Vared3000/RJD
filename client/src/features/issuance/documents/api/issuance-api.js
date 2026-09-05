@@ -1,4 +1,5 @@
 import { httpClient } from '../../../../shared/api/http-client.js';
+import { fileNameFromContentDisposition } from '../../../../shared/lib/content-disposition.js';
 
 const BASE = '/issuance/documents';
 
@@ -60,7 +61,7 @@ export async function downloadAssemblyOrder(id, format) {
     responseType: 'blob',
   });
   const disposition = response.headers['content-disposition'] ?? '';
-  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ?? `assembly-order.${format}`;
+  const fileName = fileNameFromContentDisposition(disposition) ?? `Задание_на_сборку.${format}`;
   const url = URL.createObjectURL(response.data);
   const link = document.createElement('a');
   link.href = url;

@@ -2,7 +2,17 @@ import { forwardRef } from 'react';
 import styles from './Select.module.css';
 
 export const Select = forwardRef(function Select(
-  { label, error, hint, required, options = [], placeholder = 'Выберите…', id, ...props },
+  {
+    label,
+    error,
+    hint,
+    required,
+    options = [],
+    optionGroups = [],
+    placeholder = 'Выберите…',
+    id,
+    ...props
+  },
   ref,
 ) {
   const fieldId = id ?? props.name;
@@ -25,6 +35,15 @@ export const Select = forwardRef(function Select(
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
+        ))}
+        {optionGroups.map((group) => (
+          <optgroup key={group.value ?? group.label} label={group.label}>
+            {group.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       {hint && !error && <span className={styles.hint}>{hint}</span>}

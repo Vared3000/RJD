@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import { useSessionStore } from '../../shared/session/session-store.js';
 import { useStockBalances } from '../../features/warehouses/stock/model/use-stock-queries.js';
 import { useBackupStatus, useHaStatus } from '../../features/admin/model/use-admin-queries.js';
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 import { getVisibleNavSections } from '../../widgets/layout/nav-sections.js';
+import { useOpenTasksCount } from '../../features/issuance/tasks/model/use-tasks-queries.js';
 import styles from './DashboardPage.module.css';
 
 const QUICK_ACTIONS = [
@@ -74,12 +76,17 @@ export function DashboardPage() {
   const permissions = user?.permissions ?? [];
   const canViewStock = permissions.includes('warehouse.view');
   const canManage = permissions.includes('admin.manage');
+  const canSeeTasks = permissions.includes('issuance.manage');
   const { data: stockRows } = useStockBalances(undefined, { enabled: canViewStock });
   const { data: backupStatus } = useBackupStatus(canManage);
   const { data: haStatus } = useHaStatus(canManage);
+  const { data: openTasksCount } = useOpenTasksCount(canSeeTasks);
   const totalQuantity = stockRows?.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
   const sections = getVisibleNavSections(permissions).filter((section) => section.title);
   const actions = QUICK_ACTIONS.filter((item) => permissions.includes(item.permission));
+  const workflow = LAUNDRY_REPAIR_ENABLED
+    ? WORKFLOW
+    : WORKFLOW.filter(([label]) => label !== 'Обслуживание');
   const today = new Intl.DateTimeFormat('ru-RU', {
     weekday: 'long',
     day: 'numeric',
@@ -100,6 +107,13 @@ export function DashboardPage() {
             <span>На складах</span>
             <strong>{totalQuantity.toLocaleString('ru-RU')} ед.</strong>
             <small>Открыть остатки</small>
+          </Link>
+        )}
+        {canSeeTasks && (
+          <Link to="/issuance/tasks" className={styles.stockSummary}>
+            <span>Требуют внимания</span>
+            <strong>{openTasksCount ?? 0}</strong>
+            <small>Доукомплектовка и переодевание</small>
           </Link>
         )}
       </section>
@@ -219,7 +233,7 @@ export function DashboardPage() {
           </div>
         </div>
         <div className={styles.workflow}>
-          {WORKFLOW.map(([label, to, permission], index) => {
+          {workflow.map(([label, to, permission], index) => {
             const available = to && (!permission || permissions.includes(permission));
             return (
               <div className={styles.workflowStep} key={`${label}-${index}`}>

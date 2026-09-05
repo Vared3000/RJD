@@ -32,7 +32,6 @@ const { useCatalogMutations } = createCatalogHooks('employees');
 const SIZE_TYPE_LABELS = {
   clothing: 'одежда',
   height: 'рост',
-  shoe: 'обувь',
   headwear: 'головной убор',
   belt: 'ремень',
   gloves: 'перчатки',
@@ -70,6 +69,7 @@ export function EmployeeCardPage() {
   const instances = property?.instances ?? [];
   const importedMeasurements = Object.entries(
     (employee.measurements ?? []).reduce((groups, measurement) => {
+      if (measurement.sizeType === 'shoe') return groups;
       groups[measurement.sizeType] ??= new Set();
       groups[measurement.sizeType].add(measurement.value);
       return groups;
@@ -152,10 +152,6 @@ export function EmployeeCardPage() {
         <div>
           <span className={styles.label}>Рост</span>
           <span>{employee.heightSize?.value ?? '—'}</span>
-        </div>
-        <div>
-          <span className={styles.label}>Размер обуви</span>
-          <span>{employee.shoeSize?.value ?? '—'}</span>
         </div>
         <div>
           <span className={styles.label}>Размер головного убора</span>

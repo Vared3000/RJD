@@ -1,3 +1,11 @@
+import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
+
+const LAUNDRY_REPAIR_PATHS = new Set([
+  '/laundry/documents',
+  '/repair/documents',
+  '/reports/repairs',
+]);
+
 export const NAV_SECTIONS = [
   {
     icon: '⌂',
@@ -17,7 +25,7 @@ export const NAV_SECTIONS = [
       { to: '/issuance/returns', label: 'Возвраты', icon: '←', permission: 'issuance.manage' },
       {
         to: '/issuance/tasks',
-        label: 'Задачи на доукомплектовку',
+        label: 'Задачи',
         icon: '✎',
         permission: 'issuance.manage',
         badge: 'issuance-open-tasks',
@@ -189,8 +197,9 @@ export const NAV_SECTIONS = [
 export function getVisibleNavSections(permissions) {
   return NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter(
-      (item) => !item.permission || permissions.includes(item.permission),
-    ),
+    items: section.items.filter((item) => {
+      if (!LAUNDRY_REPAIR_ENABLED && LAUNDRY_REPAIR_PATHS.has(item.to)) return false;
+      return !item.permission || permissions.includes(item.permission);
+    }),
   })).filter((section) => section.items.length > 0);
 }

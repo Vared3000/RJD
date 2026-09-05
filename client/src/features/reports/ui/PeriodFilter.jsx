@@ -5,7 +5,7 @@ import styles from './PeriodFilter.module.css';
 // from/to — строки 'YYYY-MM-DD'; onChange({ from, to }).
 export function PeriodFilter({ from, to, onChange }) {
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} data-period-filter>
       <div className={styles.presets}>
         {PERIOD_PRESETS.map((preset) => (
           <Button

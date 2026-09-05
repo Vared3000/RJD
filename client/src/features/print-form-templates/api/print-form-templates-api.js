@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/http-client.js';
+import { fileNameFromContentDisposition } from '../../../shared/lib/content-disposition.js';
 
 const BASE = '/print-forms/templates';
 
@@ -15,7 +16,7 @@ function downloadBlob(blob, fileNameFromHeader, fallbackName) {
 
 function fileNameFromResponse(response) {
   const disposition = response.headers['content-disposition'] ?? '';
-  return disposition.match(/filename="([^"]+)"/)?.[1];
+  return fileNameFromContentDisposition(disposition);
 }
 
 export const printFormTemplatesApi = {
@@ -81,11 +82,7 @@ export const printFormTemplatesApi = {
       { layout, format, dpoId, employeeId, from, to },
       { responseType: 'blob' },
     );
-    downloadBlob(
-      response.data,
-      fileNameFromResponse(response),
-      `print-form-layout-draft.${format}`,
-    );
+    downloadBlob(response.data, fileNameFromResponse(response), `Черновик_макета.${format}`);
   },
 
   async previewNewLayout(formType, { layout, format, dpoId, employeeId, from, to }) {
@@ -94,14 +91,10 @@ export const printFormTemplatesApi = {
       { layout, format, dpoId, employeeId, from, to },
       { responseType: 'blob' },
     );
-    downloadBlob(
-      response.data,
-      fileNameFromResponse(response),
-      `print-form-new-layout-draft.${format}`,
-    );
+    downloadBlob(response.data, fileNameFromResponse(response), `Новый_макет.${format}`);
   },
 
-  async download(id, fallbackName = 'template.xlsx') {
+  async download(id, fallbackName = 'Шаблон.xlsx') {
     const response = await httpClient.get(`${BASE}/versions/${id}/download`, {
       responseType: 'blob',
     });
@@ -113,6 +106,6 @@ export const printFormTemplatesApi = {
       params: { format, dpoId, employeeId, from, to },
       responseType: 'blob',
     });
-    downloadBlob(response.data, fileNameFromResponse(response), `preview.${format}`);
+    downloadBlob(response.data, fileNameFromResponse(response), `Предпросмотр_шаблона.${format}`);
   },
 };
