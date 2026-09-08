@@ -8,13 +8,14 @@ import styles from './CatalogFormField.module.css';
 
 const INPUT_TYPES = { number: 'number', email: 'email', date: 'date', password: 'password' };
 
-// field: { name, label, type: 'text'|'email'|'number'|'date'|'select'|'checkbox', required,
+// field: { name, label, type: 'text'|'email'|'number'|'date'|'select'|'checkbox'|'custom', required,
 //          options?: [{value,label}] — для статичного select,
 //          optionsResource?, optionValue?, optionLabel? — для select со
 //          списком из другого справочника (например, организация);
 //          optionsFilter?(item) — сузить список загруженных записей
 //          (например, размеры только одного типа);
-//          optionsSort?(a, b) — задать удобный порядок значений. }
+//          optionsSort?(a, b) — задать удобный порядок значений;
+//          component? — отдельный контрол для type='custom'. }
 export function CatalogFormField({ field, form }) {
   const {
     register,
@@ -22,6 +23,11 @@ export function CatalogFormField({ field, form }) {
     formState: { errors },
   } = form;
   const error = errors[field.name]?.message;
+
+  if (field.type === 'custom') {
+    const CustomField = field.component;
+    return <CustomField field={field} form={form} error={error} />;
+  }
 
   if (field.type === 'select') {
     return <SelectField field={field} control={control} error={error} />;

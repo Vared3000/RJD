@@ -23,7 +23,8 @@ export function createNomenclatureModelsRouter() {
       basePath: '/nomenclature-models',
       tag: 'Номенклатура: Модели',
       entityName: 'Модель номенклатуры',
-      requestBodyHint: 'name (обязательно), article, unit, description',
+      requestBodyHint:
+        'name (обязательно), unit, sizeType, genderCategory, wearMonths (массив чисел 1–12)',
     }),
   );
 

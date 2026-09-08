@@ -4,6 +4,11 @@ import { DataTypes } from 'sequelize';
 // какого пола применима конкретная строка комплекта должности; здесь —
 // свойство самой модели номенклатуры, раздел А2 ТЗ от 19.08.2026).
 export const GENDER_CATEGORIES = ['male', 'female', 'unisex', 'unspecified'];
+export const ALL_WEAR_MONTHS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+export function normalizeWearMonths(months = ALL_WEAR_MONTHS) {
+  return [...new Set(months)].sort((left, right) => left - right);
+}
 
 export function defineNomenclatureModel(sequelize) {
   return sequelize.define(
@@ -41,6 +46,14 @@ export function defineNomenclatureModel(sequelize) {
         allowNull: false,
         defaultValue: 'unspecified',
         field: 'gender_category',
+      },
+      // Конкретные календарные месяцы, в которые модель учитывается как
+      // эксплуатируемая. История проведённых выдач хранит отдельный снимок.
+      wearMonths: {
+        type: DataTypes.ARRAY(DataTypes.SMALLINT),
+        allowNull: false,
+        defaultValue: [...ALL_WEAR_MONTHS],
+        field: 'wear_months',
       },
       description: { type: DataTypes.STRING(1000), allowNull: true },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },

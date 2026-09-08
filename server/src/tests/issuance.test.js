@@ -78,6 +78,7 @@ test('выдача: автоподбор комплекта -> проведен�
   const model = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: unique,
     sizeType: 'clothing',
+    wearMonths: [4, 5, 6, 7, 8, 9, 10],
   });
   const modelId = model.body.data.id;
   const position = await auth(agent.post('/api/v1/positions')).send({ name: unique });
@@ -183,6 +184,23 @@ test('выдача: автоподбор комплекта -> проведен�
     assert.equal(movement.toWarehouseId, null);
     assert.equal(movement.serviceLifeYearsSnapshot, 4);
     assert.equal(movement.plannedReplacementDate, '2030-07-29');
+    assert.deepEqual(movement.wearMonthsSnapshot, [4, 5, 6, 7, 8, 9, 10]);
+  }
+
+  const changedWearMonths = await auth(agent.patch(`/api/v1/nomenclature-models/${modelId}`)).send({
+    wearMonths: [11, 12, 1, 2, 3],
+  });
+  assert.equal(changedWearMonths.status, 200);
+  assert.deepEqual(changedWearMonths.body.data.wearMonths, [1, 2, 3, 11, 12]);
+  const historicalMovements = await models.StockMovement.findAll({
+    where: { documentId: issuanceId, documentType: 'issuance' },
+  });
+  for (const movement of historicalMovements) {
+    assert.deepEqual(
+      movement.wearMonthsSnapshot,
+      [4, 5, 6, 7, 8, 9, 10],
+      'правка номенклатуры не должна менять снимок проведённой выдачи',
+    );
   }
   const replacementTasks = await models.IssuanceTask.findAll({
     where: { sourceDocumentId: issuanceId, taskType: 'replacement' },
@@ -347,6 +365,28 @@ test('выдача: автоподбор комплекта -> проведен�
     'повторная строка с тем же экземпляром должна быть отклонена',
   );
   await auth(agent.delete(`/api/v1/issuance/returns/${dupReturnId}`));
+
+  // Следующая выдача той же модели получает уже новую настройку месяцев.
+  const winterIssuanceDraft = await auth(agent.post('/api/v1/issuance/documents')).send({
+    employeeId,
+    warehouseId,
+    documentDate: '2026-07-30',
+  });
+  const winterIssuanceId = winterIssuanceDraft.body.data.id;
+  state.issuanceDocIds.push(winterIssuanceId);
+  await auth(agent.post(`/api/v1/issuance/documents/${winterIssuanceId}/lines`)).send({
+    modelId,
+    sizeId,
+    quantity: 1,
+  });
+  const winterIssuancePosted = await auth(
+    agent.post(`/api/v1/issuance/documents/${winterIssuanceId}/post`),
+  );
+  assert.equal(winterIssuancePosted.status, 200);
+  const winterMovement = await models.StockMovement.findOne({
+    where: { documentId: winterIssuanceId, documentType: 'issuance' },
+  });
+  assert.deepEqual(winterMovement.wearMonthsSnapshot, [1, 2, 3, 11, 12]);
 });
 
 test('выдача: составной размер одежды подбирает экземпляр нужного роста', async (t) => {

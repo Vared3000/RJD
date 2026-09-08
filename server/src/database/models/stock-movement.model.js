@@ -22,6 +22,13 @@ export function defineStockMovement(sequelize) {
         allowNull: true,
         field: 'planned_replacement_date',
       },
+      // Снимок настройки месяцев носки в момент проведения выдачи. Нужен,
+      // чтобы последующая правка номенклатуры не меняла старые документы.
+      wearMonthsSnapshot: {
+        type: DataTypes.ARRAY(DataTypes.SMALLINT),
+        allowNull: true,
+        field: 'wear_months_snapshot',
+      },
     },
     { tableName: 'stock_movements', updatedAt: false },
   );

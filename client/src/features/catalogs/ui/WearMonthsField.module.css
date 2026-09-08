@@ -1,0 +1,90 @@
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.legend {
+  padding: 0 6px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.hint,
+.selection,
+.error {
+  margin: 0;
+  font-size: 12px;
+}
+
+.hint,
+.selection {
+  color: var(--color-text-muted);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.presetButton,
+.monthButton {
+  min-height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.presetButton {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.presetButton:hover,
+.monthButton:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0 10px;
+}
+
+.monthButton {
+  padding: 7px 4px;
+  font-size: 12px;
+}
+
+.monthButtonActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+  font-weight: 650;
+}
+
+.monthButtonActive:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.error {
+  margin-top: 6px;
+  color: var(--color-danger);
+}
+
+@media (max-width: 420px) {
+  .monthGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -119,7 +119,11 @@ export const issuanceRepository = {
     const lines = await IssuanceLine.findAll({
       where: { documentId: id },
       include: [
-        { model: models.NomenclatureModel, as: 'model', attributes: ['id', 'name'] },
+        {
+          model: models.NomenclatureModel,
+          as: 'model',
+          attributes: ['id', 'name', 'wearMonths'],
+        },
         { model: models.Size, as: 'size', attributes: ['id', 'type', 'value'] },
         { model: models.Size, as: 'heightSize', attributes: ['id', 'type', 'value'] },
       ],
@@ -247,7 +251,7 @@ export const issuanceRepository = {
         {
           model: models.NomenclatureModel,
           as: 'model',
-          attributes: ['id', 'name', 'sizeType', 'requiresHeightSize'],
+          attributes: ['id', 'name', 'sizeType', 'requiresHeightSize', 'wearMonths'],
         },
       ],
       order: [

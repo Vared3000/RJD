@@ -15,6 +15,10 @@ import {
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
 import { floorMoney } from '../../print-forms/shared/money.js';
+import {
+  ALL_WEAR_MONTHS,
+  normalizeWearMonths,
+} from '../../../database/models/nomenclature-model.model.js';
 import { tasksRepository, issuanceTaskKey } from '../tasks/tasks.repository.js';
 import {
   dateOnlyToday,
@@ -287,6 +291,7 @@ async function applyIssuanceSideEffects(
     const replacementDate = serviceLifeYears
       ? plannedReplacementDate(document.documentDate, serviceLifeYears)
       : null;
+    const wearMonthsSnapshot = normalizeWearMonths(line.model?.wearMonths ?? ALL_WEAR_MONTHS);
 
     for (const instance of instances) {
       allInstanceIds.push(instance.id);
@@ -313,6 +318,7 @@ async function applyIssuanceSideEffects(
         note: `Выдача ${document.number}`,
         serviceLifeYearsSnapshot: serviceLifeYears ?? null,
         plannedReplacementDate: replacementDate,
+        wearMonthsSnapshot,
       });
     }
   }

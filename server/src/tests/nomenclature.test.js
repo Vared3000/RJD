@@ -38,6 +38,9 @@ test('номенклатура: модель -> размер -> экземпля
           `Test Model ${unique}`,
           `Test Model Gender ${unique}`,
           `Test Model BadGender ${unique}`,
+          `Test Model BadMonths ${unique}`,
+          `Test Model StringMonths ${unique}`,
+          `Test Model DuplicateMonths ${unique}`,
         ],
       },
     });
@@ -54,14 +57,27 @@ test('номенклатура: модель -> размер -> экземпля
     'unspecified',
     'категория по полу по умолчанию — «не определено»',
   );
+  assert.deepEqual(
+    model.body.data.wearMonths,
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    'по умолчанию модель эксплуатируется круглый год',
+  );
 
   const modelWithGender = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `Test Model Gender ${unique}`,
     sizeType: 'clothing',
     genderCategory: 'female',
+    wearMonths: [12, 2, 1, 2],
   });
   assert.equal(modelWithGender.status, 201);
   assert.equal(modelWithGender.body.data.genderCategory, 'female');
+  assert.deepEqual(modelWithGender.body.data.wearMonths, [1, 2, 12]);
+
+  const updatedWearMonths = await auth(
+    agent.patch(`/api/v1/nomenclature-models/${modelWithGender.body.data.id}`),
+  ).send({ wearMonths: [12, 11, 1] });
+  assert.equal(updatedWearMonths.status, 200);
+  assert.deepEqual(updatedWearMonths.body.data.wearMonths, [1, 11, 12]);
 
   const modelWithBadGender = await auth(agent.post('/api/v1/nomenclature-models')).send({
     name: `Test Model BadGender ${unique}`,
@@ -69,6 +85,29 @@ test('номенклатура: модель -> размер -> экземпля
     genderCategory: 'other',
   });
   assert.equal(modelWithBadGender.status, 400);
+
+  const modelWithBadMonths = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: `Test Model BadMonths ${unique}`,
+    sizeType: 'clothing',
+    wearMonths: [],
+  });
+  assert.equal(modelWithBadMonths.status, 400);
+
+  const modelWithStringMonths = await auth(agent.post('/api/v1/nomenclature-models')).send({
+    name: `Test Model StringMonths ${unique}`,
+    sizeType: 'clothing',
+    wearMonths: ['4', 5],
+  });
+  assert.equal(modelWithStringMonths.status, 400);
+
+  await assert.rejects(
+    models.NomenclatureModel.create({
+      name: `Test Model DuplicateMonths ${unique}`,
+      sizeType: 'clothing',
+      wearMonths: [1, 1],
+    }),
+    /nomenclature_models_wear_months_valid/,
+  );
 
   const modelSearch = await auth(agent.get('/api/v1/nomenclature-models')).query({
     search: `Model ${unique}`,

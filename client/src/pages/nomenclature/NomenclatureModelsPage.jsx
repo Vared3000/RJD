@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { CatalogPage } from '../../features/catalogs/ui/CatalogPage.jsx';
+import { WearMonthsField } from '../../features/catalogs/ui/WearMonthsField.jsx';
+import {
+  ALL_WEAR_MONTHS,
+  formatWearMonths,
+  normalizeWearMonths,
+} from '../../features/catalogs/model/wear-months.js';
 
 const SIZE_TYPE_LABELS = {
   clothing: 'Одежда',
@@ -30,6 +36,10 @@ const schema = z
     ),
     requiresHeightSize: z.boolean().default(false),
     genderCategory: z.enum(['male', 'female', 'unisex', 'unspecified']).default('unspecified'),
+    wearMonths: z
+      .array(z.number().int().min(1).max(12))
+      .min(1, 'Выберите хотя бы один месяц эксплуатации')
+      .transform(normalizeWearMonths),
     rentalPrice: z.coerce.number().nonnegative('Цена аренды не может быть отрицательной'),
     rentalVatRate: z.coerce.number().min(0).max(100),
     description: z.string().max(1000).optional().or(z.literal('')),
@@ -57,6 +67,11 @@ const columns = [
     key: 'genderCategory',
     label: 'Категория по полу',
     render: (item) => GENDER_CATEGORY_LABELS[item.genderCategory] ?? 'Не определено',
+  },
+  {
+    key: 'wearMonths',
+    label: 'Период носки',
+    render: (item) => formatWearMonths(item.wearMonths),
   },
   {
     key: 'rentalPrice',
@@ -87,6 +102,13 @@ const fields = [
     type: 'select',
     defaultValue: 'unspecified',
     options: Object.entries(GENDER_CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
+  },
+  {
+    name: 'wearMonths',
+    label: 'Месяцы эксплуатации',
+    type: 'custom',
+    component: WearMonthsField,
+    defaultValue: [...ALL_WEAR_MONTHS],
   },
   {
     name: 'rentalPrice',
