@@ -10,6 +10,11 @@ import { reverseDocumentEffects } from '../../nomenclature/instances/document-ef
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { tasksRepository } from '../tasks/tasks.repository.js';
 import { replacementStatusForDate } from '../tasks/replacement-dates.js';
+import {
+  activeReturnWarehouse,
+  resolveReturnDestination,
+  returnWarehouseOptions,
+} from './return-warehouse-routing.js';
 
 function documentSnapshot(document, overrides = {}) {
   const { lines, ...header } = document;
@@ -35,7 +40,12 @@ function assertNoDuplicateLine(lines, instanceId, excludeLineId) {
   }
 }
 
+function nextSortOrder(lines) {
+  return Math.max(-1, ...lines.map((line) => Number(line.sortOrder) || 0)) + 1;
+}
+
 export const returnService = {
+  warehouseOptions: returnWarehouseOptions,
   list(options) {
     return returnRepository.list(options);
   },
@@ -51,6 +61,7 @@ export const returnService = {
   },
 
   async create(data, { userId }) {
+    await activeReturnWarehouse(data.warehouseId);
     const number = await generateDocumentNumber();
     const document = await returnRepository.createDocument({
       ...data,
@@ -65,6 +76,12 @@ export const returnService = {
     await sequelize.transaction(async (transaction) => {
       const document = await returnRepository.findLocked(id, { transaction });
       assertDraft(document);
+      if (data.warehouseId) {
+        await activeReturnWarehouse(data.warehouseId, { transaction });
+        for (const line of document.lines) {
+          await resolveReturnDestination({ ...document, ...data }, line, { transaction });
+        }
+      }
       await returnRepository.updateDocument(id, data, { transaction });
     });
     return returnRepository.findById(id);
@@ -83,7 +100,63 @@ export const returnService = {
       const document = await returnRepository.findLocked(documentId, { transaction });
       assertDraft(document);
       assertNoDuplicateLine(document.lines, data.instanceId);
-      await returnRepository.createLine(documentId, data, { transaction });
+      const target = await resolveReturnDestination(document, data, { transaction });
+      await returnRepository.createLine(
+        documentId,
+        { ...data, targetWarehouseId: target.id, sortOrder: nextSortOrder(document.lines) },
+        { transaction },
+      );
+    });
+    return returnRepository.findById(documentId);
+  },
+
+  async addLinesBulk(documentId, data) {
+    await sequelize.transaction(async (transaction) => {
+      const document = await returnRepository.findLocked(documentId, { transaction });
+      assertDraft(document);
+      const target = await resolveReturnDestination(document, data, { transaction });
+
+      const requestedIds = [...new Set(data.instanceIds)];
+      if (requestedIds.length !== data.instanceIds.length) {
+        throw ApiError.badRequest('Одна и та же вещь выбрана несколько раз');
+      }
+
+      const existingIds = new Set(document.lines.map((line) => line.instanceId));
+      const duplicateId = requestedIds.find((instanceId) => existingIds.has(instanceId));
+      if (duplicateId) {
+        throw ApiError.badRequest('Одна из выбранных вещей уже добавлена в этот возврат');
+      }
+
+      const instances = await returnRepository.findInstancesForReturn(requestedIds, {
+        transaction,
+      });
+      const instancesById = new Map(instances.map((instance) => [instance.id, instance]));
+
+      for (const instanceId of requestedIds) {
+        const instance = instancesById.get(instanceId);
+        if (!instance) {
+          throw ApiError.notFound('Одна из выбранных вещей не найдена');
+        }
+        if (instance.status !== 'issued' || instance.employeeId !== document.employeeId) {
+          throw ApiError.badRequest(
+            `Экземпляр ${instance.inventoryNumber} не числится за работником этого возврата`,
+          );
+        }
+      }
+
+      const firstSortOrder = nextSortOrder(document.lines);
+      await returnRepository.bulkCreateLines(
+        documentId,
+        requestedIds.map((instanceId, index) => ({
+          instanceId,
+          targetWarehouseId: target.id,
+          condition: data.condition,
+          routeTo: data.routeTo,
+          note: data.note,
+          sortOrder: firstSortOrder + index,
+        })),
+        { transaction },
+      );
     });
     return returnRepository.findById(documentId);
   },
@@ -95,7 +168,16 @@ export const returnService = {
       const line = await returnRepository.findLine(documentId, lineId, { transaction });
       if (!line) throw ApiError.notFound('Позиция не найдена');
       assertNoDuplicateLine(document.lines, data.instanceId ?? line.instanceId, lineId);
-      await returnRepository.updateLine(lineId, data, { transaction });
+      const target = await resolveReturnDestination(
+        document,
+        { ...line.get({ plain: true }), ...data },
+        { transaction },
+      );
+      await returnRepository.updateLine(
+        lineId,
+        { ...data, targetWarehouseId: target.id },
+        { transaction },
+      );
     });
     return returnRepository.findById(documentId);
   },
@@ -133,6 +215,13 @@ export const returnService = {
       const eventRows = [];
 
       for (const line of document.lines) {
+        const target = await resolveReturnDestination(document, line, { transaction });
+        await returnRepository.updateLine(
+          line.id,
+          { targetWarehouseId: target.id },
+          { transaction },
+        );
+        line.targetWarehouseId = target.id;
         const instance = await returnRepository.findInstanceForReturn(line.instanceId, {
           transaction,
         });
@@ -146,7 +235,7 @@ export const returnService = {
 
         await returnRepository.markInstanceReturned(
           instance.id,
-          { warehouseId: document.warehouseId, condition: line.condition, routeTo: line.routeTo },
+          { warehouseId: target.id, condition: line.condition, routeTo: line.routeTo },
           { transaction },
         );
 
@@ -157,7 +246,7 @@ export const returnService = {
             to: {
               status: line.routeTo ?? 'in_stock',
               condition: line.condition,
-              warehouseId: document.warehouseId,
+              warehouseId: target.id,
               employeeId: null,
             },
             documentType: 'return',
@@ -173,7 +262,7 @@ export const returnService = {
         movementRows.push({
           instanceId: instance.id,
           fromWarehouseId: null,
-          toWarehouseId: document.warehouseId,
+          toWarehouseId: target.id,
           documentType: 'return',
           documentId: document.id,
           occurredAt: document.documentDate,

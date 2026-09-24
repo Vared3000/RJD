@@ -20,9 +20,11 @@ export const headerFields = [
   },
   {
     name: 'warehouseId',
-    label: 'Склад (куда возвращается)',
+    label: 'Склад возврата по умолчанию',
     type: 'select',
-    optionsResource: 'warehouses',
+    optionsResource: 'issuance/returns/warehouse-options',
+    searchable: true,
+    hint: 'Для неновых вещей. Склад можно уточнить при выборе вещей; новые автоматически поступят на Основной.',
     optionValue: 'id',
     optionLabel: 'name',
   },

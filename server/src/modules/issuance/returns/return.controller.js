@@ -4,6 +4,9 @@ import { ApiError } from '../../../utils/api-error.js';
 import { parsePagination } from '../../../utils/pagination.js';
 
 export const returnController = {
+  async warehouseOptions(req, res) {
+    return success(res, await returnService.warehouseOptions());
+  },
   async list(req, res) {
     const pagination = parsePagination(req.query);
     const { rows, count } = await returnService.list({
@@ -46,6 +49,11 @@ export const returnController = {
 
   async addLine(req, res) {
     const item = await returnService.addLine(req.params.id, req.validatedBody);
+    return success(res, item, 201);
+  },
+
+  async addLinesBulk(req, res) {
+    const item = await returnService.addLinesBulk(req.params.id, req.validatedBody);
     return success(res, item, 201);
   },
 

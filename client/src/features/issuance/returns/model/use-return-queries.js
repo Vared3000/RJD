@@ -49,6 +49,11 @@ export function useReturnMutations(id) {
     mutationFn: (payload) => returnApi.addLine(id, payload),
     onSuccess: invalidate,
   });
+  const addLines = useMutation({
+    mutationFn: (payload) => returnApi.addLinesBulk(id, payload),
+    onSuccess: invalidate,
+    meta: { successMessage: 'Выбранные вещи добавлены в возврат' },
+  });
   const removeLine = useMutation({
     mutationFn: (lineId) => returnApi.removeLine(id, lineId),
     onSuccess: invalidate,
@@ -64,5 +69,5 @@ export function useReturnMutations(id) {
     meta: { successMessage: 'Проведение документа отменено' },
   });
 
-  return { create, update, remove, addLine, removeLine, post, unpost };
+  return { create, update, remove, addLine, addLines, removeLine, post, unpost };
 }

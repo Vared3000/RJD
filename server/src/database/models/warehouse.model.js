@@ -9,6 +9,12 @@ export function defineWarehouse(sequelize) {
       name: { type: DataTypes.STRING(255), allowNull: false },
       code: { type: DataTypes.STRING(64), allowNull: true },
       address: { type: DataTypes.STRING(500), allowNull: true },
+      isPrimaryForReturns: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'is_primary_for_returns',
+      },
       archivedAt: { type: DataTypes.DATE, allowNull: true, field: 'archived_at' },
     },
     {

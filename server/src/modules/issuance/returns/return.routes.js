@@ -8,6 +8,7 @@ import {
   createDocumentSchema,
   updateDocumentSchema,
   createLineSchema,
+  createLinesBulkSchema,
   updateLineSchema,
   unpostDocumentSchema,
 } from './return.validation.js';
@@ -17,6 +18,7 @@ const PERMISSION = 'issuance.manage';
 export function createReturnRouter() {
   const router = Router();
   router.use(requireAuth, requirePermission(PERMISSION));
+  router.get('/warehouse-options', asyncHandler(returnController.warehouseOptions));
 
   /**
    * @openapi
@@ -105,6 +107,31 @@ export function createReturnRouter() {
    *       201: { description: Позиция добавлена, возвращён документ целиком }
    */
   router.post('/:id/lines', validateBody(createLineSchema), asyncHandler(returnController.addLine));
+
+  /**
+   * @openapi
+   * /issuance/returns/{id}/lines/bulk:
+   *   post:
+   *     tags: [Выдача/Возврат: Возврат]
+   *     summary: Атомарно добавить несколько вещей в черновик возврата
+   *     parameters:
+   *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: instanceIds (обязательно), общие condition, routeTo и note
+   *     responses:
+   *       201: { description: Все выбранные позиции добавлены, возвращён документ целиком }
+   *       400: { description: Невалидная или уже добавленная вещь; ни одна строка не создана }
+   */
+  router.post(
+    '/:id/lines/bulk',
+    validateBody(createLinesBulkSchema),
+    asyncHandler(returnController.addLinesBulk),
+  );
 
   /**
    * @openapi

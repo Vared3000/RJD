@@ -8,6 +8,7 @@ export function defineReturnLine(sequelize) {
       documentId: { type: DataTypes.UUID, allowNull: false, field: 'document_id' },
       instanceId: { type: DataTypes.UUID, allowNull: false, field: 'instance_id' },
       condition: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'good' },
+      targetWarehouseId: { type: DataTypes.UUID, allowNull: true, field: 'target_warehouse_id' },
       // Куда направить экземпляр вместо in_stock (Этап 9) — 'in_stock' по
       // умолчанию; 'laundry'/'repair' минуют склад и сразу уходят в статус
       // Instance, соответствующий этому направлению.

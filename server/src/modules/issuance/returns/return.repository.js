@@ -23,6 +23,7 @@ const detailInclude = [
     model: ReturnLine,
     as: 'lines',
     include: [
+      { model: models.Warehouse, as: 'targetWarehouse', attributes: ['id', 'name'] },
       {
         model: Instance,
         as: 'instance',
@@ -103,8 +104,8 @@ export const returnRepository = {
     return { ...document.get({ plain: true }), lines };
   },
 
-  createDocument(data) {
-    return ReturnDocument.create(data);
+  createDocument(data, options = {}) {
+    return ReturnDocument.create(data, options);
   },
 
   async updateDocument(id, data, { transaction }) {
@@ -122,6 +123,13 @@ export const returnRepository = {
 
   createLine(documentId, data, { transaction }) {
     return ReturnLine.create({ ...data, documentId }, { transaction });
+  },
+
+  bulkCreateLines(documentId, rows, { transaction }) {
+    return ReturnLine.bulkCreate(
+      rows.map((row) => ({ ...row, documentId })),
+      { transaction, returning: true },
+    );
   },
 
   findLine(documentId, lineId, { transaction }) {
@@ -143,6 +151,14 @@ export const returnRepository = {
   // означал бы молча не вернуть именно тот экземпляр, который указан в строке).
   findInstanceForReturn(instanceId, { transaction }) {
     return Instance.findByPk(instanceId, { transaction, lock: transaction.LOCK.UPDATE });
+  },
+
+  findInstancesForReturn(instanceIds, { transaction }) {
+    return Instance.findAll({
+      where: { id: { [Op.in]: instanceIds } },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
   },
 
   markInstanceReturned(instanceId, { warehouseId, condition, routeTo }, { transaction }) {

@@ -28,6 +28,10 @@ export const returnApi = {
     const { data } = await httpClient.post(`${BASE}/${id}/lines`, payload);
     return data.data;
   },
+  async addLinesBulk(id, payload) {
+    const { data } = await httpClient.post(`${BASE}/${id}/lines/bulk`, payload);
+    return data.data;
+  },
   async removeLine(id, lineId) {
     const { data } = await httpClient.delete(`${BASE}/${id}/lines/${lineId}`);
     return data.data;

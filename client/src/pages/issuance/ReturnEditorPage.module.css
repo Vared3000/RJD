@@ -1,0 +1,64 @@
+.selectionSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.selectionToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.selectionActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.instanceList {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.instanceRow {
+  display: grid;
+  grid-template-columns: 24px minmax(130px, 0.7fr) minmax(220px, 1.5fr) minmax(150px, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.instanceRow:last-child {
+  border-bottom: 0;
+}
+
+.instanceRow:hover {
+  background: var(--color-bg);
+}
+
+.instanceRow input {
+  width: 18px;
+  height: 18px;
+}
+
+.inventoryNumber {
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .instanceRow {
+    grid-template-columns: 24px 1fr;
+  }
+
+  .instanceRow span:not(.inventoryNumber) {
+    grid-column: 2;
+  }
+}

@@ -261,6 +261,7 @@ ReturnDocument.belongsTo(User, { foreignKey: 'lastRevisedByUserId', as: 'lastRev
 ReturnDocument.hasMany(ReturnLine, { foreignKey: 'documentId', as: 'lines' });
 ReturnLine.belongsTo(ReturnDocument, { foreignKey: 'documentId', as: 'document' });
 ReturnLine.belongsTo(Instance, { foreignKey: 'instanceId', as: 'instance' });
+ReturnLine.belongsTo(Warehouse, { foreignKey: 'targetWarehouseId', as: 'targetWarehouse' });
 
 // Документы "Стирка"/"Ремонт" (Этап 9) — шапка -> строки (конкретный
 // экземпляр, как у Возврата), двухфазное проведение через

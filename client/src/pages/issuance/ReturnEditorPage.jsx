@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createCatalogHooks } from '../../features/catalogs/model/use-catalog-queries.js';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useReturnDocument,
@@ -18,6 +19,7 @@ import { useSessionStore } from '../../shared/session/session-store.js';
 import { LAUNDRY_REPAIR_ENABLED } from '../../shared/config/features.js';
 import catalogStyles from '../../features/catalogs/ui/CatalogPage.module.css';
 import styles from '../purchases/ReceivingEditorPage.module.css';
+import returnStyles from './ReturnEditorPage.module.css';
 
 const STATUS_LABELS = { draft: 'Черновик', posted: 'Проведён' };
 const CONDITION_LABELS = { new: 'Новое', good: 'Хорошее', worn: 'Изношено', damaged: 'Повреждено' };
@@ -30,66 +32,181 @@ const ROUTE_TO_OPTIONS = Object.entries(ROUTE_TO_LABELS).filter(
 // выбор ограничен экземплярами, реально выданными работнику из шапки
 // документа (GET /issuance/returns/available), поэтому список опций
 // зависит от документа, а не от статичного справочника.
-function AddLineModal({ employeeId, existingInstanceIds, onSubmit, onClose, isSaving, error }) {
+function instanceSizeLabel(instance) {
+  if (!instance.size) return 'Без размера';
+  return `${instance.size.value}${instance.heightSize ? ` / рост ${instance.heightSize.value}` : ''}`;
+}
+
+function AddLineModal({
+  employeeId,
+  warehouseId,
+  existingInstanceIds,
+  selectAllInitially,
+  onSubmit,
+  onClose,
+  isSaving,
+  error,
+}) {
   const { data: instances, isLoading } = useAvailableInstances(employeeId);
-  const [instanceId, setInstanceId] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
   const [condition, setCondition] = useState('good');
   const [routeTo, setRouteTo] = useState('in_stock');
   const [note, setNote] = useState('');
+  const [targetWarehouseId, setTargetWarehouseId] = useState(warehouseId);
+  const warehousesQuery = createCatalogHooks('issuance/returns/warehouse-options').useList(false);
+  const warehouses = warehousesQuery.data ?? [];
+  const organizationId = warehouses.find(
+    (warehouse) => warehouse.id === warehouseId,
+  )?.organizationId;
+  const destinations = warehouses.filter(
+    (warehouse) => warehouse.organizationId === organizationId,
+  );
+  const primary = destinations.find((warehouse) => warehouse.isPrimaryForReturns);
+  const destinationId = condition === 'new' ? primary?.id : targetWarehouseId;
+  const initialSelectionApplied = useRef(false);
 
-  const options = (instances ?? [])
-    .filter((instance) => !existingInstanceIds.includes(instance.id))
-    .map((instance) => ({
-      value: instance.id,
-      label: `${instance.inventoryNumber} — ${instance.model?.name ?? ''}`,
-    }));
+  const availableInstances = (instances ?? []).filter(
+    (instance) => !existingInstanceIds.includes(instance.id),
+  );
+  const availableIds = availableInstances.map((instance) => instance.id);
+
+  useEffect(() => {
+    if (selectAllInitially && !initialSelectionApplied.current && availableIds.length > 0) {
+      setSelectedIds(availableIds);
+      initialSelectionApplied.current = true;
+    }
+  }, [availableIds, selectAllInitially]);
+
+  function toggleInstance(instanceId) {
+    setSelectedIds((current) =>
+      current.includes(instanceId)
+        ? current.filter((id) => id !== instanceId)
+        : [...current, instanceId],
+    );
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
-    onSubmit({ instanceId, condition, routeTo, note });
+    onSubmit({
+      instanceIds: selectedIds,
+      condition,
+      routeTo,
+      note,
+      targetWarehouseId: destinationId,
+    });
   }
 
   return (
-    <Modal title="Добавить позицию возврата" onClose={onClose} closeOnOverlayClick={false}>
+    <Modal
+      title="Выбрать вещи для возврата"
+      onClose={onClose}
+      closeOnOverlayClick={false}
+      size="wide"
+    >
       <form className={catalogStyles.form} onSubmit={handleSubmit}>
         {isLoading && <p className={catalogStyles.hint}>Загрузка выданных экземпляров…</p>}
-        {!isLoading && options.length === 0 && (
+        {!isLoading && availableInstances.length === 0 && (
           <p className={catalogStyles.hint}>У работника нет выданных экземпляров для возврата.</p>
         )}
-        <Select
-          id="instanceId"
-          label="Экземпляр"
-          value={instanceId}
-          onChange={(event) => setInstanceId(event.target.value)}
-          options={options}
-        />
+        {availableInstances.length > 0 && (
+          <section className={returnStyles.selectionSection}>
+            <div className={returnStyles.selectionToolbar}>
+              <strong>Выбрано: {selectedIds.length}</strong>
+              <div className={returnStyles.selectionActions}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setSelectedIds(availableIds)}
+                >
+                  Выбрать все
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setSelectedIds([])}>
+                  Снять выбор
+                </Button>
+              </div>
+            </div>
+            <div className={returnStyles.instanceList}>
+              {availableInstances.map((instance) => (
+                <label key={instance.id} className={returnStyles.instanceRow}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(instance.id)}
+                    onChange={() => toggleInstance(instance.id)}
+                  />
+                  <span className={returnStyles.inventoryNumber}>{instance.inventoryNumber}</span>
+                  <span>{instance.model?.name ?? '—'}</span>
+                  <span>{instanceSizeLabel(instance)}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+        )}
         <Select
           id="condition"
           label="Состояние при возврате"
           value={condition}
-          onChange={(event) => setCondition(event.target.value)}
+          onChange={(event) => {
+            setCondition(event.target.value);
+            if (event.target.value === 'new') setRouteTo('in_stock');
+          }}
           options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label }))}
         />
         <Select
           id="routeTo"
           label="Куда направить"
           value={routeTo}
+          disabled={condition === 'new'}
           onChange={(event) => setRouteTo(event.target.value)}
           options={ROUTE_TO_OPTIONS.map(([value, label]) => ({ value, label }))}
         />
+        <Select
+          id="targetWarehouseId"
+          label="Склад назначения"
+          value={destinationId ?? ''}
+          disabled={condition === 'new' || warehousesQuery.isLoading}
+          onChange={(event) => setTargetWarehouseId(event.target.value)}
+          options={destinations.map((warehouse) => ({
+            value: warehouse.id,
+            label: warehouse.name,
+          }))}
+          hint={
+            condition === 'new'
+              ? 'Новое автоматически возвращается на Основной склад.'
+              : 'Выберите склад возвратов или другой склад этой организации.'
+          }
+        />
+        {warehousesQuery.isError && (
+          <p className={catalogStyles.formError}>
+            Не удалось загрузить склады. Закройте окно и повторите попытку.
+          </p>
+        )}
+        {condition === 'new' && !primary && !warehousesQuery.isLoading && (
+          <p className={catalogStyles.formError}>
+            Основной склад для новых возвратов не настроен. Назначьте его в справочнике «Склады».
+          </p>
+        )}
         <TextField
           id="note"
           label="Примечание"
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
+        <p className={catalogStyles.hint}>
+          Состояние, направление и примечание применятся ко всем выбранным вещам. Если они
+          отличаются, добавьте вещи несколькими группами.
+        </p>
         {error && <p className={catalogStyles.formError}>{error}</p>}
         <div className={catalogStyles.formActions}>
           <Button type="button" variant="secondary" onClick={onClose}>
             Отмена
           </Button>
-          <Button type="submit" disabled={isSaving || !instanceId}>
-            {isSaving ? 'Сохранение…' : 'Добавить'}
+          <Button
+            type="submit"
+            disabled={
+              isSaving || selectedIds.length === 0 || !destinationId || warehousesQuery.isError
+            }
+          >
+            {isSaving ? 'Добавление…' : `Добавить выбранные (${selectedIds.length})`}
           </Button>
         </div>
       </form>
@@ -102,7 +219,7 @@ export function ReturnEditorPage() {
   const navigate = useNavigate();
   const documentQuery = useReturnDocument(id);
   const { data: document, isLoading } = documentQuery;
-  const { update, remove, addLine, removeLine, post, unpost } = useReturnMutations(id);
+  const { update, remove, addLines, removeLine, post, unpost } = useReturnMutations(id);
   const [editingHeader, setEditingHeader] = useState(false);
   const [addingLine, setAddingLine] = useState(false);
   const [confirmingPost, setConfirmingPost] = useState(false);
@@ -126,8 +243,8 @@ export function ReturnEditorPage() {
     setEditingHeader(false);
   }
 
-  async function handleAddLine(values) {
-    await addLine.mutateAsync(values);
+  async function handleAddLines(values) {
+    await addLines.mutateAsync(values);
     setAddingLine(false);
   }
 
@@ -209,7 +326,12 @@ export function ReturnEditorPage() {
       <div className={catalogStyles.header}>
         <h2 className={styles.linesTitle}>Позиции</h2>
         {isDraft && canManage && (
-          <Button onClick={() => setAddingLine(true)}>+ Добавить позицию</Button>
+          <div className={styles.headerActions}>
+            <Button variant="secondary" onClick={() => setAddingLine({ selectAll: true })}>
+              Вернуть всё
+            </Button>
+            <Button onClick={() => setAddingLine({ selectAll: false })}>+ Выбрать вещи</Button>
+          </div>
         )}
       </div>
 
@@ -222,6 +344,7 @@ export function ReturnEditorPage() {
               <th>Размер</th>
               <th>Состояние</th>
               <th>Куда направлено</th>
+              <th>Склад назначения</th>
               <th>Примечание</th>
               {isDraft && canManage && <th aria-label="Действия" />}
             </tr>
@@ -229,7 +352,7 @@ export function ReturnEditorPage() {
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td className={catalogStyles.hint} colSpan={7}>
+                <td className={catalogStyles.hint} colSpan={8}>
                   Позиций пока нет
                 </td>
               </tr>
@@ -247,6 +370,7 @@ export function ReturnEditorPage() {
                 </td>
                 <td>{CONDITION_LABELS[line.condition] ?? line.condition}</td>
                 <td>{ROUTE_TO_LABELS[line.routeTo] ?? line.routeTo}</td>
+                <td>{line.targetWarehouse?.name ?? document.warehouse?.name ?? '—'}</td>
                 <td>{line.note ?? '—'}</td>
                 {isDraft && canManage && (
                   <td className={catalogStyles.actions}>
@@ -282,19 +406,22 @@ export function ReturnEditorPage() {
       {addingLine && (
         <AddLineModal
           employeeId={document.employeeId}
+          warehouseId={document.warehouseId}
           existingInstanceIds={lines.map((line) => line.instanceId)}
-          onSubmit={handleAddLine}
+          selectAllInitially={addingLine.selectAll}
+          onSubmit={handleAddLines}
           onClose={() => setAddingLine(false)}
-          isSaving={addLine.isPending}
-          error={errorMessage(addLine)}
+          isSaving={addLines.isPending}
+          error={errorMessage(addLines)}
         />
       )}
 
       {confirmingPost && (
         <Modal title="Провести документ?" onClose={() => setConfirmingPost(false)}>
           <p className={styles.confirmText}>
-            После проведения экземпляры вернутся на склад в статус «На складе», документ станет
-            недоступен для изменения. Действие необратимо.
+            Новые вещи поступят на Основной склад, остальные — на склады, указанные в позициях.
+            Маршруты стирки и ремонта сохраняются для неновых вещей. Проверьте назначения перед
+            подтверждением.
           </p>
           {post.isError && <p className={catalogStyles.formError}>{errorMessage(post)}</p>}
           <div className={catalogStyles.formActions}>
