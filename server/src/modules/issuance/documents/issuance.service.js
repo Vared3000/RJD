@@ -718,7 +718,8 @@ export const issuanceService = {
   // на дособор (issuance_tasks) — кладовщик оформляет по ней довыдачу на
   // странице "Задачи" (см. tasks/tasks.service.js#createDraft), когда остаток
   // появится на складе. Если ДОСТУПНОГО остатка нет вообще ни по одной
-  // строке — проведение отклоняется целиком (нечего выдавать прямо сейчас).
+  // строке — фиксируем обработанный документ без выданных строк, а всю
+  // потребность сохраняем в задачах. Это не создаёт движений или сохранки.
   // Если сам этот документ — довыдача по ранее открытым задачам, связанные
   // задачи закрываются/уменьшаются здесь же (см. reconcileTaskFulfillments).
   async post(documentId, { userId }) {
@@ -731,18 +732,18 @@ export const issuanceService = {
         throw ApiError.badRequest('В документе нет позиций — нечего проводить');
       }
 
+      // Карточки могли измениться после сохранения черновика. Ошибку данных
+      // нельзя превращать в задачу на несуществующую модель/неверный размер.
+      for (const line of document.lines) {
+        await normalizeLineSizes(line, null, { transaction });
+      }
+
       const result = await applyIssuanceSideEffects(document, document.lines, {
         userId,
         transaction,
         tolerateShortage: true,
       });
       shortages = result.shortages;
-
-      if (result.instanceIds.length === 0) {
-        throw ApiError.badRequest(
-          'На складе сейчас нет ни одной доступной позиции по этому документу — нечего выдавать',
-        );
-      }
 
       await issuanceRepository.markPosted(documentId, { postedByUserId: userId }, { transaction });
 
@@ -761,11 +762,13 @@ export const issuanceService = {
         userId,
         transaction,
       });
-      shortages = shortages.filter((shortage) => !reconciledKeys.has(issuanceTaskKey(shortage)));
+      const newShortages = shortages.filter(
+        (shortage) => !reconciledKeys.has(issuanceTaskKey(shortage)),
+      );
 
-      if (shortages.length > 0) {
+      if (newShortages.length > 0) {
         await tasksRepository.bulkCreate(
-          shortages.map((shortage) => ({
+          newShortages.map((shortage) => ({
             sourceDocumentId: documentId,
             employeeId: document.employeeId,
             warehouseId: document.warehouseId,
@@ -797,6 +800,11 @@ export const issuanceService = {
       if (document.status !== 'posted') {
         throw ApiError.conflict(
           'Редактировать через эту команду можно только проведённый документ',
+        );
+      }
+      if (document.lines.length === 0) {
+        throw ApiError.conflict(
+          'По документу вещи не выдавались. Оформите довыдачу из задач на доукомплектовку',
         );
       }
 

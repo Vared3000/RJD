@@ -194,12 +194,14 @@ export function createIssuanceRouter() {
    *     summary: >
    *       Провести документ (подбирает доступные экземпляры под каждую строку,
    *       переводит их в статус issued с привязкой к работнику, создаёт движения
-   *       склада; необратимо)
+   *       склада). Недостача становится задачей на доукомплектовку; при полном
+   *       отсутствии вещей фиксируются только задачи, без складских движений.
    *     parameters:
    *       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
    *     responses:
    *       200: { description: Проведён }
-   *       400: { description: Уже проведён, нет позиций или недостаточно остатка }
+   *       400: { description: Нет позиций или некорректные данные модели/размера }
+   *       409: { description: Документ уже обработан }
    */
   router.post('/:id/post', asyncHandler(issuanceController.post));
 

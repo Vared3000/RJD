@@ -10,6 +10,11 @@ export async function loadPreservationReceiptContext(query) {
 
   const document = await printFormsRepository.findIssuanceDocument(query.issuanceId);
   if (!document) throw ApiError.notFound('Проведённая выдача не найдена');
+  if (!document.lines?.some((line) => Number(line.quantity) > 0)) {
+    throw ApiError.badRequest(
+      'Вещи по этому документу не выданы: потребность передана в задачи на доукомплектовку. Сохранная расписка появится после фактической выдачи',
+    );
+  }
   if (!document.employee?.dpoId) {
     throw ApiError.badRequest('У работника документа выдачи не указано ДПО');
   }

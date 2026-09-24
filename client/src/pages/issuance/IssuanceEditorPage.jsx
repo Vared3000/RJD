@@ -94,6 +94,15 @@ export function IssuanceEditorPage() {
 
   const isDraft = document.status === 'draft';
   const lines = revising ? (draftLines ?? []) : (document.lines ?? []);
+  const noIssuedItems = !isDraft && document.lines?.length === 0;
+  const assemblyQuantity = lines.reduce(
+    (total, line) => total + Number(line.assemblyQuantity ?? line.quantity),
+    0,
+  );
+  const missingQuantity = lines.reduce(
+    (total, line) => total + Number(line.missingQuantity ?? 0),
+    0,
+  );
   const existingLineKeys = new Set(
     lines.map((line) => lineKey(line.modelId, line.sizeId, line.heightSizeId)),
   );
@@ -249,11 +258,11 @@ export function IssuanceEditorPage() {
   }
 
   async function handlePost() {
-    const { shortages } = await post.mutateAsync();
+    const { shortages, document: processed } = await post.mutateAsync();
     setConfirmingPost(false);
     if (shortages.length > 0) {
       notify.warning(
-        `Не хватило остатка по ${shortages.length} ${shortages.length === 1 ? 'позиции' : 'позициям'} — создана задача на доукомплектовку, см. страницу «Задачи»`,
+        `Выдано: ${(processed.lines ?? []).reduce((total, line) => total + Number(line.quantity), 0)} шт. На доукомплектовку: ${shortages.reduce((total, item) => total + Number(item.missingQuantity), 0)} шт. — см. страницу «Задачи»`,
       );
     }
   }
@@ -298,7 +307,9 @@ export function IssuanceEditorPage() {
         <div>
           <h1 className={catalogStyles.title}>Выдача {document.number}</h1>
           <p className={styles.subtitle}>
-            {STATUS_LABELS[document.status] ?? document.status}
+            {noIssuedItems
+              ? 'Обработан без выдачи — доукомплектовка в задачах'
+              : (STATUS_LABELS[document.status] ?? document.status)}
             {` · ${ISSUANCE_KIND_LABELS[document.issuanceKind] ?? 'Обычная выдача'}`}
             {document.status === 'posted' && ` · Редакция №${document.revisionNumber ?? 1}`}
             {document.status === 'posted' &&
@@ -328,21 +339,21 @@ export function IssuanceEditorPage() {
             <Button
               variant="secondary"
               onClick={downloadAssembly}
-              disabled={lines.length === 0 || Boolean(printPending)}
+              disabled={assemblyQuantity === 0 || Boolean(printPending)}
             >
-              {printPending === 'assembly' ? 'Формирование…' : 'Отдать в сборку'}
+              {printPending === 'assembly' ? 'Формирование…' : 'Скачать лист сборки'}
             </Button>
             <Button variant="danger" onClick={handleDeleteDocument} disabled={remove.isPending}>
               Удалить черновик
             </Button>
             <Button onClick={() => setConfirmingPost(true)} disabled={lines.length === 0}>
-              Провести
+              {assemblyQuantity === 0 && lines.length > 0 ? 'Создать задачи' : 'Провести'}
             </Button>
           </div>
         )}
         {!isDraft && !revising && (canManage || canPrint) && (
           <div className={styles.headerActions}>
-            {canPrint && (
+            {canPrint && !noIssuedItems && (
               <>
                 <Button
                   onClick={() => downloadPreservationReceipt('xlsx')}
@@ -359,7 +370,7 @@ export function IssuanceEditorPage() {
                 </Button>
               </>
             )}
-            {canManage && (
+            {canManage && !noIssuedItems && (
               <Button variant="secondary" onClick={startRevising}>
                 Редактировать
               </Button>
@@ -382,6 +393,19 @@ export function IssuanceEditorPage() {
       </div>
 
       {printError && <p className={catalogStyles.formError}>{printError}</p>}
+      {isDraft && !revising && lines.length > 0 && (
+        <p className={styles.confirmText}>
+          К выдаче: {assemblyQuantity} шт. На доукомплектовку: {missingQuantity} шт. Задачи
+          создаются при подтверждении проведения. Скачивание листа сборки не проводит документ и не
+          создаёт задачи. Наличие повторно проверяется при проведении.
+        </p>
+      )}
+      {noIssuedItems && (
+        <p className={styles.confirmText}>
+          Со склада ничего не списано. Откройте раздел «Задачи»: после поступления одежды оформите
+          отдельную довыдачу. Сохранная расписка будет в документе фактической выдачи.
+        </p>
+      )}
 
       {revising && (
         <div className={styles.reviseReason}>
@@ -526,8 +550,9 @@ export function IssuanceEditorPage() {
             После проведения система подберёт доступные экземпляры на складе под каждую позицию,
             переведёт их в статус «Выдан» с привязкой к работнику и создаст движения склада. Если
             остатка не хватит — выдастся сколько есть, а на недостающее количество создастся задача
-            на доукомплектовку (страница «Задачи»). Документ станет недоступен для изменения.
-            Действие необратимо.
+            на доукомплектовку (страница «Задачи»). Если нет ни одной вещи, создадутся только задачи
+            — без списания и сохранной расписки. Обычное редактирование черновика после
+            подтверждения станет недоступно.
           </p>
           {post.isError && <p className={catalogStyles.formError}>{errorMessage(post)}</p>}
           <div className={catalogStyles.formActions}>

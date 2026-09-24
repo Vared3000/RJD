@@ -231,8 +231,12 @@ test('выдача: автоподбор комплекта -> проведен�
     quantity: 1,
   });
   const shortagePost = await auth(agent.post(`/api/v1/issuance/documents/${shortageId}/post`));
-  assert.equal(shortagePost.status, 400, 'проведение при нехватке остатка должно быть отклонено');
-  await auth(agent.delete(`/api/v1/issuance/documents/${shortageId}`));
+  state.issuanceDocIds.push(shortageId);
+  assert.equal(shortagePost.status, 200, 'нулевой остаток должен создавать задачу без выдачи');
+  assert.equal(shortagePost.body.data.lines.length, 0);
+  assert.equal(shortagePost.body.meta.shortages[0].missingQuantity, 1);
+  // Удаляем только задачу этой тестовой потребности перед общей очисткой фикстуры.
+  await models.IssuanceTask.destroy({ where: { sourceDocumentId: shortageId } });
 
   // Документ "Возврат": берём один из выданных экземпляров.
   const available = await auth(

@@ -144,6 +144,7 @@ try {
       'test',
       '--config',
       'e2e/playwright.config.js',
+      ...process.argv.slice(2),
     ],
     {
       env: {
