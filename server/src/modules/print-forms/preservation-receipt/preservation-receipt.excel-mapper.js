@@ -1,5 +1,6 @@
 import { set, addSourceNote, mergeGroups } from '../shared/excel-template-engine.js';
 import { formatQuotedDate } from '../shared/ru-format.js';
+import { fitModelName } from '../shared/fit-model-name.js';
 
 const MEDIUM_BORDER = { style: 'medium', color: { indexed: 64 } };
 const THIN_BORDER = { style: 'thin', color: { indexed: 64 } };
@@ -55,7 +56,7 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
       row.personnelNumber,
     );
     const modelCell = sheet.getCell(rowNumber, rowColumn.get('MODEL_NAME'));
-    modelCell.value = row.modelName;
+    fitModelName(sheet, modelCell, row.modelName);
     addSourceNote(modelCell, row);
     const unit = exactCustomerTemplate
       ? String(row.unit || 'шт').replace(/\.$/, '')
@@ -67,7 +68,12 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
     if (exactCustomerTemplate) {
       const isGroupStart = index === 0 || data.rows[index - 1].employeeId !== row.employeeId;
       const isLastRow = index === data.rows.length - 1;
-      sheet.getRow(rowNumber).height = String(row.modelName).length > 40 ? 46.5 : 25.5;
+      fitModelName(
+        sheet,
+        modelCell,
+        row.modelName,
+        String(row.modelName).length > 40 ? 46.5 : 25.5,
+      );
       for (let column = 1; column <= 7; column += 1) {
         const cell = sheet.getCell(rowNumber, column);
         cell.border = {
@@ -153,6 +159,7 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
         footer: 0.31496062992125984,
       },
       printArea: `A1:G${dataEnd}`,
+      printTitlesRow: '1:4',
     };
   } else {
     sheet.pageSetup = {

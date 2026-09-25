@@ -1,5 +1,6 @@
 import { set } from '../shared/excel-template-engine.js';
 import { formatDate, unitNominative } from '../shared/ru-format.js';
+import { fitModelName, wrappedTextHeight } from '../shared/fit-model-name.js';
 
 export const personalCardMarkerSpec = {
   header: [
@@ -74,7 +75,9 @@ function fillPersonalCard(sheet, data, positions, markers) {
   data.rows.forEach((row, index) => {
     const rowNumber = positions.dataStart + index;
     set(sheet, sheet.getCell(rowNumber, rowColumn.get('SEQUENCE_NUMBER')).address, index + 1);
-    set(sheet, sheet.getCell(rowNumber, rowColumn.get('MODEL_NAME')).address, row.modelName);
+    const modelCell = sheet.getCell(rowNumber, rowColumn.get('MODEL_NAME'));
+    // График носки остаётся в учёте, но не дописывается к названию изделия.
+    fitModelName(sheet, modelCell, row.modelName);
     set(sheet, sheet.getCell(rowNumber, rowColumn.get('UNIT')).address, row.unit || 'шт.');
     set(
       sheet,
@@ -102,6 +105,17 @@ function fillPersonalCard(sheet, data, positions, markers) {
   });
 
   sheet.pageSetup.printArea = `A1:L${positions.footerStart + 6}`;
+  // В штатном макете заголовок норматива объединён по вертикали F10:F11.
+  // Его текст должен помещаться и при печати без сжатия всего листа.
+  if (positions.dataStart === 13 && sheet.getCell('F11').master.address === 'F10') {
+    const headerCell = sheet.getCell('F10');
+    sheet.getRow(11).height = Math.max(
+      sheet.getRow(11).height ?? 0,
+      wrappedTextHeight(sheet, headerCell, headerCell.value) - (sheet.getRow(10).height ?? 0),
+    );
+  }
+  sheet.pageSetup.fitToHeight = 0;
+  if (positions.dataStart === 13) sheet.pageSetup.printTitlesRow = '10:12';
 }
 
 export const personalCardExcelMapper = {

@@ -92,19 +92,26 @@ export function buildPersonalCard(context) {
     ]),
   );
   let rows = [];
-  const modelsWithHistory = new Set();
+  const seenInstances = new Set();
   for (const movement of context.movements) {
     const instance = movement.instance;
     const model = instance?.model;
     if (!instance || !model) continue;
     const issueDate = issuanceDateByDocument.get(movement.documentId);
     if (!issueDate) continue;
-    modelsWithHistory.add(model.id);
+    // Один экземпляр в одной действующей выдаче учитывается один раз.
+    // Повторная выдача после возврата — отдельная операция, её сохраняем.
+    const instanceKey = JSON.stringify([movement.documentId, instance.id]);
+    if (seenInstances.has(instanceKey)) continue;
+    seenInstances.add(instanceKey);
     const returnDates = returnDatesByInstance.get(instance.id) ?? [];
     const returnIndex = returnDates.findIndex((date) => date >= issueDate);
     const returnedDate = returnIndex >= 0 ? returnDates.splice(returnIndex, 1)[0] : null;
     const kit = kitByModel.get(model.id);
     rows.push({
+      documentId: movement.documentId,
+      sizeId: instance.sizeId ?? null,
+      heightSizeId: instance.heightSizeId ?? null,
       sortIndex: kit?.index ?? Number.MAX_SAFE_INTEGER,
       modelId: model.id,
       modelName: model.name,
@@ -158,26 +165,32 @@ export function buildPersonalCard(context) {
       returnedDate: candidate.returnedDate || null,
     }));
   } else {
-    for (const kit of kitByModel.values()) {
-      if (modelsWithHistory.has(kit.model.id)) continue;
-      rows.push({
-        sortIndex: kit.index,
-        modelId: kit.model.id,
-        modelName: kit.model.name,
-        unit: kit.model.unit || 'шт.',
-        quantity: kit.quantity,
-        normQuantity: kit.quantity,
-        serviceLifeYears: kit.serviceLifeYears,
-        serviceLifeWarning:
-          kit.serviceLifeYears == null
-            ? `Норматив не задан; ориентировочная подсказка: ${inferServiceLifeYears(kit.model.name)} г.`
-            : null,
-        issuedQuantity: null,
-        issuedDate: null,
-        returnedQuantity: null,
-        returnedDate: null,
-      });
+    // Комплект задаёт только норматив, но не подтверждает выдачу.
+    // Объединяем одинаковые фактически выданные вещи, не смешивая размеры,
+    // документы и даты возврата. Количество экземпляров не уменьшается.
+    const grouped = new Map();
+    for (const row of rows) {
+      const key = JSON.stringify([
+        row.documentId,
+        row.modelId,
+        row.sizeId,
+        row.heightSizeId,
+        row.issuedDate,
+        row.returnedDate,
+        row.unit,
+        row.normQuantity,
+        row.serviceLifeYears,
+      ]);
+      const current = grouped.get(key);
+      if (current) {
+        current.quantity += row.quantity;
+        current.issuedQuantity += row.issuedQuantity;
+        if (row.returnedQuantity != null) current.returnedQuantity += row.returnedQuantity;
+      } else {
+        grouped.set(key, { ...row });
+      }
     }
+    rows = [...grouped.values()];
   }
   rows.sort(
     (left, right) =>

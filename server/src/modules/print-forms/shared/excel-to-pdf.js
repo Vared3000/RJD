@@ -434,7 +434,9 @@ export async function generatePdfFromExcel(excelBuffer, data) {
   const scale = Math.min(
     Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale / 100 : 1,
     availableWidth / naturalWidth,
-    data.form === 'personal-card' ? availableHeight / naturalHeight : 1,
+    data.form === 'personal-card' && sheet.pageSetup.fitToHeight !== 0
+      ? availableHeight / naturalHeight
+      : 1,
   );
   const positions = positionMaps(sheet, bounds, scale);
   const titles = printTitleRows(sheet);
