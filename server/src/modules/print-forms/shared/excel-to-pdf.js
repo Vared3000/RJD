@@ -424,9 +424,13 @@ export async function generatePdfFromExcel(excelBuffer, data) {
     (_, index) => columnPoints(sheet, bounds.firstColumn + index),
   ).reduce((sum, width) => sum + width, 0);
   const availableWidth = pageWidth - margins.left - margins.right;
+  // Сохранная расписка продолжает таблицу на следующих листах без служебных
+  // вставок. У остальных форм технический нижний колонтитул сохраняется.
+  const showGeneratedFooter = data.form !== 'preservation-receipt';
   // Keep the generated-at footer inside PDFKit's writable area. Drawing it below
   // the bottom margin makes PDFKit silently append an otherwise empty page.
-  const availableHeight = pageHeight - margins.top - margins.bottom - PDF_FOOTER_HEIGHT;
+  const availableHeight =
+    pageHeight - margins.top - margins.bottom - (showGeneratedFooter ? PDF_FOOTER_HEIGHT : 0);
   const configuredScale = Number(sheet.pageSetup.scale);
   const naturalHeight = Array.from({ length: bounds.lastRow - bounds.firstRow + 1 }, (_, index) =>
     rowPoints(sheet, bounds.firstRow + index),
@@ -474,16 +478,18 @@ export async function generatePdfFromExcel(excelBuffer, data) {
       columnWidths: positions.columnWidths,
       columnX: positions.columnX,
     });
-    doc
-      .font('Sans')
-      .fontSize(5)
-      .fillColor('#555')
-      .text(
-        `Страница ${pageIndex + 1} из ${pages.length} · сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}${data.templateVersion ? ` · шаблон v${data.templateVersion}` : ''}`,
-        margins.left,
-        pageHeight - margins.bottom - PDF_FOOTER_HEIGHT,
-        { width: pageWidth - margins.left - margins.right, align: 'right', lineBreak: false },
-      );
+    if (showGeneratedFooter) {
+      doc
+        .font('Sans')
+        .fontSize(5)
+        .fillColor('#555')
+        .text(
+          `Страница ${pageIndex + 1} из ${pages.length} · сформировано ${new Date(data.generatedAt).toLocaleString('ru-RU')} · источники: ${(data.dataSources ?? []).join(', ') || 'расчётные данные'}${data.templateVersion ? ` · шаблон v${data.templateVersion}` : ''}`,
+          margins.left,
+          pageHeight - margins.bottom - PDF_FOOTER_HEIGHT,
+          { width: pageWidth - margins.left - margins.right, align: 'right', lineBreak: false },
+        );
+    }
   }
 
   doc.end();

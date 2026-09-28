@@ -80,7 +80,7 @@ function fillFpu26(sheet, data, positions, markers) {
   );
   set(sheet, header.get('EXECUTOR_ADDRESS'), executor.address);
   set(sheet, header.get('CUSTOMER_OKPO'), customer.okpo);
-  set(sheet, header.get('BUSINESS_UNIT_CODE'), data.dpo.businessUnitCode || '-');
+  set(sheet, header.get('BUSINESS_UNIT_CODE'), data.dpo.businessUnitCode);
   set(sheet, header.get('EXECUTOR_OKPO'), executor.okpo);
   set(sheet, header.get('PERIOD_END'), formatDate(data.to));
   set(sheet, header.get('CONTRACT_LINE'), contractLine(data.dpo));

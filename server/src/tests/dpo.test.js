@@ -5,6 +5,10 @@ import request from 'supertest';
 import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { models } from '../database/models/index.js';
+import {
+  BUSINESS_UNIT_CODES,
+  BUSINESS_UNIT_CODE_VALUES,
+} from '../modules/dpo/business-unit-codes.js';
 
 async function loginAsAdmin(agent) {
   const res = await agent
@@ -12,6 +16,16 @@ async function loginAsAdmin(agent) {
     .send({ login: env.BOOTSTRAP_ADMIN_LOGIN, password: env.BOOTSTRAP_ADMIN_PASSWORD });
   return res.body.data.accessToken;
 }
+
+test('ДПО: справочник БЕ содержит 17 уникальных четырёхзначных кодов', () => {
+  assert.equal(BUSINESS_UNIT_CODES.length, 17);
+  assert.equal(new Set(BUSINESS_UNIT_CODE_VALUES).size, 17);
+  assert.ok(BUSINESS_UNIT_CODE_VALUES.every((code) => /^\d{4}$/.test(code)));
+  assert.deepEqual(
+    BUSINESS_UNIT_CODES.find(({ direction }) => direction === 'Калининградская'),
+    { direction: 'Калининградская', code: '4422' },
+  );
+});
 
 test('ДПО: CRUD, поиск, архивация, история изменений', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) {
@@ -39,6 +53,7 @@ test('ДПО: CRUD, поиск, архивация, история измене�
     fullName: `${unique} — структурное подразделение ЦДПО`,
     code: `${unique}-CODE`,
     region: 'Свердловская',
+    businessUnitCode: '3530',
     directorFullName: 'Иванов Иван Иванович',
     directorFullNameGenitive: 'Иванова Ивана Ивановича',
     contractNumber: '686/ОКЭ-ЦДПО/20/1/1',
@@ -46,6 +61,7 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   });
   assert.equal(created.status, 201);
   assert.equal(created.body.data.region, 'Свердловская');
+  assert.equal(created.body.data.businessUnitCode, '3530');
   assert.equal(created.body.data.directorFullNameGenitive, 'Иванова Ивана Ивановича');
   const dpoId = created.body.data.id;
   dpoIds.push(dpoId);
@@ -53,6 +69,36 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   // --- Валидация: fullName обязателен ---
   const invalid = await auth(agent.post('/api/v1/dpo')).send({ name: `${unique} invalid` });
   assert.equal(invalid.status, 400);
+
+  const invalidBusinessUnitFormat = await auth(agent.post('/api/v1/dpo')).send({
+    name: `${unique} invalid BE format`,
+    fullName: `${unique} invalid BE format`,
+    businessUnitCode: '422',
+  });
+  assert.equal(invalidBusinessUnitFormat.status, 400);
+  assert.match(
+    invalidBusinessUnitFormat.body.error.details.map(({ message }) => message).join(' '),
+    /четырёх цифр/,
+  );
+
+  const unknownBusinessUnit = await auth(agent.post('/api/v1/dpo')).send({
+    name: `${unique} unknown BE`,
+    fullName: `${unique} unknown BE`,
+    businessUnitCode: '9999',
+  });
+  assert.equal(unknownBusinessUnit.status, 400);
+  assert.match(
+    unknownBusinessUnit.body.error.details.map(({ message }) => message).join(' '),
+    /справочнике/,
+  );
+
+  const duplicateBusinessUnit = await auth(agent.post('/api/v1/dpo')).send({
+    name: `${unique} duplicate BE`,
+    fullName: `${unique} duplicate BE`,
+    businessUnitCode: '3530',
+  });
+  assert.equal(duplicateBusinessUnit.status, 409);
+  assert.match(duplicateBusinessUnit.body.error.message, /уже используется/);
 
   // --- Поиск ---
   const searchHit = await auth(agent.get('/api/v1/dpo')).query({ search: unique });
@@ -85,11 +131,13 @@ test('ДПО: CRUD, поиск, архивация, история измене�
     additionalAgreementNumber: 'ДС-1',
     additionalAgreementDate: '2025-01-10',
     region: 'Московская',
+    businessUnitCode: '4423',
   });
   assert.equal(update1.status, 200);
   assert.equal(update1.body.data.directorFullName, 'Петров Пётр Петрович');
   assert.equal(update1.body.data.directorFullNameGenitive, 'Петрова Петра Петровича');
   assert.equal(update1.body.data.region, 'Московская');
+  assert.equal(update1.body.data.businessUnitCode, '4423');
 
   const historyAfter1 = await auth(agent.get(`/api/v1/dpo/${dpoId}/history`));
   assert.equal(historyAfter1.status, 200);
@@ -108,6 +156,8 @@ test('ДПО: CRUD, поиск, архивация, история измене�
   assert.equal(historyAfter1.body.data[0].changes.additionalAgreementNumber.to, 'ДС-1');
   assert.equal(historyAfter1.body.data[0].changes.region.from, 'Свердловская');
   assert.equal(historyAfter1.body.data[0].changes.region.to, 'Московская');
+  assert.equal(historyAfter1.body.data[0].changes.businessUnitCode.from, '3530');
+  assert.equal(historyAfter1.body.data[0].changes.businessUnitCode.to, '4423');
 
   // --- Правка №2: снова меняем ответственное лицо (второе доп. соглашение) ---
   const update2 = await auth(agent.patch(`/api/v1/dpo/${dpoId}`)).send({

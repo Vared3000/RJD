@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
+import { generatePdfFromExcel } from '../modules/print-forms/shared/excel-to-pdf.js';
 import { env } from '../config/env.js';
 import {
   binaryParser,
@@ -50,9 +51,41 @@ test('сохранная расписка строится по проведён
   assert.equal(sheet.getCell('G5').value, null);
   assert.match(workbook.subject, /шаблон v2/);
   assert.equal(sheet.pageSetup.orientation, 'portrait');
-  assert.equal(sheet.pageSetup.scale, 60);
+  assert.equal(sheet.pageSetup.fitToPage, true);
+  assert.equal(sheet.pageSetup.fitToWidth, 1);
+  assert.equal(sheet.pageSetup.fitToHeight, 0);
+  assert.equal(sheet.pageSetup.printTitlesRow, undefined);
   assert.equal(sheet.pageSetup.printArea, 'A1:G5');
   assert.equal(sheet.headerFooter?.oddFooter, undefined);
+
+  // Многостраничная расписка остаётся одним документом: заголовочные строки
+  // не назначены печатными заголовками, поэтому листы 2+ продолжают таблицу.
+  for (let rowNumber = 6; rowNumber <= 95; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    row.values = [
+      rowNumber - 4,
+      `Работник ${rowNumber}`,
+      `Т-${rowNumber}`,
+      `Длинное наименование выданного изделия ${rowNumber}`,
+      'шт',
+      1,
+      '',
+    ];
+    row.height = 25.5;
+    for (let column = 1; column <= 7; column += 1) {
+      row.getCell(column).style = { ...sheet.getCell(5, column).style };
+    }
+  }
+  sheet.pageSetup.printArea = 'A1:G95';
+  const multiPageExcel = await workbook.xlsx.writeBuffer();
+  const multiPagePdf = await generatePdfFromExcel(multiPageExcel, {
+    form: 'preservation-receipt',
+    generatedAt: '2026-07-15T12:00:00.000Z',
+    dataSources: [],
+  });
+  const pageObjects = multiPagePdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? [];
+  assert.ok(pageObjects.length >= 3, 'контрольная расписка должна занимать не менее 3 листов');
+  assert.equal(sheet.pageSetup.printTitlesRow, undefined);
 
   const pdf = await auth(agent.get('/api/v1/print-forms/preservation-receipt'))
     .query({ ...query, format: 'pdf' })

@@ -9,8 +9,14 @@ import {
 import { baseData, importedCandidates } from '../shared/tabular-form.js';
 import { roundedActTotal } from '../shared/precise-money.js';
 import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
+import { ApiError } from '../../../utils/api-error.js';
 
 export function buildFpu26(context) {
+  if (!context.dpo.businessUnitCode) {
+    throw ApiError.badRequest(
+      `Для ДПО «${context.dpo.name}» не указан код БЕ. Заполните его в карточке ДПО.`,
+    );
+  }
   const liveEntries = rentalSourceEntries(context).map((entry) => ({ ...entry, employeeKey: '' }));
   let sourceCandidates = importedCandidates(context, false).filter(
     (candidate) => candidate.formType === 'fpu-26' && num(candidate.quantity) > 0,

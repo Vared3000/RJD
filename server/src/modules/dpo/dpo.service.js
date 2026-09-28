@@ -28,6 +28,14 @@ function normalize(value) {
   return value === undefined ? null : value;
 }
 
+async function ensureBusinessUnitCodeIsAvailable(businessUnitCode, currentId, transaction) {
+  if (!businessUnitCode) return;
+  const existing = await dpoRepository.findByBusinessUnitCode(businessUnitCode, { transaction });
+  if (existing && existing.id !== currentId) {
+    throw ApiError.conflict(`Код БЕ ${businessUnitCode} уже используется в ДПО «${existing.name}»`);
+  }
+}
+
 export const dpoService = {
   list(options) {
     return dpoRepository.list(options);
@@ -40,6 +48,7 @@ export const dpoService = {
   },
 
   async create(data) {
+    await ensureBusinessUnitCodeIsAvailable(data.businessUnitCode);
     return dpoRepository.create(data);
   },
 
@@ -47,6 +56,10 @@ export const dpoService = {
     return sequelize.transaction(async (transaction) => {
       const current = await dpoRepository.findByIdForUpdate(id, { transaction });
       if (!current) throw ApiError.notFound('ДПО не найдено или архивировано');
+
+      if (Object.prototype.hasOwnProperty.call(data, 'businessUnitCode')) {
+        await ensureBusinessUnitCodeIsAvailable(data.businessUnitCode, id, transaction);
+      }
 
       const changedFields = TRACKED_FIELDS.filter(
         (field) =>

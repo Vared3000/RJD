@@ -164,6 +164,7 @@ export async function setupBaseFixture({
     fullName: `${unique} — заказчик`,
     contractNumber: 'ТЕСТ-26',
     contractDate: '2026-01-15',
+    businessUnitCode: '4422',
     directorFullName: 'Иванов Иван Иванович',
     directorFullNameGenitive: 'Иванова Ивана Ивановича',
     directorBasis: 'Устав',

@@ -11,6 +11,13 @@ import { loadUpdContext, buildUpd } from '../modules/print-forms/upd/upd.builder
 import { monthlyRentalService } from '../modules/print-forms/monthly-rental-act/monthly-rental-act.service.js';
 import { setupApp, setupBaseFixture, cleanupFixtureState } from './print-forms-fixture.js';
 
+test('Р7: ФПУ сообщает, для какого ДПО не заполнен код БЕ', () => {
+  assert.throws(
+    () => buildFpu26({ dpo: { name: 'Тестовое ДПО', businessUnitCode: null } }),
+    /Для ДПО «Тестовое ДПО» не указан код БЕ/,
+  );
+});
+
 test('С2: оба комплекта выданы сразу, а расчётные формы разделяют их по месяцам', async (t) => {
   if (!env.BOOTSTRAP_ADMIN_PASSWORD) return t.skip('Не задан пароль тестового администратора');
   const { agent, auth } = await setupApp();

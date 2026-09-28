@@ -139,7 +139,7 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
     ];
     sheet.pageSetup = {
       ...sheet.pageSetup,
-      fitToPage: false,
+      fitToPage: true,
       orientation: 'portrait',
       paperSize: 9,
       pageOrder: 'downThenOver',
@@ -147,9 +147,8 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
       draft: false,
       cellComments: 'None',
       errors: 'displayed',
-      scale: 60,
       fitToWidth: 1,
-      fitToHeight: 1,
+      fitToHeight: 0,
       margins: {
         left: 0.31496062992125984,
         right: 0.11811023622047245,
@@ -159,8 +158,9 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
         footer: 0.31496062992125984,
       },
       printArea: `A1:G${dataEnd}`,
-      printTitlesRow: '1:4',
     };
+    delete sheet.pageSetup.scale;
+    delete sheet.pageSetup.printTitlesRow;
   } else {
     sheet.pageSetup = {
       ...sheet.pageSetup,
@@ -170,10 +170,10 @@ function fillPreservationReceipt(sheet, data, positions, markers) {
       fitToWidth: 1,
       fitToHeight: 0,
       horizontalCentered: true,
-      printTitlesRow: '6:6',
       margins: { left: 0.25, right: 0.25, top: 0.35, bottom: 0.45, header: 0, footer: 0.2 },
       printArea: `A1:G${dataEnd}`,
     };
+    delete sheet.pageSetup.printTitlesRow;
   }
 }
 

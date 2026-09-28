@@ -11,9 +11,12 @@ export const dpoRepository = {
         { name: { [Op.iLike]: `%${search}%` } },
         { fullName: { [Op.iLike]: `%${search}%` } },
         { code: { [Op.iLike]: `%${search}%` } },
+        { businessUnitCode: { [Op.iLike]: `%${search}%` } },
       ];
     }
-    const effectiveSort = ['name', 'code', 'region', 'createdAt'].includes(sort) ? sort : 'name';
+    const effectiveSort = ['name', 'code', 'businessUnitCode', 'region', 'createdAt'].includes(sort)
+      ? sort
+      : 'name';
     const effectiveOrder = String(order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     const offset = (Number(page) - 1) * Number(limit);
     return Dpo.findAndCountAll({
@@ -33,6 +36,10 @@ export const dpoRepository = {
 
   findByIdForUpdate(id, { transaction }) {
     return Dpo.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+  },
+
+  findByBusinessUnitCode(businessUnitCode, { transaction } = {}) {
+    return Dpo.findOne({ where: { businessUnitCode }, transaction });
   },
 
   create(data) {
