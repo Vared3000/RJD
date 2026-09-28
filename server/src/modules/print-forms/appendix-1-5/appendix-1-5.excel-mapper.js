@@ -1,4 +1,5 @@
 import { set, formula, addSourceNote, mergeGroups } from '../shared/excel-template-engine.js';
+import { rentalExcelFormulas } from '../shared/seasonal-rental.js';
 import {
   formatQuotedDate,
   periodTitle,
@@ -112,7 +113,18 @@ function fillAppendix15(sheet, data, positions, markers) {
     ).address;
     const vatAddress = sheet.getCell(rowNumber, rowColumn.get('VAT_AMOUNT')).address;
     const totalAddress = sheet.getCell(rowNumber, rowColumn.get('TOTAL_WITH_VAT')).address;
-    if (row.sourceValues) {
+    if (row.seasonalCalculation) {
+      const calculated = rentalExcelFormulas(`${priceCol}${rowNumber}`, row.breakdown, row.vatRate);
+      set(sheet, costAddress, formula(`${priceCol}${rowNumber}`, row.priceWithoutVat));
+      set(sheet, totalWithoutVatAddress, formula(calculated.cost, row.costWithoutVat));
+      set(sheet, vatAddress, formula(calculated.vat, row.vatAmount));
+      set(
+        sheet,
+        totalAddress,
+        formula(`${totalWithoutVatCol}${rowNumber}+${vatCol}${rowNumber}`, row.totalWithVat),
+      );
+      modelCell.note = `${row.sourceReference}\n${row.breakdown.map((month) => `${month.month}: ${month.units} шт., полный месяц`).join('; ')}`;
+    } else if (row.sourceValues) {
       set(
         sheet,
         costAddress,

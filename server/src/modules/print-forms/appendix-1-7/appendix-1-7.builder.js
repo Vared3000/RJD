@@ -1,6 +1,7 @@
-import { printFormsRepository } from '../print-forms.repository.js';
 import { money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
 import { accountingQuantity } from '../shared/quantities.js';
+import { preciseLine, preciseMoney, roundedActTotal } from '../shared/precise-money.js';
+import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
 import {
   liveSourceEntry,
   archiveSourceEntry,
@@ -10,7 +11,7 @@ import {
 import { baseData, importedCandidates } from '../shared/tabular-form.js';
 
 function appendix17Data(context, rows) {
-  return baseData(
+  const data = baseData(
     context,
     'Приложение 1.7 - акт приёма-передачи форменной одежды работникам',
     'Приложение 1.7',
@@ -60,6 +61,10 @@ function appendix17Data(context, rows) {
       { column: 10, key: 'totalWithVat', build: (row) => `G${row}+I${row}` },
     ],
   );
+  for (const key of ['subtotalWithoutVat', 'vatAmount', 'totalWithVat']) {
+    data.totals[key] = roundedActTotal(rows, key);
+  }
+  return data;
 }
 
 export async function buildAppendix17(context) {
@@ -77,44 +82,38 @@ export async function buildAppendix17(context) {
     );
   const entries = mergeSourceEntries(liveEntries, archiveEntries);
   const retainedLive = entries.filter((entry) => entry.source === 'live');
-  const movements = await printFormsRepository.findIssuanceMovements([
-    ...new Set(retainedLive.map((entry) => entry.document.id)),
-  ]);
-  const byDocumentModelSize = new Map();
-  for (const movement of movements) {
-    const key = JSON.stringify([
-      movement.documentId,
-      movement.instance?.modelId,
-      movement.instance?.sizeId ?? null,
-      movement.instance?.heightSizeId ?? null,
-    ]);
-    if (!byDocumentModelSize.has(key)) byDocumentModelSize.set(key, []);
-    byDocumentModelSize.get(key).push(movement.instance);
-  }
-  const rows = [];
+  const liveRows = new Map();
   for (const entry of retainedLive) {
     const { document, line } = entry;
-    const price = priceValues(priceForLine(context, document, line));
-    const instances =
-      byDocumentModelSize.get(
-        JSON.stringify([document.id, line.modelId, line.sizeId ?? null, line.heightSizeId ?? null]),
-      ) ?? [];
-    // Суммы и колонка «Кол-во» — от учётного 1; инв. номера в акт 1.7 не входят.
-    const quantity = accountingQuantity(line.quantity ?? instances.length ?? 0);
-    const values = calculateMoney(quantity, price.priceWithoutVat, price.vatRate);
-    rows.push({
+    const sourcePrice = priceForLine(context, document, line);
+    const priceWithoutVat = preciseMoney(sourcePrice?.priceWithoutVat);
+    const vatRate = Number(sourcePrice?.vatRate ?? 5);
+    const key = JSON.stringify([document.employeeId, line.modelId, priceWithoutVat, vatRate]);
+    const values = preciseLine(1, priceWithoutVat, vatRate);
+    const current = liveRows.get(key) ?? {
+      employeeId: document.employeeId,
       fullName: document.employee?.fullName ?? '',
       personnelNumber: document.employee?.personnelNumber ?? '',
-      modelName: line.model?.name ?? instances[0]?.model?.name ?? '',
-      unit: line.model?.unit ?? instances[0]?.model?.unit ?? 'шт.',
-      quantity,
-      ...price,
-      subtotalWithoutVat: values.costWithoutVat,
+      modelId: line.modelId,
+      modelName: line.model?.name ?? '',
+      unit: line.model?.unit ?? 'шт.',
+      quantity: 1,
+      priceWithoutVat,
+      priceWithVat: preciseMoney(priceWithoutVat * (1 + vatRate / 100)),
+      vatRate,
+      subtotalWithoutVat: values.subtotalWithoutVat,
       vatAmount: values.vatAmount,
       totalWithVat: values.totalWithVat,
       ...sourceFields(entry),
-    });
+      sourceReferences: new Set(),
+    };
+    current.sourceReferences.add(entry.sourceReference);
+    liveRows.set(key, current);
   }
+  const rows = [...liveRows.values()].map(({ sourceReferences, ...row }) => ({
+    ...row,
+    sourceReference: [...sourceReferences].join('; '),
+  }));
   for (const entry of entries.filter((item) => item.source === 'archive')) {
     const candidate = entry.candidate;
     const price = priceValues({
@@ -147,5 +146,8 @@ export async function buildAppendix17(context) {
       ...sourceFields(entry),
     });
   }
-  return appendix17Data(context, rows);
+  return appendix17Data(
+    context,
+    sortNomenclatureRows(rows, (row) => `${row.fullName}:${row.personnelNumber}`),
+  );
 }

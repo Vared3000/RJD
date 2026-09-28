@@ -1,4 +1,5 @@
 import { set, formula, addSourceNote } from '../shared/excel-template-engine.js';
+import { rentalExcelFormulas } from '../shared/seasonal-rental.js';
 import {
   formatDate,
   periodDescription,
@@ -128,7 +129,26 @@ function fillFpu26(sheet, data, positions, markers) {
     const costAddress = sheet.getCell(rowNumber, rowColumn.get('COST_WITHOUT_VAT')).address;
     const vatAddress = sheet.getCell(rowNumber, rowColumn.get('VAT_AMOUNT')).address;
     const totalAddress = sheet.getCell(rowNumber, rowColumn.get('TOTAL_WITH_VAT')).address;
-    if (row.sourceValues) {
+    if (row.seasonalCalculation) {
+      const calculated = rentalExcelFormulas(`${priceCol}${rowNumber}`, row.breakdown, row.vatRate);
+      set(
+        sheet,
+        displayedPriceAddress,
+        formula(`(${calculated.cost})/${quantityCol}${rowNumber}`, row.displayedPriceWithoutVat),
+      );
+      set(
+        sheet,
+        costAddress,
+        formula(`${quantityCol}${rowNumber}*${displayedPriceCol}${rowNumber}`, row.costWithoutVat),
+      );
+      set(sheet, vatAddress, formula(calculated.vat, row.vatAmount));
+      set(
+        sheet,
+        totalAddress,
+        formula(`${costCol}${rowNumber}+${vatCol}${rowNumber}`, row.totalWithVat),
+      );
+      modelNameCell.note = `${row.sourceReference}\n${row.breakdown.map((month) => `${month.month}: ${month.days} дн. из ${month.daysInMonth}`).join('; ')}`;
+    } else if (row.sourceValues) {
       set(
         sheet,
         displayedPriceAddress,

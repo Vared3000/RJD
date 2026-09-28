@@ -1,40 +1,17 @@
-import { num, money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { num, money, calculateMoney, priceValues } from '../shared/money.js';
+import { rentalRows, rentalSourceEntries } from '../shared/rental-data.js';
 import { accountingQuantity } from '../shared/quantities.js';
 import {
-  liveSourceEntry,
   archiveSourceEntry,
   mergeSourceEntries,
   sourceFields,
 } from '../shared/print-form-data-sources.js';
 import { baseData, importedCandidates } from '../shared/tabular-form.js';
+import { roundedActTotal } from '../shared/precise-money.js';
+import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
 
 export function buildFpu26(context) {
-  const grouped = new Map();
-  const addRow = ({ modelId, modelName, article, unit, quantity, sourcePrice, source }) => {
-    const price = sourcePrice ?? priceValues();
-    const key = JSON.stringify([modelId ?? modelName, price.priceWithoutVat, price.vatRate]);
-    const row = grouped.get(key) ?? {
-      modelName,
-      article: article || '',
-      unit: unit || 'шт.',
-      quantity: 0,
-      ...price,
-      ...source,
-    };
-    // Учётное кол-во на группу: после первой ненулевой выдачи позиции остаётся 1.
-    row.quantity = Math.max(row.quantity, accountingQuantity(quantity));
-    if (row.dataSource !== source?.dataSource) {
-      row.dataSource = 'mixed';
-      row.dataSourceLabel = 'Учётная система + архив';
-    }
-    grouped.set(key, row);
-  };
-  const liveEntries = context.documents.flatMap((document) =>
-    document.lines.map((line) => ({
-      ...liveSourceEntry({ dpo: context.dpo, document, line }),
-      employeeKey: '',
-    })),
-  );
+  const liveEntries = rentalSourceEntries(context).map((entry) => ({ ...entry, employeeKey: '' }));
   let sourceCandidates = importedCandidates(context, false).filter(
     (candidate) => candidate.formType === 'fpu-26' && num(candidate.quantity) > 0,
   );
@@ -49,18 +26,6 @@ export function buildFpu26(context) {
   }));
   const entries = mergeSourceEntries(liveEntries, archiveEntries);
 
-  for (const entry of entries.filter((item) => item.source === 'live')) {
-    const { line } = entry;
-    addRow({
-      modelId: line.modelId,
-      modelName: line.model?.name ?? '',
-      article: line.model?.article,
-      unit: line.model?.unit,
-      quantity: line.quantity,
-      sourcePrice: priceValues(priceForLine(context, entry.document, line)),
-      source: sourceFields(entry),
-    });
-  }
   const archiveRows = entries
     .filter((entry) => entry.source === 'archive')
     .map((entry) => {
@@ -89,11 +54,9 @@ export function buildFpu26(context) {
         ...sourceFields(entry),
       };
     });
-  const liveRows = [...grouped.values()]
-    .map((row) => ({ ...row, ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate) }))
-    .sort((a, b) => a.modelName.localeCompare(b.modelName, 'ru'));
-  const rows = [...liveRows, ...archiveRows];
-  return baseData(
+  const liveRows = rentalRows(entries);
+  const rows = sortNomenclatureRows([...liveRows, ...archiveRows]);
+  const data = baseData(
     context,
     'АКТ о выполненных работах (оказанных услугах), форма ФПУ-26',
     'ФПУ-26',
@@ -148,4 +111,8 @@ export function buildFpu26(context) {
       { column: 8, key: 'totalWithVat', build: (row) => `E${row}+G${row}` },
     ],
   );
+  for (const key of ['costWithoutVat', 'vatAmount', 'totalWithVat']) {
+    data.totals[key] = roundedActTotal(rows, key);
+  }
+  return data;
 }

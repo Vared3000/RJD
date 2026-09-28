@@ -1,6 +1,7 @@
 import { printFormsRepository } from '../print-forms.repository.js';
 import { loadContext } from '../shared/load-context.js';
-import { money, sumBy } from '../shared/money.js';
+import { money } from '../shared/money.js';
+import { roundedActTotal } from '../shared/precise-money.js';
 import { accountingQuantity } from '../shared/quantities.js';
 import { buildFpu26 } from '../fpu-26/fpu-26.builder.js';
 
@@ -23,7 +24,7 @@ export function buildUpd(context) {
   let documentDate = context.toText;
   // Проведённые выдачи — источник истины. Архивный УПД используется только
   // когда за выбранный период в системе ещё нет живых документов выдачи.
-  if (context.documents.length === 0 && context.importedUpd.length > 0) {
+  if (context.ownershipRows.length === 0 && context.importedUpd.length > 0) {
     const groups = new Map();
     for (const source of context.importedUpd) {
       const candidate = source.payload;
@@ -62,7 +63,9 @@ export function buildUpd(context) {
       unitCode: '796',
       unit: row.unit || 'шт',
       quantity: row.quantity,
-      priceWithoutVat: row.priceWithoutVat,
+      priceWithoutVat: row.seasonalCalculation
+        ? row.costWithoutVat / row.quantity
+        : row.priceWithoutVat,
       costWithoutVat: row.costWithoutVat,
       vatRate: row.vatRate,
       vatAmount: row.vatAmount,
@@ -79,9 +82,9 @@ export function buildUpd(context) {
     paymentDocumentDate,
     rows,
     totals: {
-      costWithoutVat: sumBy(rows, 'costWithoutVat'),
-      vatAmount: sumBy(rows, 'vatAmount'),
-      totalWithVat: sumBy(rows, 'totalWithVat'),
+      costWithoutVat: roundedActTotal(rows, 'costWithoutVat'),
+      vatAmount: roundedActTotal(rows, 'vatAmount'),
+      totalWithVat: roundedActTotal(rows, 'totalWithVat'),
     },
   };
 }

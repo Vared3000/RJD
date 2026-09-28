@@ -6,6 +6,7 @@ import {
 } from '../../../utils/tabular-document.js';
 import { issuanceService } from './issuance.service.js';
 import { buildExportFileName } from '../../../utils/export-file-name.js';
+import { sortNomenclatureRows } from '../../print-forms/shared/nomenclature-order.js';
 
 // Задание на сборку — внутренний рабочий документ (не входит в каталог
 // официальных печатных форм print-forms), который кладовщик получает вместо
@@ -50,14 +51,17 @@ export const assemblyOrderService = {
       throw ApiError.badRequest('В документе нет позиций');
     }
 
-    const rows = document.lines
-      .filter((line) => Number(line.assemblyQuantity ?? line.quantity) > 0)
-      .map((line) => ({
-        modelName: line.model?.name ?? '—',
-        sizeLabel: sizeLabel(line.size),
-        heightLabel: line.heightSize?.value ?? '—',
-        quantity: Number(line.assemblyQuantity ?? line.quantity),
-      }));
+    const rows = sortNomenclatureRows(
+      document.lines
+        .filter((line) => Number(line.assemblyQuantity ?? line.quantity) > 0)
+        .map((line) => ({
+          modelId: line.modelId,
+          modelName: line.model?.name ?? '—',
+          sizeLabel: sizeLabel(line.size),
+          heightLabel: line.heightSize?.value ?? '—',
+          quantity: Number(line.assemblyQuantity ?? line.quantity),
+        })),
+    );
     if (rows.length === 0) {
       throw ApiError.badRequest('На складе пока нет ни одной позиции для сборки');
     }

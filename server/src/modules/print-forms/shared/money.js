@@ -7,8 +7,9 @@ export function floorMoney(value) {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return 0;
   // Сначала сбрасываем двоичный шум float, затем floor до копеек.
-  const normalized = Math.round(n * 1e6) / 1e6;
-  return Math.floor(normalized * 100) / 100;
+  // Остаёмся в целых миллионных до деления: 35.48 * 100 в JS может дать
+  // 3547.9999999999995 и ошибочно отнять ещё одну копейку.
+  return Math.floor(Math.round(n * 1e6) / 10000) / 100;
 }
 
 export function money(value) {

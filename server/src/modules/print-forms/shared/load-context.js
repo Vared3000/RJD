@@ -3,6 +3,7 @@ import { resolvePeriod, toDateOnly } from '../../reports/period.js';
 import { printFormsRepository } from '../print-forms.repository.js';
 import { printFormSettingsService } from '../settings/print-form-settings.service.js';
 import { dpoSnapshotAt } from './dpo-snapshot.js';
+import { monthlyRentalRepository } from '../monthly-rental-act/monthly-rental-act.repository.js';
 
 // Общий контекст для табличных актов за период (ФПУ-26, Приложения 1.5 и
 // 1.7, УПД): реквизиты ДПО на конец периода, проведённые документы выдачи,
@@ -18,7 +19,7 @@ export async function loadContext(query) {
   const modelIds = [
     ...new Set(documents.flatMap((document) => document.lines.map((line) => line.modelId))),
   ];
-  const [prices, importedNomenclature] = await Promise.all([
+  const [prices, importedNomenclature, ownershipRows] = await Promise.all([
     printFormsRepository.findPrices({
       modelIds,
       dpoId: query.dpoId,
@@ -27,6 +28,11 @@ export async function loadContext(query) {
       dpoName: dpo.name,
       from,
       to,
+    }),
+    monthlyRentalRepository.findOwnershipRows({
+      dpoId: query.dpoId,
+      monthStart: toDateOnly(from),
+      monthEnd: toDateOnly(to),
     }),
   ]);
   return {
@@ -39,5 +45,6 @@ export async function loadContext(query) {
     toText: toDateOnly(to),
     prices,
     importedNomenclature,
+    ownershipRows,
   };
 }

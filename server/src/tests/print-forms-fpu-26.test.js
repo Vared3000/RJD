@@ -46,7 +46,7 @@ test('печатная форма ФПУ-26: живые строки, смена
   assert.equal(
     sheet.getCell(`F${liveRow}`).value,
     1,
-    'ФПУ-26: учётное кол-во = 1 при выдаче 2 шт.',
+    'ФПУ-26: две одинаковые вещи дают одну расчётную единицу',
   );
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
@@ -169,15 +169,15 @@ test('печатная форма ФПУ-26: живые строки, смена
   assert.equal(archiveSheet.getColumn(7).hidden, false, 'исходная цена ФПУ должна быть видимой');
   assert.match(
     String(archiveSheet.getCell('A42').value ?? ''),
-    /ранняя строка/,
-    'строки архивного ФПУ-26 должны сохранять исходный порядок Excel',
+    /поздняя строка/,
+    'неизвестные модели должны идти стабильно по названию',
   );
-  assert.match(String(archiveSheet.getCell('A43').value ?? ''), /поздняя строка/);
-  assert.equal(archiveSheet.getCell('F42').value, 1);
-  assert.equal(archiveSheet.getCell('G42').value, 2224.85);
-  assert.equal(archiveSheet.getCell('H42').value, 2224.85);
-  assert.equal(archiveSheet.getCell('I43').value, 11323.95);
-  assert.equal(archiveSheet.getCell('K43').value, 566.19);
-  assert.equal(archiveSheet.getCell('L43').value, 11890.14);
+  assert.match(String(archiveSheet.getCell('A43').value ?? ''), /ранняя строка/);
+  assert.equal(archiveSheet.getCell('F43').value, 1);
+  assert.equal(archiveSheet.getCell('G43').value, 2224.85);
+  assert.equal(archiveSheet.getCell('H43').value, 2224.85);
+  assert.equal(archiveSheet.getCell('I42').value, 11323.95);
+  assert.equal(archiveSheet.getCell('K42').value, 566.19);
+  assert.equal(archiveSheet.getCell('L42').value, 11890.14);
   assert.equal(dpo.name, unique);
 });

@@ -1,4 +1,5 @@
 import { liveSourceEntry, sourceFields } from '../shared/print-form-data-sources.js';
+import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
 
 function rowKey(document, line) {
   return JSON.stringify([document.employeeId, line.modelId, line.model?.unit ?? 'шт.']);
@@ -28,18 +29,13 @@ export async function buildPreservationReceipt(context) {
     }
   }
 
-  const rows = [...grouped.values()]
-    .map((row) => ({
+  const rows = sortNomenclatureRows(
+    [...grouped.values()].map((row) => ({
       ...row,
       sourceReference: [...new Set(row.sourceReferences)].join(', '),
-    }))
-    .sort((left, right) => {
-      const employeeOrder = `${left.employeeName}${left.personnelNumber}`.localeCompare(
-        `${right.employeeName}${right.personnelNumber}`,
-        'ru',
-      );
-      return employeeOrder || left.modelName.localeCompare(right.modelName, 'ru');
-    });
+    })),
+    (row) => `${row.employeeName}:${row.personnelNumber}`,
+  );
 
   return {
     title: 'Сохранная расписка передачи комплекта форменной одежды',

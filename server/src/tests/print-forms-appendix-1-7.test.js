@@ -41,7 +41,7 @@ test('печатная форма Приложение 1.7: историческ
     true,
     'колонка «Код СКМТР / инвентарный номер» скрыта — в акте её нет',
   );
-  assert.equal(sheet.getCell('G8').value, 1, 'выдача qty=2 даёт учётное кол-во 1');
+  assert.equal(sheet.getCell('G8').value, 1, 'выдача qty=2 даёт одну расчётную единицу');
   assert.equal(sheet.getCell('E8').value, null, 'инвентарные номера в акт 1.7 не выводятся');
   assert.equal(sheet.getCell('H8').fill?.pattern, 'solid');
   assert.match(sheet.getCell('H8').numFmt, /0\.00/);
@@ -228,7 +228,7 @@ test('печатная форма Приложение 1.7: историческ
   assert.ok(archiveOrderValues.some((value) => value.includes('Архивный Работник Заказчика')));
   assert.match(
     String(archiveOrderWorkbook.worksheets[0].getCell('D8').value ?? ''),
-    /ранняя строка/,
-    'строки архивного акта должны сохранять исходный порядок Excel',
+    /поздняя строка/,
+    'неизвестные модели должны идти стабильно по названию',
   );
 });

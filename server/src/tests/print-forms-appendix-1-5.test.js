@@ -39,7 +39,7 @@ test('печатная форма Приложение 1.5: живые стро�
   assert.equal(
     sheet.getCell('E7').value,
     1,
-    'две одинаковые выданные вещи дают учётное количество 1',
+    'две одинаковые выданные вещи дают одну расчётную единицу',
   );
   assert.match(workbook.subject, /Сформировано/);
   const cellValues = [];
@@ -65,7 +65,7 @@ test('печатная форма Приложение 1.5: живые стро�
   assert.ok(pdf.body.length > 5000);
 
   // Архивные строки без сотрудника (formType='appendix-1-5' по умолчанию,
-  // должность заполнена) должны сохранять исходный порядок строк Excel и
+  // должность заполнена) подчиняются единому порядку изделий и сохраняют
   // собственные суммы из архива, а не пересчитанные. Живые строки убираются,
   // иначе они займут первую строку данных перед архивными.
   await destroyLiveIssuanceState(state);
@@ -136,13 +136,13 @@ test('печатная форма Приложение 1.5: живые стро�
   assert.equal(archiveSheet.getColumn(7).hidden, false, 'исходная цена должна быть видимой');
   assert.match(
     String(archiveSheet.getCell('C7').value ?? ''),
-    /ранняя строка/,
-    'строки архивного приложения 1.5 должны сохранять исходный порядок Excel',
+    /поздняя строка/,
+    'неизвестные модели должны идти стабильно по названию',
   );
-  assert.match(String(archiveSheet.getCell('C8').value ?? ''), /поздняя строка/);
-  assert.equal(archiveSheet.getCell('G7').value, 123.45);
-  assert.equal(archiveSheet.getCell('H7').value, 0);
-  assert.equal(archiveSheet.getCell('I7').value, 6.17);
-  assert.equal(archiveSheet.getCell('J8').value, 80);
-  assert.equal(archiveSheet.getCell('K8').value, 1680);
+  assert.match(String(archiveSheet.getCell('C8').value ?? ''), /ранняя строка/);
+  assert.equal(archiveSheet.getCell('G8').value, 123.45);
+  assert.equal(archiveSheet.getCell('H8').value, 0);
+  assert.equal(archiveSheet.getCell('I8').value, 6.17);
+  assert.equal(archiveSheet.getCell('J7').value, 80);
+  assert.equal(archiveSheet.getCell('K7').value, 1680);
 });

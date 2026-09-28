@@ -34,6 +34,7 @@ export function createFixtureState() {
     employeeId: null,
     positionId: null,
     modelId: null,
+    additionalModelId: null,
     sizeId: null,
     warehouseId: null,
     supplierId: null,
@@ -84,6 +85,8 @@ export async function cleanupFixtureState(state) {
   }
   if (state.positionId) await models.Position.destroy({ where: { id: state.positionId } });
   if (state.modelId) await models.NomenclatureModel.destroy({ where: { id: state.modelId } });
+  if (state.additionalModelId)
+    await models.NomenclatureModel.destroy({ where: { id: state.additionalModelId } });
   if (state.sizeId) await models.Size.destroy({ where: { id: state.sizeId } });
   if (state.warehouseId) await models.Warehouse.destroy({ where: { id: state.warehouseId } });
   if (state.supplierId) await models.Supplier.destroy({ where: { id: state.supplierId } });
@@ -107,7 +110,15 @@ function shortUniqueKey() {
 // (2 шт, 15.07.2026, проведена). Используется всеми тестами печатных форм — каждый
 // вызывает её со своим уникальным `unique`, поэтому фикстуры разных тестовых файлов
 // не пересекаются в общей тестовой схеме.
-export async function setupBaseFixture({ agent, auth, unique }) {
+export async function setupBaseFixture({
+  agent,
+  auth,
+  unique,
+  modelInput = {},
+  additionalModelInput = null,
+  issuanceDate = '2026-07-15',
+  receivingDate = '2026-07-01',
+}) {
   const state = createFixtureState();
 
   const organization = await auth(agent.post('/api/v1/organizations')).send({ name: unique });
@@ -132,8 +143,20 @@ export async function setupBaseFixture({ agent, auth, unique }) {
     unit: 'шт.',
     rentalPrice: 1000,
     rentalVatRate: 5,
+    ...modelInput,
   });
   state.modelId = model.body.data.id;
+  if (additionalModelInput) {
+    const additionalModel = await auth(agent.post('/api/v1/nomenclature-models')).send({
+      name: `${unique} летнее`,
+      sizeType: 'clothing',
+      unit: 'шт.',
+      rentalPrice: 1000,
+      rentalVatRate: 5,
+      ...additionalModelInput,
+    });
+    state.additionalModelId = additionalModel.body.data.id;
+  }
   const position = await auth(agent.post('/api/v1/positions')).send({ name: unique });
   state.positionId = position.body.data.id;
   const dpo = await auth(agent.post('/api/v1/dpo')).send({
@@ -188,7 +211,7 @@ export async function setupBaseFixture({ agent, auth, unique }) {
   const receiving = await auth(agent.post('/api/v1/purchases/receiving')).send({
     supplierId: state.supplierId,
     warehouseId: state.warehouseId,
-    documentDate: '2026-07-01',
+    documentDate: receivingDate,
   });
   state.receivingId = receiving.body.data.id;
   await auth(agent.post(`/api/v1/purchases/receiving/${state.receivingId}/lines`)).send({
@@ -197,17 +220,26 @@ export async function setupBaseFixture({ agent, auth, unique }) {
     quantity: 3,
     purchasePrice: 1000,
   });
+  if (state.additionalModelId) {
+    await auth(agent.post(`/api/v1/purchases/receiving/${state.receivingId}/lines`)).send({
+      modelId: state.additionalModelId,
+      sizeId: state.sizeId,
+      quantity: 2,
+    });
+  }
   const receivingPosted = await auth(
     agent.post(`/api/v1/purchases/receiving/${state.receivingId}/post`),
   );
   state.batchId = receivingPosted.body.data.batchId;
-  const instances = await models.Instance.findAll({ where: { modelId: state.modelId } });
+  const instances = await models.Instance.findAll({
+    where: { modelId: [state.modelId, state.additionalModelId].filter(Boolean) },
+  });
   state.instanceIds = instances.map((instance) => instance.id);
 
   const issuance = await auth(agent.post('/api/v1/issuance/documents')).send({
     employeeId: state.employeeId,
     warehouseId: state.warehouseId,
-    documentDate: '2026-07-15',
+    documentDate: issuanceDate,
   });
   state.issuanceId = issuance.body.data.id;
   await auth(agent.post(`/api/v1/issuance/documents/${state.issuanceId}/lines`)).send({
@@ -215,6 +247,13 @@ export async function setupBaseFixture({ agent, auth, unique }) {
     sizeId: state.sizeId,
     quantity: 2,
   });
+  if (state.additionalModelId) {
+    await auth(agent.post(`/api/v1/issuance/documents/${state.issuanceId}/lines`)).send({
+      modelId: state.additionalModelId,
+      sizeId: state.sizeId,
+      quantity: 2,
+    });
+  }
   await auth(agent.post(`/api/v1/issuance/documents/${state.issuanceId}/post`));
 
   return {

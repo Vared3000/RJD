@@ -11,15 +11,18 @@ export const monthlyRentalRepository = {
       `SELECT event.id AS "eventId",
               event.document_id AS "issuanceDocumentId",
               document.number AS "issuanceNumber",
-              event.occurred_at::date AS "issuedDate",
-              departure.occurred_at::date AS "returnedDate",
-              GREATEST(event.occurred_at::date, DATE :monthStart, assignment.valid_from) AS "intervalStart",
-              LEAST(COALESCE(departure.occurred_at::date, DATE :monthEnd), DATE :monthEnd,
+              document.document_date AS "issuedDate",
+              (departure.occurred_at AT TIME ZONE 'UTC')::date AS "returnedDate",
+              GREATEST(document.document_date, DATE :monthStart, assignment.valid_from) AS "intervalStart",
+              LEAST(COALESCE((departure.occurred_at AT TIME ZONE 'UTC')::date, DATE :monthEnd), DATE :monthEnd,
                     COALESCE(assignment.valid_to, DATE :monthEnd)) AS "intervalEnd",
               employee.id AS "employeeId", employee.full_name AS "employeeName",
+              employee.gender AS "employeeGender",
               employee.personnel_number AS "personnelNumber", position.name AS "positionName",
               instance.id AS "instanceId", instance.inventory_number AS "inventoryNumber",
               model.id AS "modelId", model.name AS "modelName", model.unit AS "unit",
+              model.article AS "article", position.id AS "positionId",
+              movement.wear_months_snapshot AS "wearMonthsSnapshot",
               size.value AS "sizeValue", height_size.value AS "heightValue",
               NULL::uuid AS "priceSourceId", NULL::date AS "priceEffectiveDate",
               model.rental_price AS "monthlyPriceWithoutVat",
@@ -27,6 +30,9 @@ export const monthlyRentalRepository = {
        FROM instance_events event
        JOIN issuance_documents document
          ON document.id = event.document_id AND document.status = 'posted'
+       JOIN stock_movements movement
+         ON movement.document_id = event.document_id AND movement.instance_id = event.instance_id
+        AND movement.document_type = 'issuance'
        JOIN instances instance ON instance.id = event.instance_id
        JOIN nomenclature_models model ON model.id = instance.model_id
        LEFT JOIN sizes size ON size.id = instance.size_id
@@ -43,18 +49,25 @@ export const monthlyRentalRepository = {
          FROM instance_events next_event
          WHERE next_event.instance_id = event.instance_id
            AND next_event.from_employee_id = event.to_employee_id
-           AND next_event.occurred_at >= event.occurred_at
+           AND (next_event.occurred_at > event.occurred_at
+                OR (next_event.occurred_at = event.occurred_at AND next_event.created_at >= event.created_at))
            AND next_event.to_employee_id IS DISTINCT FROM event.to_employee_id
+           AND EXISTS (
+             SELECT 1 FROM stock_movements departure_movement
+             WHERE departure_movement.document_id = next_event.document_id
+               AND departure_movement.document_type = next_event.document_type
+               AND departure_movement.instance_id = next_event.instance_id
+           )
          ORDER BY next_event.occurred_at, next_event.created_at
          LIMIT 1
        ) departure ON TRUE
        WHERE event.event_type = 'issuance'
          AND event.document_type = 'issuance'
          AND event.to_employee_id IS NOT NULL
-         AND event.occurred_at::date <= DATE :monthEnd
-         AND (departure.occurred_at IS NULL OR departure.occurred_at::date >= DATE :monthStart)
-         AND GREATEST(event.occurred_at::date, DATE :monthStart, assignment.valid_from)
-             <= LEAST(COALESCE(departure.occurred_at::date, DATE :monthEnd), DATE :monthEnd,
+         AND document.document_date <= DATE :monthEnd
+         AND (departure.occurred_at IS NULL OR (departure.occurred_at AT TIME ZONE 'UTC')::date >= DATE :monthStart)
+         AND GREATEST(document.document_date, DATE :monthStart, assignment.valid_from)
+             <= LEAST(COALESCE((departure.occurred_at AT TIME ZONE 'UTC')::date, DATE :monthEnd), DATE :monthEnd,
                       COALESCE(assignment.valid_to, DATE :monthEnd))
        ORDER BY employee.full_name, event.occurred_at, model.name, instance.inventory_number`,
       {

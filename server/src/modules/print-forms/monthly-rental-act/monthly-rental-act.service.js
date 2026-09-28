@@ -9,7 +9,9 @@ import {
   generateMonthlyRentalPdf,
 } from './monthly-rental-act.mapper.js';
 import { floorMoney } from '../shared/money.js';
+import { seasonalIntervals, rentalAmounts } from '../shared/seasonal-rental.js';
 import { buildExportFileName } from '../../../utils/export-file-name.js';
+import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
 const dateText = (value) =>
   value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 
@@ -25,12 +27,6 @@ export function resolveMonth(month) {
     monthEnd: `${month}-${String(daysInMonth).padStart(2, '0')}`,
     daysInMonth,
   };
-}
-
-function daysInclusive(from, to) {
-  return (
-    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1
-  );
 }
 
 function sourceReference(source) {
@@ -104,13 +100,22 @@ function archiveRows(sources, period, liveRows) {
 }
 
 export function calculateMonthlyRentalRows(rows, daysInMonth) {
-  return rows.map((source) => {
+  return rows.flatMap((source) => {
+    const intervals = seasonalIntervals({
+      from: source.intervalStart,
+      to: source.intervalEnd,
+      wearMonthsSnapshot: source.wearMonthsSnapshot,
+    });
     const rentalDays =
-      source.rentalDays ??
-      daysInclusive(dateText(source.intervalStart), dateText(source.intervalEnd));
+      source.rentalDays ?? intervals.reduce((sum, interval) => sum + interval.days, 0);
+    if (rentalDays === 0) return [];
     const monthlyPriceWithoutVat = floorMoney(source.monthlyPriceWithoutVat);
     const vatRate = Number(source.vatRate ?? 5);
-    const costWithoutVat = floorMoney((monthlyPriceWithoutVat * rentalDays) / daysInMonth);
+    const calculated = rentalAmounts(intervals, monthlyPriceWithoutVat, vatRate);
+    const costWithoutVat =
+      source.rentalDays == null
+        ? calculated.costWithoutVat
+        : floorMoney((monthlyPriceWithoutVat * rentalDays) / daysInMonth);
     const vatAmount = floorMoney((costWithoutVat * vatRate) / 100);
     const totalWithVat = floorMoney(costWithoutVat + vatAmount);
     const warnings = [...(source.warnings ?? [])];
@@ -177,10 +182,9 @@ async function build(dpoId, month) {
     warnings: [],
   }));
   sourceRows.push(...archiveRows(archive, period, sourceRows));
-  const rows = calculateMonthlyRentalRows(sourceRows, period.daysInMonth).sort(
-    (left, right) =>
-      left.employeeName.localeCompare(right.employeeName, 'ru') ||
-      left.modelName.localeCompare(right.modelName, 'ru'),
+  const rows = sortNomenclatureRows(
+    calculateMonthlyRentalRows(sourceRows, period.daysInMonth),
+    (row) => `${row.employeeName}:${row.personnelNumber}`,
   );
   const employeeGroups = Object.values(
     rows.reduce((groups, row) => {

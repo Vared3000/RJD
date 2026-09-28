@@ -1,8 +1,9 @@
-import { computeCoverageDays } from '../../reports/coverage.service.js';
-import { num, money, calculateMoney, priceValues, priceForLine } from '../shared/money.js';
+import { num, money, calculateMoney, priceValues } from '../shared/money.js';
+import { rentalRows, rentalSourceEntries } from '../shared/rental-data.js';
+import { roundedActTotal } from '../shared/precise-money.js';
+import { sortNomenclatureRows } from '../shared/nomenclature-order.js';
 import { accountingQuantity } from '../shared/quantities.js';
 import {
-  liveSourceEntry,
   archiveSourceEntry,
   mergeSourceEntries,
   sourceFields,
@@ -10,7 +11,7 @@ import {
 import { baseData, importedCandidates } from '../shared/tabular-form.js';
 
 function appendix15Data(context, rows) {
-  return baseData(
+  const data = baseData(
     context,
     'Приложение 1.5 - обеспечение форменной одеждой по должностям',
     'Приложение 1.5',
@@ -29,8 +30,15 @@ function appendix15Data(context, rows) {
       },
       {
         key: 'priceWithoutVat',
-        label: 'Стоимость за месяц без НДС',
+        label: 'Цена за месяц без НДС',
         width: 17,
+        numeric: true,
+        numberFormat: '#,##0.00',
+      },
+      {
+        key: 'displayedPriceWithoutVat',
+        label: 'Стоимость за месяц без НДС',
+        width: 16,
         numeric: true,
         numberFormat: '#,##0.00',
       },
@@ -40,13 +48,6 @@ function appendix15Data(context, rows) {
         width: 16,
         numeric: true,
         total: true,
-        numberFormat: '#,##0.00',
-      },
-      {
-        key: 'priceWithVat',
-        label: 'Цена за ед. с НДС',
-        width: 16,
-        numeric: true,
         numberFormat: '#,##0.00',
       },
       {
@@ -67,18 +68,16 @@ function appendix15Data(context, rows) {
       },
     ],
     rows,
-    [
-      { column: 7, key: 'costWithoutVat', build: (row) => `D${row}*F${row}` },
-      { column: 9, key: 'vatAmount', build: (row) => `J${row}-G${row}` },
-      { column: 10, key: 'totalWithVat', build: (row) => `D${row}*H${row}` },
-    ],
+    [],
   );
+  for (const key of ['costWithoutVat', 'vatAmount', 'totalWithVat']) {
+    data.totals[key] = roundedActTotal(rows, key);
+  }
+  return data;
 }
 
 export async function buildAppendix15(context) {
-  const liveEntries = context.documents.flatMap((document) =>
-    document.lines.map((line) => liveSourceEntry({ dpo: context.dpo, document, line })),
-  );
+  const liveEntries = rentalSourceEntries(context);
   const archiveEntries = importedCandidates(context, false)
     .filter((candidate) => candidate.position && !candidate.employee && candidate.name)
     .map((candidate) =>
@@ -89,48 +88,7 @@ export async function buildAppendix15(context) {
       }),
     );
   const entries = mergeSourceEntries(liveEntries, archiveEntries);
-  const retainedLive = entries.filter((entry) => entry.source === 'live');
-  const employeeIds = [...new Set(retainedLive.map((entry) => entry.document.employeeId))];
-  const coverage = await computeCoverageDays({
-    from: context.from,
-    to: context.to,
-    employeeIds,
-  });
-  const grouped = new Map();
-  for (const entry of retainedLive) {
-    const { document, line } = entry;
-    const price = priceValues(priceForLine(context, document, line));
-    const positionName = document.employee?.position?.name ?? 'Должность не указана';
-    const key = JSON.stringify([positionName, line.modelId, price.priceWithoutVat]);
-    const row = grouped.get(key) ?? {
-      positionName,
-      modelName: line.model?.name ?? '',
-      unit: line.model?.unit ?? 'шт.',
-      quantity: 0,
-      employeeIds: new Set(),
-      ...price,
-      ...sourceFields(entry),
-    };
-    // Учётное кол-во на группу: не более 1, coverageDays считается отдельно.
-    row.quantity = Math.max(row.quantity, accountingQuantity(line.quantity));
-    row.employeeIds.add(document.employeeId);
-    grouped.set(key, row);
-  }
-  const liveRows = [...grouped.values()]
-    .map((row) => {
-      const coverageDays = [...row.employeeIds].reduce(
-        (sum, employeeId) => sum + (coverage.get(employeeId) ?? 0),
-        0,
-      );
-      return {
-        ...row,
-        coverageDays,
-        ...calculateMoney(row.quantity, row.priceWithoutVat, row.vatRate, row.priceWithVat),
-      };
-    })
-    .sort((a, b) =>
-      `${a.positionName}${a.modelName}`.localeCompare(`${b.positionName}${b.modelName}`, 'ru'),
-    );
+  const liveRows = rentalRows(entries, { byPosition: true });
   const archiveRows = entries
     .filter((entry) => entry.source === 'archive')
     .map((entry) => {
@@ -145,6 +103,7 @@ export async function buildAppendix15(context) {
         quantity,
         coverageDays: num(candidate.coverageDays),
         ...price,
+        displayedPriceWithoutVat: price.priceWithoutVat,
         costWithoutVat:
           candidate.subtotalWithoutVat != null
             ? money(candidate.subtotalWithoutVat)
@@ -161,5 +120,8 @@ export async function buildAppendix15(context) {
         ...sourceFields(entry),
       };
     });
-  return appendix15Data(context, [...liveRows, ...archiveRows]);
+  return appendix15Data(
+    context,
+    sortNomenclatureRows([...liveRows, ...archiveRows], (row) => row.positionName),
+  );
 }

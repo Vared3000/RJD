@@ -4,6 +4,7 @@ import { printFormsRepository } from '../print-forms.repository.js';
 import { printFormSettingsService } from '../settings/print-form-settings.service.js';
 import { dpoSnapshotAt } from '../shared/dpo-snapshot.js';
 import { num } from '../shared/money.js';
+import { compareNomenclatureRows } from '../shared/nomenclature-order.js';
 
 function inferServiceLifeYears(name) {
   const value = String(name ?? '').toLowerCase();
@@ -194,8 +195,7 @@ export function buildPersonalCard(context) {
   }
   rows.sort(
     (left, right) =>
-      left.sortIndex - right.sortIndex ||
-      left.modelName.localeCompare(right.modelName, 'ru') ||
+      compareNomenclatureRows(left, right) ||
       String(left.issuedDate ?? '').localeCompare(String(right.issuedDate ?? '')),
   );
 

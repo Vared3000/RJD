@@ -7,6 +7,7 @@ import {
 import { buildExportFileName } from '../../utils/export-file-name.js';
 import { reportsService } from './reports.service.js';
 import { reportsRepository } from './reports.repository.js';
+import { sortNomenclatureRows } from '../print-forms/shared/nomenclature-order.js';
 
 const REPORTS = {
   'stock-balances': {
@@ -237,6 +238,12 @@ export const reportExportService = {
       throw ApiError.badRequest('Поддерживаются форматы xlsx и pdf');
     }
     const result = await reportsService[config.method](query);
+    if (report === 'stock-balances') {
+      result.rows = sortNomenclatureRows(
+        result.rows,
+        (row) => `${row.warehouse?.name ?? ''}:${row.genderCategoryLabel ?? ''}`,
+      );
+    }
     const configWithSubtitle = { ...config, subtitle: periodText(result) };
     const buffer =
       format === 'pdf'

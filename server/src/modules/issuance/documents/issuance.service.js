@@ -14,7 +14,6 @@ import {
 } from '../../nomenclature/instances/instance-dependency-check.js';
 import { documentRevisionsRepository } from '../../documents/document-revisions.repository.js';
 import { flagStaleForIssuanceRevision } from '../../print-forms/monthly-rental-act/monthly-rental-act.service.js';
-import { floorMoney } from '../../print-forms/shared/money.js';
 import {
   ALL_WEAR_MONTHS,
   normalizeWearMonths,
@@ -160,13 +159,15 @@ function waitingTaskStatus(task, pendingDraftDocumentId = null) {
 
 function priceSnapshot(price) {
   if (!price) return null;
-  const withoutVat = floorMoney(price.priceWithoutVat);
-  const withVat = price.priceWithVat == null ? null : floorMoney(price.priceWithVat);
+  // В источнике ставка аренды может иметь 4 знака после запятой. Не теряем
+  // доли копейки в снимке: акты суммируют их и округляют лишь конечный итог.
+  const fourDecimals = (value) => Number(Number(value).toFixed(4));
+  const withoutVat = fourDecimals(price.priceWithoutVat);
+  const withVat = price.priceWithVat == null ? null : fourDecimals(price.priceWithVat);
   const rate = Number(price.vatRate ?? 5);
   const derivedVat = withVat != null && withoutVat > 0 ? (withVat / withoutVat - 1) * 100 : rate;
   const vatRate = Number(price.vatRate ?? derivedVat);
-  const priceWithVatSnapshot =
-    withVat ?? floorMoney(withoutVat + floorMoney((withoutVat * vatRate) / 100));
+  const priceWithVatSnapshot = withVat ?? fourDecimals(withoutVat * (1 + vatRate / 100));
   return {
     priceSourceId: price.id,
     priceEffectiveDate: price.effectiveDate,
@@ -238,6 +239,11 @@ async function applyIssuanceSideEffects(
   });
 
   for (const line of lines) {
+    // Снимок нужен даже при нулевом остатке: в этом случае строка
+    // удалится из выдачи, но задача на доукомплектовку останется.
+    const seasonalModel =
+      line.model ?? (await issuanceRepository.findActiveModel(line.modelId, { transaction }));
+    const wearMonthsSnapshot = normalizeWearMonths(seasonalModel?.wearMonths ?? ALL_WEAR_MONTHS);
     const instances = await issuanceRepository.findAvailableInstances(
       {
         modelId: line.modelId,
@@ -263,6 +269,7 @@ async function applyIssuanceSideEffects(
         sizeId: line.sizeId,
         heightSizeId: line.heightSizeId ?? null,
         missingQuantity: line.quantity - instances.length,
+        wearMonthsSnapshot,
       });
     }
 
@@ -291,8 +298,6 @@ async function applyIssuanceSideEffects(
     const replacementDate = serviceLifeYears
       ? plannedReplacementDate(document.documentDate, serviceLifeYears)
       : null;
-    const wearMonthsSnapshot = normalizeWearMonths(line.model?.wearMonths ?? ALL_WEAR_MONTHS);
-
     for (const instance of instances) {
       allInstanceIds.push(instance.id);
       issuedInstancesById.set(instance.id, instance);

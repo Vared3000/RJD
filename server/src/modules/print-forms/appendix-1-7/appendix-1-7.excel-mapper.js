@@ -53,6 +53,7 @@ function fillAppendix17(sheet, data, positions, markers) {
 
   const quantityCol = columnLetter(sheet, rowColumn.get('QUANTITY'), positions.dataStart);
   const priceCol = columnLetter(sheet, rowColumn.get('PRICE_WITHOUT_VAT'), positions.dataStart);
+  const costCol = columnLetter(sheet, rowColumn.get('COST_WITHOUT_VAT'), positions.dataStart);
   const vatCol = columnLetter(sheet, rowColumn.get('VAT_AMOUNT'), positions.dataStart);
   const totalCol = columnLetter(sheet, rowColumn.get('TOTAL_WITH_VAT'), positions.dataStart);
 
@@ -85,23 +86,34 @@ function fillAppendix17(sheet, data, positions, markers) {
       sheet.getCell(rowNumber, rowColumn.get('PRICE_WITHOUT_VAT')).address,
       Number(row.priceWithoutVat || 0),
     );
-    const quantity = Number(row.quantity || 0);
-    const unitVat = quantity > 0 ? Number(row.vatAmount || 0) / quantity : 0;
-    const unitTotal = quantity > 0 ? Number(row.totalWithVat || 0) / quantity : 0;
     set(
       sheet,
       sheet.getCell(rowNumber, rowColumn.get('COST_WITHOUT_VAT')).address,
       formula(`${quantityCol}${rowNumber}*${priceCol}${rowNumber}`, row.subtotalWithoutVat),
     );
+    const quantity = Number(row.quantity || 0);
+    const archive = row.dataSource === 'archive';
+    const unitVat = quantity > 0 ? Number(row.vatAmount || 0) / quantity : 0;
+    const unitTotal = quantity > 0 ? Number(row.totalWithVat || 0) / quantity : 0;
     set(
       sheet,
       sheet.getCell(rowNumber, rowColumn.get('VAT_AMOUNT')).address,
-      formula(`${quantityCol}${rowNumber}*${unitVat}`, row.vatAmount),
+      formula(
+        archive
+          ? `${quantityCol}${rowNumber}*${unitVat}`
+          : `${costCol}${rowNumber}*${Number(row.vatRate ?? 5)}/100`,
+        row.vatAmount,
+      ),
     );
     set(
       sheet,
       sheet.getCell(rowNumber, rowColumn.get('TOTAL_WITH_VAT')).address,
-      formula(`${quantityCol}${rowNumber}*${unitTotal}`, row.totalWithVat),
+      formula(
+        archive
+          ? `${quantityCol}${rowNumber}*${unitTotal}`
+          : `${costCol}${rowNumber}+${vatCol}${rowNumber}`,
+        row.totalWithVat,
+      ),
     );
   });
   mergeGroups(
